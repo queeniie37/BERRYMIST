@@ -14,6 +14,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptPolicy, setAcceptPolicy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -29,6 +30,11 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       return;
     }
 
+    if (isRegister && !acceptPolicy) {
+      setError('يجب الموافقة على سياسة وقوانين المنصة للمتابعة والتسجيل.');
+      return;
+    }
+
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
 
     if (isRegister) {
@@ -40,7 +46,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       }
 
       // Check if trying to register owner email
-      const isOwnerEmail = email.toLowerCase() === 'berrymist11@gmail.com';
+      const isOwnerEmail = email.toLowerCase() === 'hanona37hh@gmail.com';
       const role: UserRole = isOwnerEmail ? 'OWNER' : 'MEMBER';
 
       const newUser: User & { password?: string } = {
@@ -70,10 +76,10 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     } else {
       // Sign In
       // Check for hardcoded owner login
-      if (email.toLowerCase() === 'berrymist11@gmail.com' && password === 'berry11') {
+      if (email.toLowerCase() === 'hanona37hh@gmail.com' && password === 'berry11') {
         const ownerUser = {
           ...DEFAULT_USERS.OWNER,
-          email: 'berrymist11@gmail.com'
+          email: 'hanona37hh@gmail.com'
         };
         BerryDatabase.set('current_user_data', ownerUser);
         BerryDatabase.set('current_role', 'OWNER' as UserRole);
@@ -174,7 +180,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
             </div>
             {!isRegister && (
               <span className="text-[10px] text-purple-400 block mt-0.5 text-right">
-                بريد المالك: <code className="text-violet-300 font-mono">berrymist11@gmail.com</code> (كلمة السر: <code className="text-violet-300 font-mono">berry11</code>)
+                بريد المالك: <code className="text-violet-300 font-mono">hanona37hh@gmail.com</code> (كلمة السر: <code className="text-violet-300 font-mono">berry11</code>)
               </span>
             )}
           </div>
@@ -193,6 +199,21 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
               <Lock size={14} className="absolute top-3.5 right-3.5 text-purple-400" />
             </div>
           </div>
+
+          {isRegister && (
+            <label className="flex items-start gap-2.5 cursor-pointer mt-1 select-none text-right">
+              <input 
+                type="checkbox"
+                checked={acceptPolicy}
+                onChange={(e) => setAcceptPolicy(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-violet-600 rounded cursor-pointer"
+                required
+              />
+              <span className="text-[10px] text-purple-300 leading-relaxed">
+                أوافق على <span className="font-bold text-white text-[11px]">سياسة المنصة الفاخرة</span>: عدم التلفظ بعبارات مخلة، احترام القراء الآخرين، عدم سرقة جهود المترجمين، وحفظ كافة الحقوق.
+              </span>
+            </label>
+          )}
 
           <button 
             type="submit"

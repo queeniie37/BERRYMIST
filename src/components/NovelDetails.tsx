@@ -431,25 +431,36 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {isTranslatorOrOwner && (
             <button 
               onClick={() => {
-                const newUrl = prompt('الرجاء إدخال رابط الصورة الجديد لغلاف الرواية (يجب أن يكون بصيغة .png فقط):', novel.cover);
-                if (newUrl !== null && newUrl.trim() !== '') {
-                  const trimmedUrl = newUrl.trim();
-                  const cleanUrl = trimmedUrl.split('?')[0].split('#')[0].toLowerCase();
-                  if (!cleanUrl.endsWith('.png') && !trimmedUrl.includes('.png')) {
-                    alert('عذراً، يجب أن يكون رابط الصورة بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض الفاخرة بالمنصة!');
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.png';
+                input.onchange = (e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0];
+                  if (!file) return;
+                  
+                  const extension = file.name.split('.').pop()?.toLowerCase();
+                  if (extension !== 'png') {
+                    alert('عذراً، يجب أن يكون الملف بصيغة PNG فقط لضمان جودة العرض الفاخرة بالمنصة!');
                     return;
                   }
-                  // Update in database
-                  const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-                  const updatedNovels = allNovels.map(n => n.id === novel.id ? { ...n, cover: trimmedUrl } : n);
-                  BerryDatabase.set('novels', updatedNovels);
                   
-                  // Update local state
-                  setNovel({ ...novel, cover: trimmedUrl });
-                  alert('تم تحديث غلاف الرواية بنجاح! 🎉');
-                  // Trigger event so any other components update if listening
-                  window.dispatchEvent(new Event('novels-updated'));
-                }
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const base64String = reader.result as string;
+                    // Update in database
+                    const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+                    const updatedNovels = allNovels.map(n => n.id === novel.id ? { ...n, cover: base64String } : n);
+                    BerryDatabase.set('novels', updatedNovels);
+                    
+                    // Update local state
+                    setNovel({ ...novel, cover: base64String });
+                    alert('تم تحديث غلاف الرواية بنجاح بصورة PNG المرفقة! 🎉');
+                    // Trigger event so any other components update if listening
+                    window.dispatchEvent(new Event('novels-updated'));
+                  };
+                  reader.readAsDataURL(file);
+                };
+                input.click();
               }}
               className="w-full py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/30 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-violet-500/5"
             >
@@ -827,6 +838,17 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {/* TAB 3: Comments System */}
           {activeTab === 'comments' && (
             <div className="flex flex-col gap-6">
+              {/* Policy alert enforcement */}
+              <div className="p-3 bg-violet-600/5 border border-violet-500/20 rounded-2xl text-right flex items-start gap-2.5">
+                <span className="text-sm">⚠️</span>
+                <div>
+                  <span className="text-[10px] font-extrabold text-violet-400 block mb-0.5 font-sans">سياسة وقوانين التفاعل بالمنصة</span>
+                  <p className="text-[10px] text-purple-300 leading-relaxed">
+                    يرجى احترام كافة القراء والمترجمين الآخرين. يمنع منعاً باتاً التلفظ بعبارات مخلة أو مسيئة، كما يمنع سرقة جهود المترجمين ونسبها لجهات أخرى. الحسابات المخالفة تتعرض للحظر الفوري المباشر.
+                  </p>
+                </div>
+              </div>
+
               {/* Form to submit comment */}
               <form onSubmit={handleAddComment} className="flex gap-3">
                 <input 

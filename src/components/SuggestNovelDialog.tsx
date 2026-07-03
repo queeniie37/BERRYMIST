@@ -21,7 +21,7 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
 
-  // Simulating JPG/WEBP upload as requested in the specs (Direct Upload only, no URLs, JPG/JPEG/WEBP)
+  // Real PNG file upload & Base64 encoding
   const handleSimulatedUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -34,17 +34,27 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
 
     setError('');
     setUploadProgress(10);
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev !== null && prev >= 100) {
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      let progress = 10;
+      const interval = setInterval(() => {
+        progress += 30;
+        if (progress >= 100) {
           clearInterval(interval);
-          // Set beautiful unsplash fallback related to covers with PNG format
-          setCover('https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=600&fm=png');
-          return 100;
+          setUploadProgress(100);
+          setCover(base64String);
+        } else {
+          setUploadProgress(progress);
         }
-        return (prev || 0) + 20;
-      });
-    }, 100);
+      }, 100);
+    };
+    reader.onerror = () => {
+      setError('حدث خطأ أثناء قراءة ملف الصورة. يرجى المحاولة مرة أخرى.');
+      setUploadProgress(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleGenreToggle = (genre: string) => {

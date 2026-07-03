@@ -13,6 +13,8 @@ export interface User {
   paypalEmail?: string;
   bio?: string;
   customStatus?: string;
+  banner?: string;
+  supportLink?: string;
 }
 
 export type NovelStatus = 'AVAILABLE' | 'RESERVED' | 'TRANSLATING' | 'HIATUS' | 'COMPLETED' | 'ONGOING' | 'PENDING' | 'CANCELLED' | 'PENDING_APPROVAL';

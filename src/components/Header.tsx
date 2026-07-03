@@ -51,12 +51,55 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
     setSearchResults(filtered);
   }, [searchQuery]);
 
-  const notifications = BerryDatabase.get<any[]>('notifications', [
-    { id: '1', title: 'فصل جديد متاح!', message: 'الفصل 165 من "بداية بعد النهاية" متوفر الآن للقراءة.', isRead: false, createdAt: 'منذ ١٠ دقائق' },
-    { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
-  ]);
+  const [localNotifications, setLocalNotifications] = useState<any[]>([]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const loadNotifications = () => {
+    const rawNotifications = BerryDatabase.get<any[]>('notifications', [
+      { id: '1', title: 'فصل جديد متاح!', message: 'الفصل 165 من "بداية بعد النهاية" متوفر الآن للقراءة.', isRead: false, createdAt: 'منذ ١٠ دقائق' },
+      { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
+    ]);
+
+    const filtered = rawNotifications.filter(n => {
+      if (currentUser.role === 'GUEST') {
+        return !n.userId && !n.email;
+      }
+      return !n.userId && !n.email || n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase();
+    });
+    setLocalNotifications(filtered);
+  };
+
+  useEffect(() => {
+    loadNotifications();
+
+    const handleUpdate = () => {
+      loadNotifications();
+    };
+    window.addEventListener('user-updated', handleUpdate);
+    window.addEventListener('notifications-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('user-updated', handleUpdate);
+      window.removeEventListener('notifications-updated', handleUpdate);
+    };
+  }, [currentUser]);
+
+  const handleMarkAllRead = () => {
+    const rawNotifications = BerryDatabase.get<any[]>('notifications', [
+      { id: '1', title: 'فصل جديد متاح!', message: 'الفصل 165 من "بداية بعد النهاية" متوفر الآن للقراءة.', isRead: false, createdAt: 'منذ ١٠ دقائق' },
+      { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
+    ]);
+    const updated = rawNotifications.map(n => {
+      const isTarget = currentUser.role !== 'GUEST' && (n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase());
+      if (isTarget || (!n.userId && !n.email)) {
+        return { ...n, isRead: true };
+      }
+      return n;
+    });
+    BerryDatabase.set('notifications', updated);
+    loadNotifications();
+    window.dispatchEvent(new Event('notifications-updated'));
+  };
+
+  const unreadCount = localNotifications.filter(n => !n.isRead).length;
 
   return (
     <>
@@ -194,10 +237,15 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
               <div className="absolute left-0 mt-3 w-80 glass-panel rounded-2xl p-4 shadow-2xl border border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
                   <h4 className="font-bold text-sm text-purple-200">الإشعارات</h4>
-                  <button className="text-xs text-violet-400 hover:text-violet-300">تعليم الكل كمقروء</button>
+                  <button 
+                    onClick={handleMarkAllRead} 
+                    className="text-xs text-violet-400 hover:text-violet-300 cursor-pointer"
+                  >
+                    تعليم الكل كمقروء
+                  </button>
                 </div>
                 <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-                  {notifications.map((notif) => (
+                  {localNotifications.map((notif) => (
                     <div 
                       key={notif.id} 
                       className={`p-2.5 rounded-xl text-right transition-colors ${notif.isRead ? 'bg-transparent' : 'bg-violet-500/10'}`}
@@ -209,7 +257,23 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                       <p className="text-xs text-purple-300/90 mt-1">{notif.message}</p>
                     </div>
                   ))}
+
+                  {localNotifications.length === 0 && (
+                    <p className="text-xs text-purple-400 py-6 text-center">لا توجد إشعارات حالياً.</p>
+                  )}
                 </div>
+
+                {localNotifications.length > 0 && (
+                  <button 
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      onNavigate('notifications');
+                    }}
+                    className="w-full mt-3 py-2 bg-gradient-to-r from-berry-600/20 to-violet-600/20 hover:from-berry-600/40 hover:to-violet-600/40 border border-violet-500/20 text-white rounded-xl text-xs font-bold transition-all cursor-pointer text-center block"
+                  >
+                    عرض الكل 👁️
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -353,12 +417,21 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             >
               ✒️ كاتب ومؤلف
             </button>
-            <button 
-              onClick={() => { onRoleChange('OWNER'); setRoleSelectorOpen(false); }}
-              className={`p-2.5 col-span-2 rounded-xl border font-semibold transition-all ${currentUser.role === 'OWNER' ? 'bg-violet-600 text-white border-violet-500' : 'bg-white/5 text-purple-300 border-white/5 hover:bg-white/10'}`}
-            >
-              👑 المالك والمدير (تحكم شامل)
-            </button>
+            {currentUser.email === 'hanona37hh@gmail.com' ? (
+              <button 
+                onClick={() => { onRoleChange('OWNER'); setRoleSelectorOpen(false); }}
+                className={`p-2.5 col-span-2 rounded-xl border font-semibold transition-all ${currentUser.role === 'OWNER' ? 'bg-violet-600 text-white border-violet-500' : 'bg-white/5 text-purple-300 border-white/5 hover:bg-white/10'}`}
+              >
+                👑 المالك والمدير (تحكم شامل)
+              </button>
+            ) : (
+              <button 
+                onClick={() => alert('خطأ أمني: هذه الرتبة مخصصة لمالك الموقع فقط! يرجى تسجيل الدخول كمالك بحسابك (hanona37hh@gmail.com) أولاً للوصول.')}
+                className="p-2.5 col-span-2 rounded-xl border border-white/5 bg-white/5 text-purple-400/50 cursor-not-allowed font-semibold text-center"
+              >
+                🔒 رتبة المالك مغلقة (يتطلب تسجيل دخول المالك)
+              </button>
+            )}
           </div>
           <p className="text-[10px] text-purple-400 text-center mt-3">بيانات محاكاة Berry Mist محفوظة تلقائياً في LocalStorage</p>
         </div>

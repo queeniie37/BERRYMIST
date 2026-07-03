@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck } from 'lucide-react';
+import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck, Upload } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User, TranslatorRequest } from '../types';
 import { BerryDatabase } from '../data';
 
@@ -13,9 +13,15 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users'>('novels');
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [activeRejectId, setActiveRejectId] = useState<string | null>(null);
+
+  // Users management states
+  const [users, setUsers] = useState<any[]>([]);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [newRoleVal, setNewRoleVal] = useState<string>('MEMBER');
+  const [roleChangeReason, setRoleChangeReason] = useState<string>('');
 
   const [siteNameInput, setSiteNameInput] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
   const [siteLogoInput, setSiteLogoInput] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
@@ -108,6 +114,20 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     // Load translator requests
     const allReqs = BerryDatabase.get<TranslatorRequest[]>('translator_requests', []);
     setTranslatorRequests(allReqs);
+
+    // Load registered users from database or set defaults
+    const defaultUsersList = [
+      { id: 'member-1', username: 'عضو_الضباب', email: 'member@berrymist.com', role: 'MEMBER', xp: 250, level: 3, avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=member1', bio: 'قارئ شغوف للروايات الكورية والصينية، أهوى التفاعل وكتابة المراجعات العميقة.' },
+      { id: 'translator-1', username: 'مترجم_الظلال', email: 'translator@berrymist.com', role: 'TRANSLATOR', xp: 2450, level: 12, avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=translator1', bio: 'مترجم روايات فانتازيا وأكشن بخبرة تزيد عن 3 سنوات. شعاري: الدقة والسرعة في النشر.' },
+      { id: 'writer-1', username: 'كاتب_الأساطير', email: 'writer@berrymist.com', role: 'WRITER', xp: 1200, level: 8, avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=writer1', bio: 'كاتب ومؤلف قصص خيالية وفانتازيا عربية أصلية بمستويات شيقة ومثيرة.' }
+    ];
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+    if (usersDb.length === 0) {
+      BerryDatabase.set('users_db', defaultUsersList);
+      setUsers(defaultUsersList);
+    } else {
+      setUsers(usersDb);
+    }
   }, []);
 
   // Approve pending novel
@@ -348,6 +368,62 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     alert('تم رفض طلب الانضمام كمترجم وإرسال الإشعار له.');
   };
 
+  // Change user role from Admin Panel
+  const handleUpdateUserRole = (userId: string) => {
+    if (!roleChangeReason.trim()) {
+      alert('الرجاء كتابة سبب تغيير الرتبة.');
+      return;
+    }
+
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+    const userIndex = usersDb.findIndex(u => u.id === userId);
+    if (userIndex === -1) return;
+
+    const oldRole = usersDb[userIndex].role;
+    const targetEmail = usersDb[userIndex].email;
+    const targetUsername = usersDb[userIndex].username;
+
+    usersDb[userIndex].role = newRoleVal;
+    BerryDatabase.set('users_db', usersDb);
+    setUsers(usersDb);
+
+    // If that user is logged in, update current_user_data
+    const currentUserData = BerryDatabase.get<any>('current_user_data', null);
+    if (currentUserData && currentUserData.id === userId) {
+      currentUserData.role = newRoleVal;
+      BerryDatabase.set('current_user_data', currentUserData);
+      BerryDatabase.set('current_role', newRoleVal);
+      window.dispatchEvent(new Event('user-updated'));
+    }
+
+    // Add notification with reason
+    const roleLabels: any = {
+      GUEST: 'زائر',
+      MEMBER: 'قارئ',
+      TRANSLATOR: 'مترجم وكاتب',
+      WRITER: 'كاتب ومؤلف',
+      SUPERVISOR: 'مشرف',
+      OWNER: 'مالك'
+    };
+
+    const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+    const newNotif = {
+      id: `notif-role-${Date.now()}`,
+      userId: userId,
+      email: targetEmail,
+      title: '👑 تم تعديل رتبتك من قبل الإدارة',
+      message: `تم تغيير رتبتك من (${roleLabels[oldRole] || oldRole}) إلى (${roleLabels[newRoleVal] || newRoleVal}). السبب: ${roleChangeReason.trim()}`,
+      type: 'ROLE' as const,
+      isRead: false,
+      createdAt: 'الآن'
+    };
+    BerryDatabase.set('notifications', [newNotif, ...allNotifs]);
+
+    alert(`تم بنجاح تغيير رتبة المستخدم "${targetUsername}" إلى "${roleLabels[newRoleVal]}" وإرسال إشعار فوري له بالسبب.`);
+    setEditingUserId(null);
+    setRoleChangeReason('');
+  };
+
   return (
     <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
       
@@ -419,6 +495,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
         >
           <span>إعدادات هوية المنصة ⚙️</span>
           {activeTab === 'settings' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
+        <button 
+          onClick={() => setActiveTab('users')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'users' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>إدارة رتب الأعضاء 👤</span>
+          {activeTab === 'users' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
       </div>
 
@@ -701,30 +784,86 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                     />
                   </div>
 
+                  {/* Logo File / Emoji Upload */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-purple-200">شعار الموقع (إيموجي أو رابط صورة)</label>
-                    <input 
-                      type="text"
-                      value={siteLogoInput}
-                      onChange={(e) => setSiteLogoInput(e.target.value)}
-                      placeholder="مثال: 🍇 أو رابط صورة شعار"
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
-                      required
-                    />
+                    <label className="text-xs font-bold text-purple-200">شعار الموقع (ملف PNG أو إيموجي)</label>
+                    <div className="flex gap-2 items-center">
+                      <input 
+                        type="text"
+                        value={siteLogoInput}
+                        onChange={(e) => setSiteLogoInput(e.target.value)}
+                        placeholder="اكتب إيموجي (مثال: 🍇) أو ارفع ملف يساراً"
+                        className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      />
+                      <div className="relative overflow-hidden shrink-0">
+                        <button 
+                          type="button"
+                          className="px-4 py-3 bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/25 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Upload size={14} />
+                          <span>رفع PNG</span>
+                        </button>
+                        <input 
+                          type="file" 
+                          accept=".png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const extension = file.name.split('.').pop()?.toLowerCase();
+                            if (extension !== 'png') {
+                              alert('خطأ: يجب اختيار صورة بصيغة PNG لشعار الموقع!');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setSiteLogoInput(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
+                {/* Banner File Upload (Strictly PNG) */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-purple-200">رابط بانر الموقع الرئيسي (صورة الغلاف/Hero Banner)</label>
-                  <input 
-                    type="text"
-                    value={siteBannerInput}
-                    onChange={(e) => setSiteBannerInput(e.target.value)}
-                    placeholder="أدخل رابط صورة مباشر وعالي الدقة للبانر العلوي بالصفحة الرئيسية"
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
-                    dir="ltr"
-                    required
-                  />
+                  <label className="text-xs font-bold text-purple-200">تحميل بانر الموقع الرئيسي (ملف PNG حصراً) *</label>
+                  <div className="relative border border-dashed border-white/10 hover:border-violet-500/40 rounded-xl p-4 bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[90px]">
+                    <input 
+                      type="file" 
+                      accept=".png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const extension = file.name.split('.').pop()?.toLowerCase();
+                        if (extension !== 'png') {
+                          alert('خطأ: يجب اختيار صورة غلاف بصيغة PNG لبانر الموقع!');
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setSiteBannerInput(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                    {siteBannerInput ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 h-10 rounded border border-violet-500 overflow-hidden">
+                          <img src={siteBannerInput} alt="Banner Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                        <span className="text-[10px] text-green-400 font-bold">تم تحميل البانر بنجاح ✓ (بصيغة PNG)</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <Upload size={18} className="text-purple-400" />
+                        <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف PNG لبانر الموقع الرئيسي</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-4 bg-white/5 rounded-2xl border border-white/5 mt-2 flex items-center gap-4">
@@ -865,6 +1004,144 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   <span>حفظ ونشر جميع إعدادات الفوتر والشبكات الاجتماعية</span>
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: Member Ranks Management */}
+        {activeTab === 'users' && (
+          <div className="flex flex-col gap-6 text-right animate-in fade-in duration-300">
+            <div className="p-6 bg-[#1A1625] rounded-3xl border border-white/5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+              <div className="absolute bottom-0 right-0 w-48 h-48 bg-berry-600/5 rounded-full blur-[60px]" />
+
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
+                <UserCheck className="text-violet-400" size={20} />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white font-sans">إدارة رتب وأعضاء المنصة 👑</h3>
+                  <p className="text-[10px] text-purple-400 mt-0.5">بصفتك المالك، يمكنك ترقية أو تعديل رتب أي مستخدم مع تقديم سبب يصله في إشعاراته.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {users.filter(u => u.email.toLowerCase() !== 'hanona37hh@gmail.com').map((user) => {
+                  const novelsCount = BerryDatabase.get<Novel[]>('novels', [])
+                    .filter(n => n.translatorId === user.id && n.status !== 'PENDING').length;
+
+                  // Define dynamic rank display
+                  const getRankLabel = (u: any) => {
+                    if (u.role === 'SUPERVISOR') return 'مشرف 🛡️';
+                    if (u.role === 'MEMBER') return 'قارئ 👤';
+                    if (u.role === 'TRANSLATOR' || u.role === 'WRITER') {
+                      if (novelsCount > 10) return 'مترجم وكاتب محترف 🏆';
+                      if (novelsCount > 6) return 'مترجم وكاتب خبير 🎖️';
+                      return 'مترجم وكاتب ✍️';
+                    }
+                    return u.role;
+                  };
+
+                  return (
+                    <div 
+                      key={user.id} 
+                      className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all duration-300 flex flex-col gap-4"
+                    >
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <img 
+                            src={user.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.username}`} 
+                            alt={user.username} 
+                            className="w-12 h-12 rounded-xl object-cover border border-white/10 bg-black/20"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-white text-sm">{user.username}</h4>
+                              <span className="text-[10px] bg-violet-500/20 text-violet-300 px-2.5 py-0.5 rounded-full font-bold">
+                                {getRankLabel(user)}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-purple-400 font-mono mt-0.5">{user.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 text-[11px] text-purple-300">
+                          <div>عدد الروايات المترجمة/المؤلفة: <span className="font-extrabold text-white">{novelsCount}</span></div>
+                          {user.bio && <div className="text-[10px] text-purple-400 mt-1 max-w-xs truncate text-left sm:text-right">{user.bio}</div>}
+                        </div>
+                      </div>
+
+                      {/* Editing Actions */}
+                      {editingUserId === user.id ? (
+                        <div className="mt-2 p-4 bg-black/30 border border-violet-500/20 rounded-xl flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[11px] font-bold text-purple-200">الرتبة الجديدة</label>
+                              <select 
+                                value={newRoleVal}
+                                onChange={(e) => setNewRoleVal(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-[#151120] border border-white/10 text-xs text-white focus:outline-none focus:border-violet-500 cursor-pointer"
+                              >
+                                <option value="MEMBER">قارئ 👤</option>
+                                <option value="TRANSLATOR">مترجم وكاتب ✍️</option>
+                                <option value="SUPERVISOR">مشرف 🛡️</option>
+                              </select>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[11px] font-bold text-purple-200">سبب تغيير الرتبة (إجباري)</label>
+                              <input 
+                                type="text"
+                                value={roleChangeReason}
+                                onChange={(e) => setRoleChangeReason(e.target.value)}
+                                placeholder="اكتب السبب بوضوح هنا (مثال: تقديم روايات متميزة)..."
+                                className="w-full px-3 py-2 rounded-lg bg-[#151120] border border-white/10 text-xs text-white focus:outline-none focus:border-violet-500"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button 
+                              onClick={() => handleUpdateUserRole(user.id)}
+                              className="px-4 py-2 bg-gradient-to-r from-berry-600 to-violet-600 hover:from-berry-500 hover:to-violet-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                            >
+                              حفظ التغيير وإرسال الإشعار
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setEditingUserId(null);
+                                setRoleChangeReason('');
+                              }}
+                              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-purple-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                            >
+                              إلغاء
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end border-t border-white/5 pt-3">
+                          <button 
+                            onClick={() => {
+                              setEditingUserId(user.id);
+                              setNewRoleVal(user.role);
+                              setRoleChangeReason('');
+                            }}
+                            className="px-4 py-1.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white border border-violet-500/20 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                          >
+                            تعديل الرتبة 👤
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {users.filter(u => u.email.toLowerCase() !== 'hanona37hh@gmail.com').length === 0 && (
+                  <div className="p-12 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
+                    <p className="text-sm">لا يوجد أعضاء آخرون مسجلون في المنصة حالياً لتعديل رتبهم.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

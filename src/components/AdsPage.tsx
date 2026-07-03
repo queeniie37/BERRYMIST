@@ -96,13 +96,7 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
       return;
     }
 
-    if (image.trim().startsWith('http')) {
-      const cleanImg = image.trim().split('?')[0].split('#')[0].toLowerCase();
-      if (!cleanImg.endsWith('.png') && !image.toLowerCase().includes('.png')) {
-        setError('عذراً، يجب أن يكون رابط الصورة بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض!');
-        return;
-      }
-    }
+
 
     const newAd: Ad = {
       id: `ad-${Date.now()}`,
@@ -276,17 +270,7 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
                     </div>
                   )}
 
-                  {/* Manual input backup */}
-                  <div className="flex flex-col gap-1 mt-1">
-                    <span className="text-[9px] text-purple-400">أو يمكنك نسخ ولصق رابط مباشر للصورة كبديل:</span>
-                    <input 
-                      type="text" 
-                      value={image}
-                      onChange={(e) => setImage(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="bg-[#14101D] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-2 text-white font-mono text-[10px] text-left"
-                    />
-                  </div>
+
                 </div>
 
                 {/* Details Content */}

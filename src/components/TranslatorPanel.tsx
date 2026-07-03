@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertCircle, Edit, Trash2, Calendar, BookOpen, Eye, RefreshCw } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertCircle, Edit, Trash2, Calendar, BookOpen, Eye, RefreshCw, Upload, Image } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
 
@@ -21,6 +21,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [lang, setLang] = useState('الكورية');
   const [desc, setDesc] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [coverImage, setCoverImage] = useState('');
   const [success, setSuccess] = useState('');
 
   // Enhanced activity & archive states
@@ -262,8 +263,9 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     if (!files) return;
 
     Array.from(files).forEach((file: any) => {
-      if (!file.type.startsWith('image/')) {
-        alert('يرجى اختيار ملفات صور فقط (PNG, JPG, JPEG, GIF)');
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension !== 'png' && file.type !== 'image/png') {
+        alert('يرجى اختيار صور بصيغة PNG فقط لضمان جمالية وتوافق العرض بالمنصة!');
         return;
       }
 
@@ -489,6 +491,10 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       alert('يرجى ملء الحقول الإلزامية.');
       return;
     }
+    if (!coverImage) {
+      alert('خطأ: يرجى إرفاق وتحميل ملف غلاف الرواية بصيغة PNG أولاً.');
+      return;
+    }
 
     const isOwner = currentUser.role === 'OWNER';
     const status = isOwner ? 'AVAILABLE' : 'PENDING';
@@ -500,7 +506,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       author,
       translatorId: currentUser.id,
       translatorName: currentUser.username,
-      cover: COVER_IMAGES.unconquered_one, // fallback
+      cover: coverImage,
       chaptersCount: 0,
       views: 0,
       likes: 0,
@@ -541,6 +547,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     setAuthor('');
     setDesc('');
     setSelectedGenres([]);
+    setCoverImage('');
 
     setTimeout(() => {
       setSuccess('');
@@ -948,6 +955,44 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                 />
               </div>
 
+              {/* Cover Image Upload (Strictly PNG) */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-purple-200">تحميل غلاف الرواية الفاخر (ملف PNG حصراً) *</label>
+                <div className="relative border-2 border-dashed border-white/10 hover:border-violet-500/40 rounded-2xl p-6 flex flex-col items-center justify-center bg-[#1A1625] hover:bg-white/5 transition-all text-center cursor-pointer min-h-[120px]">
+                  <input 
+                    type="file" 
+                    accept=".png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const extension = file.name.split('.').pop()?.toLowerCase();
+                      if (extension !== 'png') {
+                        alert('خطأ: نقبل ملفات صور غلاف بصيغة PNG فقط لضمان الجودة الفاخرة لغلاف الرواية!');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setCoverImage(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  {coverImage ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <img src={coverImage} alt="Cover Preview" className="w-20 h-28 object-cover rounded-xl border border-violet-500" referrerPolicy="no-referrer" />
+                      <span className="text-xs text-green-400 font-bold">تم تحميل الغلاف بنجاح ✓ (بصيغة PNG المعتمدة)</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload size={24} className="text-purple-400 mb-2" />
+                      <p className="text-xs font-bold text-purple-200">اسحب ملف صورة الغلاف إلى هنا أو تصفح ملفاتك</p>
+                      <p className="text-[10px] text-purple-400 mt-1">نقبل فقط ملفات PNG ويجب أن تكون الأبعاد عمودية بنسبة 2:3</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="flex gap-3 justify-end mt-4 pt-4 border-t border-white/5">
                 <button 
@@ -1227,16 +1272,16 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
               <div className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 text-right">
                 <label className="text-xs font-extrabold text-purple-200 flex items-center gap-1">
                   <Eye size={14} className="text-violet-400" />
-                  <span>إرفاق أو تعديل صور ورسومات الفصل (PNG, JPG)</span>
+                  <span>إرفاق أو تعديل صور ورسومات الفصل (PNG حصراً)</span>
                 </label>
-                <p className="text-[10px] text-purple-300/70">ارفع صور PNG جديدة مباشرة من جهازك، أو عدل الروابط الموجودة مسبقاً.</p>
+                <p className="text-[10px] text-purple-300/70">ارفع صور PNG جديدة مباشرة من جهازك.</p>
 
                 {/* File picker */}
                 <div className="flex flex-col items-center justify-center border border-dashed border-violet-500/20 hover:border-violet-500/50 bg-[#1A1625]/80 p-4 rounded-xl text-center transition-colors">
                   <input 
                     type="file" 
                     id="edit-png-uploader"
-                    accept="image/*"
+                    accept=".png"
                     multiple
                     onChange={handleEditImageUpload}
                     className="hidden"
@@ -1247,7 +1292,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   >
                     <RefreshCw size={24} className="text-violet-400 animate-spin-slow" />
                     <span className="text-xs font-bold text-white">اضغط هنا لرفع صور PNG إضافية من جهازك 📂</span>
-                    <span className="text-[9px] text-purple-400">يدعم صيغ PNG, JPG, WebP وGIF</span>
+                    <span className="text-[9px] text-purple-400">يدعم صيغ صور PNG الفاخرة فقط</span>
                   </label>
                 </div>
 
@@ -1268,18 +1313,6 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                     ))}
                   </div>
                 )}
-
-                {/* Optional manual URL input */}
-                <div className="flex flex-col gap-1 mt-2">
-                  <span className="text-[10px] font-bold text-purple-300">الروابط النصية للصور (مفصولة بفاصلة):</span>
-                  <input 
-                    type="text" 
-                    value={editChapterImages}
-                    onChange={(e) => setEditChapterImages(e.target.value)}
-                    placeholder="رابط الصورة 1, رابط الصورة 2..."
-                    className="bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-xl px-4 py-2 text-xs text-white"
-                  />
-                </div>
               </div>
 
               <div className="flex flex-col gap-1.5">

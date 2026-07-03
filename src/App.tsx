@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Compass, Flame, Clock, Award, Plus, Layers, Search, 
   MessageSquare, Users, Shield, BookOpen, Heart, 
-  ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone, Send
+  ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone, Send,
+  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell
 } from 'lucide-react';
 import { User, UserRole, Novel, Suggestion, Reservation, News, Team, TranslatorRequest } from './types';
 import { DEFAULT_USERS, BerryDatabase } from './data';
@@ -25,7 +26,7 @@ import TranslatorRequestForm from './components/TranslatorRequestForm';
 
 export default function App() {
   // Core states
-  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.OWNER);
+  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
   const [currentPage, setCurrentPage] = useState<string>('home'); // home, explore, suggestions, teams, profile, novel, reader, translator-panel, admin
   const [currentParams, setCurrentParams] = useState<any>(null);
 
@@ -41,6 +42,7 @@ export default function App() {
   const [searchFilter, setSearchFilter] = useState('');
   const [showProfileFavorites, setShowProfileFavorites] = useState(true);
   const [refreshAdsTrigger, setRefreshAdsTrigger] = useState(0);
+  const [refreshNotificationsTrigger, setRefreshNotificationsTrigger] = useState(0);
 
   // Join Form State for translators page
   const [showJoinForm, setShowJoinForm] = useState(false);
@@ -84,6 +86,11 @@ export default function App() {
     };
     window.addEventListener('ads-updated', handleAdsUpdate);
 
+    const handleNotificationsUpdate = () => {
+      setRefreshNotificationsTrigger(prev => prev + 1);
+    };
+    window.addEventListener('notifications-updated', handleNotificationsUpdate);
+
     const handleUserUpdate = () => {
       const savedUser = BerryDatabase.get<User | null>('current_user_data', null);
       if (savedUser) {
@@ -116,10 +123,22 @@ export default function App() {
     // Load from local database
     const savedUser = BerryDatabase.get<User | null>('current_user_data', null);
     if (savedUser) {
-      setCurrentUser(savedUser);
+      if (savedUser.role === 'OWNER' && savedUser.email !== 'hanona37hh@gmail.com') {
+        const fallbackUser = DEFAULT_USERS.GUEST;
+        setCurrentUser(fallbackUser);
+        BerryDatabase.set('current_user_data', fallbackUser);
+        BerryDatabase.set('current_role', 'GUEST');
+      } else {
+        setCurrentUser(savedUser);
+      }
     } else {
-      const initialRole = BerryDatabase.get<UserRole>('current_role', 'OWNER');
-      setCurrentUser(DEFAULT_USERS[initialRole]);
+      const initialRole = BerryDatabase.get<UserRole>('current_role', 'GUEST');
+      if (initialRole === 'OWNER') {
+        setCurrentUser(DEFAULT_USERS.GUEST);
+        BerryDatabase.set('current_role', 'GUEST');
+      } else {
+        setCurrentUser(DEFAULT_USERS[initialRole]);
+      }
     }
     const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
     const loadedSuggestions = BerryDatabase.get<Suggestion[]>('suggestions', []);
@@ -143,12 +162,68 @@ export default function App() {
     return () => {
       clearInterval(schedulerInterval);
       window.removeEventListener('ads-updated', handleAdsUpdate);
+      window.removeEventListener('notifications-updated', handleNotificationsUpdate);
       window.removeEventListener('user-updated', handleUserUpdate);
       window.removeEventListener('site-settings-updated', handleSiteUpdate);
       window.removeEventListener('footer-settings-updated', handleFooterUpdate);
       window.removeEventListener('novels-updated', handleNovelsUpdate);
     };
   }, []);
+
+  // SEO & Document Title Dynamic Synchronizer
+  useEffect(() => {
+    let title = `${siteName} | المنصة العربية الفاخرة للروايات المترجمة والمؤلفة`;
+    
+    switch (currentPage) {
+      case 'home':
+        title = `${siteName} | الرئيسية - المنصة العربية الفاخرة للروايات`;
+        break;
+      case 'explore':
+        title = `المكتبة والاستكشاف | تصفح الروايات - ${siteName}`;
+        break;
+      case 'novel':
+        if (currentParams && currentParams.id) {
+          const novel = novels.find(n => n.id === currentParams.id);
+          if (novel) {
+            title = `رواية ${novel.titleAr} (${novel.titleEn}) | ${siteName}`;
+          }
+        }
+        break;
+      case 'reader':
+        if (currentParams && currentParams.novelId) {
+          const novel = novels.find(n => n.id === currentParams.novelId);
+          if (novel) {
+            title = `الفصل ${currentParams.chapterNumber} من رواية ${novel.titleAr} | ${siteName}`;
+          }
+        }
+        break;
+      case 'suggestions':
+        title = `اقتراح رواية جديدة | شاركنا باقتراحاتك - ${siteName}`;
+        break;
+      case 'teams':
+        title = `فريق المترجمين والمؤلفين | ${siteName}`;
+        break;
+      case 'notifications':
+        title = `مركز الإشعارات الشامل | ${siteName}`;
+        break;
+      case 'profile':
+        title = `الملف الشخصي الفاخر | ${siteName}`;
+        break;
+      case 'translator-panel':
+        title = `لوحة عمل المترجم والكاتب | ${siteName}`;
+        break;
+      case 'admin':
+        title = `لوحة الإدارة والتحكم الملكية | ${siteName}`;
+        break;
+      case 'ads':
+        title = `مركز الإعلانات والترويج العام | ${siteName}`;
+        break;
+      default:
+        break;
+    }
+    
+    document.title = title;
+  }, [currentPage, currentParams, novels, siteName]);
 
   // Auto-check and publish scheduled chapters when their Gregorian date is reached
   const checkScheduledChapters = () => {
@@ -382,8 +457,12 @@ export default function App() {
 
   // Update dynamic simulated user role
   const handleRoleChange = (newRole: UserRole) => {
+    if (newRole === 'OWNER' && currentUser.email !== 'hanona37hh@gmail.com') {
+      alert('خطأ أمني: رتبة المالك مخصصة حصرياً لمالك الموقع! يرجى تسجيل الدخول بحساب المالك (hanona37hh@gmail.com) أولاً للوصول إلى لوحة الإدارة.');
+      return;
+    }
     BerryDatabase.set('current_role', newRole);
-    const u = DEFAULT_USERS[newRole];
+    const u = BerryDatabase.get<User>(`custom_user_${newRole}`, DEFAULT_USERS[newRole]);
     setCurrentUser(u);
     BerryDatabase.set('current_user_data', u);
     
@@ -393,6 +472,50 @@ export default function App() {
         setCurrentPage('home');
       }
     }
+  };
+
+  // Profile editing local state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editAvatar, setEditAvatar] = useState('');
+  const [editBanner, setEditBanner] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editDiscord, setEditDiscord] = useState('');
+  const [editTelegram, setEditTelegram] = useState('');
+  const [editPaypalEmail, setEditPaypalEmail] = useState('');
+  const [editSupportLink, setEditSupportLink] = useState('');
+
+  const handleOpenEditProfile = () => {
+    setEditAvatar(currentUser.avatar || '');
+    setEditBanner(currentUser.banner || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200');
+    setEditBio(currentUser.bio || '');
+    setEditDiscord(currentUser.discord || '');
+    setEditTelegram(currentUser.telegram || '');
+    setEditPaypalEmail(currentUser.paypalEmail || '');
+    setEditSupportLink(currentUser.supportLink || '');
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const updatedUser: User = {
+      ...currentUser,
+      avatar: editAvatar.trim(),
+      banner: editBanner.trim(),
+      bio: editBio.trim(),
+      discord: editDiscord.trim(),
+      telegram: editTelegram.trim(),
+      paypalEmail: editPaypalEmail.trim(),
+      supportLink: editSupportLink.trim()
+    };
+    
+    setCurrentUser(updatedUser);
+    BerryDatabase.set('current_user_data', updatedUser);
+    BerryDatabase.set(`custom_user_${currentUser.role}`, updatedUser);
+    
+    window.dispatchEvent(new Event('user-updated'));
+    setIsEditingProfile(false);
+    alert('تم حفظ وتحديث بيانات ملفك الشخصي بنجاح ونشرها حياً في الموقع! 🎉');
   };
 
   // Safe navigation
@@ -1020,49 +1143,421 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== SCREEN 7: MEMBER PROFILE PAGE ==================== */}
-        {currentPage === 'profile' && (
+        {/* ==================== SCREEN: FULL NOTIFICATIONS PAGE ==================== */}
+        {currentPage === 'notifications' && (
           <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
-            <div className="glass-panel rounded-3xl p-6 border border-white/5 relative overflow-hidden select-none mb-6">
-              
-              <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
-                <img src={currentUser.avatar} alt={currentUser.username} className="w-20 h-20 rounded-full border-2 border-violet-500 shadow-xl" />
-                <div className="text-center sm:text-right">
-                  <div className="flex items-center gap-2 justify-center sm:justify-start">
-                    <h2 className="text-xl md:text-2xl font-extrabold text-white">{currentUser.username}</h2>
-                    <span className="text-[10px] bg-violet-600/30 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
-                      {currentUser.role}
-                    </span>
-                  </div>
-                  <p className="text-xs text-purple-400 mt-1">{currentUser.email}</p>
-                  <p className="text-xs text-purple-300 mt-3 leading-relaxed max-w-md">{currentUser.bio || 'لا يوجد نبذة شخصية مضافة حالياً.'}</p>
+            <div className="p-6 bg-[#1A1625] border border-white/5 rounded-3xl mb-8 flex items-center justify-between">
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2 font-sans">
+                  <Bell className="text-berry-400" size={24} />
+                  <span>مركز الإشعارات الشامل 🔔</span>
+                </h1>
+                <p className="text-xs text-purple-300 mt-1">تابع آخر المستجدات والتنبيهات، وقرارات الإدارة بخصوص حسابك والترقيات.</p>
+              </div>
+              <span className="text-3xl">📣</span>
+            </div>
+
+            <div className="p-6 bg-[#14101D] border border-white/5 rounded-3xl">
+              <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-6 flex-wrap gap-3">
+                <h3 className="font-extrabold text-sm text-white">قائمة الإشعارات الواردة</h3>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const rawNotifs = BerryDatabase.get<any[]>('notifications', []);
+                      const updated = rawNotifs.map(n => {
+                        const isTarget = currentUser.role !== 'GUEST' && (n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase());
+                        if (isTarget || (!n.userId && !n.email)) {
+                          return { ...n, isRead: true };
+                        }
+                        return n;
+                      });
+                      BerryDatabase.set('notifications', updated);
+                      window.dispatchEvent(new Event('notifications-updated'));
+                    }}
+                    className="px-4 py-2 bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/10 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    تعليم الكل كمقروء ✓
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const rawNotifs = BerryDatabase.get<any[]>('notifications', []);
+                      const updated = rawNotifs.filter(n => {
+                        const isTarget = currentUser.role !== 'GUEST' && (n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase());
+                        return !isTarget;
+                      });
+                      BerryDatabase.set('notifications', updated);
+                      window.dispatchEvent(new Event('notifications-updated'));
+                    }}
+                    className="px-4 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/10 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    مسح كافة الإشعارات 🗑️
+                  </button>
                 </div>
               </div>
 
-              {/* Stats column */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-8 pt-6 border-t border-white/5 relative z-10 text-center">
-                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                  <span className="text-[10px] text-purple-400 block mb-1">المستوى</span>
-                  <span className="font-extrabold text-white text-base">Lvl {currentUser.level}</span>
+              {(() => {
+                const rawNotifs = BerryDatabase.get<any[]>('notifications', [
+                  { id: '1', title: 'فصل جديد متاح!', message: 'الفصل 165 من "بداية بعد النهاية" متوفر الآن للقراءة.', isRead: false, createdAt: 'منذ ١٠ دقائق' },
+                  { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
+                ]);
+                const userNotifications = rawNotifs.filter(n => {
+                  if (currentUser.role === 'GUEST') {
+                    return !n.userId && !n.email;
+                  }
+                  return !n.userId && !n.email || n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase();
+                });
+
+                return (
+                  <div className="flex flex-col gap-4">
+                    {userNotifications.length > 0 ? (
+                      userNotifications.map((notif) => (
+                        <div 
+                          key={notif.id} 
+                          className={`p-5 rounded-2xl border transition-all duration-300 flex flex-col gap-2 ${
+                            notif.isRead 
+                              ? 'bg-white/[0.01] border-white/5 hover:border-white/10' 
+                              : 'bg-violet-500/[0.04] border-violet-500/20 hover:border-violet-500/30'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="flex items-center gap-2">
+                              {!notif.isRead && <span className="w-2 h-2 rounded-full bg-berry-500 animate-pulse" />}
+                              <span className="font-extrabold text-sm text-white">{notif.title}</span>
+                            </div>
+                            <span className="text-[10px] text-purple-400 font-mono">{notif.createdAt}</span>
+                          </div>
+                          <p className="text-xs text-purple-200/90 leading-relaxed mt-1 whitespace-pre-line text-right">{notif.message}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-12 text-center text-purple-400">
+                        <p className="text-sm">لا توجد لديك إشعارات حالياً.</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* ==================== SCREEN 7: MEMBER PROFILE PAGE ==================== */}
+        {currentPage === 'profile' && (
+          <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
+            <div className="relative rounded-3xl overflow-hidden border border-white/5 shadow-xl select-none mb-6">
+              {/* Cover banner image */}
+              <div 
+                className="w-full h-36 md:h-48 bg-cover bg-center transition-all duration-500"
+                style={{ 
+                  backgroundImage: `url(${currentUser.banner || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200'})` 
+                }}
+              >
+                <div className="w-full h-full bg-gradient-to-t from-[#0F0B14] via-black/40 to-transparent" />
+              </div>
+
+              {/* Inner card profile info overlapping the banner */}
+              <div className="px-6 pb-6 relative z-10 -mt-10 flex flex-col sm:flex-row items-center sm:items-end justify-between gap-5">
+                <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-right">
+                  <img 
+                    src={currentUser.avatar} 
+                    alt={currentUser.username} 
+                    className="w-24 h-24 rounded-full border-4 border-[#0F0B14] bg-[#0F0B14] shadow-2xl relative z-10" 
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="pb-2">
+                    <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
+                      <h2 className="text-xl md:text-2xl font-extrabold text-white filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{currentUser.username}</h2>
+                      {(() => {
+                        const userNovelsCount = BerryDatabase.get<any[]>('novels', [])
+                          .filter(n => n.translatorId === currentUser.id && n.status !== 'PENDING').length;
+                        
+                        let rankLabel = currentUser.role;
+                        if (currentUser.role === 'OWNER') rankLabel = 'المالك 👑';
+                        else if (currentUser.role === 'SUPERVISOR') rankLabel = 'مشرف 🛡️';
+                        else if (currentUser.role === 'MEMBER') rankLabel = 'قارئ 👤';
+                        else if (currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER') {
+                          if (userNovelsCount > 10) rankLabel = 'مترجم وكاتب محترف 🏆';
+                          else if (userNovelsCount > 6) rankLabel = 'مترجم وكاتب خبير 🎖️';
+                          else rankLabel = 'مترجم وكاتب ✍️';
+                        }
+
+                        return (
+                          <span className="text-[10px] bg-gradient-to-r from-berry-600 to-violet-600 text-white border border-violet-500/30 px-3 py-0.5 rounded-full font-bold shadow-md shadow-violet-500/10">
+                            الرتبة: {rankLabel}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <p className="text-xs text-purple-400 mt-1 font-mono">{currentUser.email}</p>
+                  </div>
                 </div>
-                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                  <span className="text-[10px] text-purple-400 block mb-1">XP الإجمالي</span>
-                  <span className="font-extrabold text-white text-base">{currentUser.xp} XP</span>
-                </div>
+
+                {/* Edit Profile button */}
                 <button 
-                  onClick={() => setShowProfileFavorites(!showProfileFavorites)}
-                  className={`p-3 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${showProfileFavorites ? 'border-violet-500/50 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-102' : 'bg-white/5 border-white/5 hover:border-violet-500/20'}`}
+                  onClick={handleOpenEditProfile}
+                  className="px-4 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer hover:shadow-violet-500/20 mb-2 self-center sm:self-end"
                 >
-                  <span className="text-[10px] text-purple-400 block mb-1">الروايات المفضلة</span>
-                  <span className="font-extrabold text-white text-base flex items-center gap-1">
-                    {bookmarks.length} <Heart size={14} className="text-berry-400 fill-berry-400 animate-pulse" />
-                  </span>
-                  <span className="text-[9px] text-violet-400 mt-0.5 font-bold">
-                    {showProfileFavorites ? 'انقر لإخفائها ▲' : 'انقر لتصفحها ▼'}
-                  </span>
+                  <Edit size={14} />
+                  <span>تعديل الملف الشخصي ⚙️</span>
                 </button>
               </div>
+
+              {/* Biography, Support Methods and Stats */}
+              <div className="p-6 pt-0 border-t border-white/5 bg-[#14101D]/90">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                  {/* Bio & Details */}
+                  <div className="text-right flex flex-col gap-3">
+                    <div>
+                      <span className="text-[10px] text-purple-400 font-bold block mb-1">النبذة الشخصية:</span>
+                      <p className="text-xs text-purple-200 leading-relaxed bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                        {currentUser.bio || 'لم تقم بكتابة نبذة شخصية حتى الآن. انقر على زر التعديل لإضافة نبذتك الشخصية! ✨'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Support methods column */}
+                  <div className="text-right flex flex-col gap-3">
+                    <span className="text-[10px] text-purple-400 font-bold block mb-1">طرق الدعم والتواصل المعتمدة:</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                        <span className="text-[9px] text-purple-400 font-bold">📧 حساب الدعم PayPal:</span>
+                        <span className="text-white font-mono break-all">{currentUser.paypalEmail || 'لم يتم الربط حالياً'}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                        <span className="text-[9px] text-purple-400 font-bold">🔗 رابط الدعم المالي المباشر:</span>
+                        {currentUser.supportLink ? (
+                          <a href={currentUser.supportLink} target="_blank" rel="noreferrer" className="text-violet-400 hover:text-white hover:underline truncate font-bold flex items-center gap-1">
+                            <Link size={12} />
+                            <span>صفحة الدعم الخاصة بي</span>
+                          </a>
+                        ) : (
+                          <span className="text-purple-500/70 italic">لا يوجد رابط دعم حالياً</span>
+                        )}
+                      </div>
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                        <span className="text-[9px] text-purple-400 font-bold">👾 حساب الديسكورد للتواصل:</span>
+                        <span className="text-white font-mono truncate">{currentUser.discord || 'غير متوفر'}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                        <span className="text-[9px] text-purple-400 font-bold">📢 معرف التليجرام الخاص بي:</span>
+                        <span className="text-white font-mono truncate">{currentUser.telegram || 'غير متوفر'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats Section */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-white/5 text-center">
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                    <span className="text-[10px] text-purple-400 block mb-1">المستوى</span>
+                    <span className="font-extrabold text-white text-base">Lvl {currentUser.level}</span>
+                  </div>
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                    <span className="text-[10px] text-purple-400 block mb-1">XP الإجمالي</span>
+                    <span className="font-extrabold text-white text-base">{currentUser.xp} XP</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowProfileFavorites(!showProfileFavorites)}
+                    className={`p-3 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${showProfileFavorites ? 'border-violet-500/50 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-102' : 'bg-white/5 border-white/5 hover:border-violet-500/20'}`}
+                  >
+                    <span className="text-[10px] text-purple-400 block mb-1">الروايات المفضلة</span>
+                    <span className="font-extrabold text-white text-base flex items-center gap-1">
+                      {bookmarks.length} <Heart size={14} className="text-berry-400 fill-berry-400 animate-pulse" />
+                    </span>
+                    <span className="text-[9px] text-violet-400 mt-0.5 font-bold">
+                      {showProfileFavorites ? 'انقر لإخفائها ▲' : 'انقر لتصفحها ▼'}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
+
+            {/* Edit Profile Form Container */}
+            {isEditingProfile && (
+              <div className="p-6 bg-[#1A1625] rounded-3xl border border-violet-500/20 shadow-2xl relative overflow-hidden mb-6 animate-in slide-in-from-top-4 duration-300">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+                <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
+                  <Settings className="text-[#FF2255]" size={20} />
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white">تعديل بيانات ملفك الشخصي وطرق دعمك</h3>
+                    <p className="text-[10px] text-purple-400 mt-0.5 font-semibold">خصص مظهر حسابك الشخصي وقنوات التواصل والدعم الخاصة بك حياً.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveProfile} className="flex flex-col gap-5 text-right">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Icon File Upload */}
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-bold text-purple-200">تحميل صورة الأيقونة الشخصية (ملف PNG حصراً) *</label>
+                      <div className="relative border border-dashed border-white/10 hover:border-violet-500/40 rounded-xl p-4 bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[90px]">
+                        <input 
+                          type="file" 
+                          accept=".png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const extension = file.name.split('.').pop()?.toLowerCase();
+                            if (extension !== 'png') {
+                              alert('خطأ: يجب اختيار صورة بصيغة PNG فقط لملفك الشخصي!');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setEditAvatar(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        {editAvatar ? (
+                          <div className="flex items-center gap-3">
+                            <img src={editAvatar} alt="Avatar Preview" className="w-10 h-10 rounded-full border border-violet-500 object-cover" referrerPolicy="no-referrer" />
+                            <span className="text-[10px] text-green-400 font-bold">تم تحميل الأيقونة بنجاح ✓</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <Camera size={16} className="text-purple-400" />
+                            <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف PNG لأيقونتك الشخصية</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-purple-400 font-semibold">تأكد من إرفاق صورة حقيقية PNG مفرغة أو مربعة لضمان أفضل مظهر.</p>
+                    </div>
+
+                    {/* Banner File Upload */}
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-bold text-purple-200">تحميل غلاف الملف الشخصي (ملف PNG حصراً) *</label>
+                      <div className="relative border border-dashed border-white/10 hover:border-violet-500/40 rounded-xl p-4 bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[90px]">
+                        <input 
+                          type="file" 
+                          accept=".png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const extension = file.name.split('.').pop()?.toLowerCase();
+                            if (extension !== 'png') {
+                              alert('خطأ: يجب اختيار صورة غلاف بصيغة PNG فقط!');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setEditBanner(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        {editBanner ? (
+                          <div className="flex items-center gap-3">
+                            <div className="w-16 h-8 rounded border border-violet-500 overflow-hidden">
+                              <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            </div>
+                            <span className="text-[10px] text-green-400 font-bold">تم تحميل الغلاف بنجاح ✓</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <Image size={16} className="text-purple-400" />
+                            <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف PNG لغلاف الحساب</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-purple-400 font-semibold">صورة غلاف فخمة بصيغة PNG ليتم عرضها كخلفية لملفك الشخصي.</p>
+                    </div>
+                  </div>
+
+                  {/* Biography (textarea) */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">النبذة التعريفية عنك (Bio)</label>
+                    <textarea 
+                      rows={3}
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      placeholder="اكتب شيئاً فخماً عن نفسك، اهتماماتك الروائية أو تخصصك في الترجمة..."
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Support links and communication */}
+                  <div className="border-t border-white/5 pt-5 mt-2">
+                    <h4 className="text-xs font-bold text-violet-300 mb-3 flex items-center gap-1.5">
+                      <DollarSign size={14} className="text-berry-400" />
+                      <span>قنوات التواصل وطرق الدعم والتمويل الخاصة بك:</span>
+                    </h4>
+                    <p className="text-[9px] text-purple-400 mb-4 font-semibold">أدخل بياناتك ليتمكن القراء ومحبو أعمالك من تقديم الدعم المالي والتواصل المباشر معك بسهولة تامة.</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* PayPal Email */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-purple-200">بريد باي بال للدعم (PayPal Email)</label>
+                        <input 
+                          type="email"
+                          value={editPaypalEmail}
+                          onChange={(e) => setEditPaypalEmail(e.target.value)}
+                          placeholder="your-paypal@domain.com"
+                          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
+                          dir="ltr"
+                        />
+                      </div>
+
+                      {/* Support Link */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-purple-200">رابط صفحة الدعم المالي المباشر (Patreon, Ko-fi, etc.)</label>
+                        <input 
+                          type="url"
+                          value={editSupportLink}
+                          onChange={(e) => setEditSupportLink(e.target.value)}
+                          placeholder="https://patreon.com/yourname"
+                          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
+                          dir="ltr"
+                        />
+                      </div>
+
+                      {/* Discord contact */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-purple-200">حساب ديسكورد للتواصل</label>
+                        <input 
+                          type="text"
+                          value={editDiscord}
+                          onChange={(e) => setEditDiscord(e.target.value)}
+                          placeholder="مثال: shadow_trans#9999"
+                          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors"
+                        />
+                      </div>
+
+                      {/* Telegram contact */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-purple-200">معرف أو رابط تليجرام للتواصل</label>
+                        <input 
+                          type="text"
+                          value={editTelegram}
+                          onChange={(e) => setEditTelegram(e.target.value)}
+                          placeholder="مثال: @shadow_trans"
+                          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-4">
+                    <button 
+                      type="submit"
+                      className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+                    >
+                      <Check size={16} />
+                      <span>حفظ ونشر التعديلات حياً 🍇</span>
+                    </button>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="px-6 py-3 bg-white/5 hover:bg-white/10 text-purple-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             {/* Bookmarks Display Section */}
             {showProfileFavorites && (

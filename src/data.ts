@@ -88,7 +88,7 @@ export const DEFAULT_USERS: { [key in UserRole]: User } = {
   OWNER: {
     id: 'berrymist-owner',
     username: 'BERRYMIST',
-    email: 'berrymist11@gmail.com',
+    email: 'hanona37hh@gmail.com',
     role: 'OWNER',
     xp: 15400,
     level: 50,
@@ -146,7 +146,7 @@ export class BerryDatabase {
       this.set('translator_requests', []);
       this.set('reading_history', []);
       this.set('bookmarks', []);
-      this.set('current_role', 'OWNER'); // Keep OWNER as default for easy administrative actions
+      this.set('current_role', 'GUEST'); // Default to GUEST to secure the platform
       this.set('ads', []);
       this.set('chapters', []);
       
@@ -168,7 +168,7 @@ export class BerryDatabase {
       this.set('translator_requests', [] as TranslatorRequest[]);
       this.set('reading_history', [] as any[]);
       this.set('bookmarks', [] as string[]);
-      this.set('current_role', 'OWNER');
+      this.set('current_role', 'GUEST');
       this.set('ads', INITIAL_ADS);
       this.set('chapters', [] as Chapter[]);
       localStorage.setItem('berry_mist_initialized', 'true');
