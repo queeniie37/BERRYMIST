@@ -172,6 +172,7 @@ export interface TranslatorRequest {
   reason: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   createdAt: string;
+  joinType?: 'INDIVIDUAL' | 'TEAM';
 }
 
 export interface News {

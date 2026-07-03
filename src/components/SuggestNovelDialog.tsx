@@ -27,8 +27,8 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
     if (!file) return;
 
     const extension = file.name.split('.').pop()?.toLowerCase();
-    if (!['jpg', 'jpeg', 'webp'].includes(extension || '')) {
-      setError('خطأ: نقبل فقط ملفات الصور بصيغة JPG، JPEG، و WEBP طبقاً لإجراءات الأمان المعتمدة للمنصة.');
+    if (extension !== 'png') {
+      setError('خطأ: نقبل فقط ملفات الصور بصيغة PNG طبقاً لإجراءات الأمان المعتمدة للمنصة.');
       return;
     }
 
@@ -38,8 +38,8 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
       setUploadProgress((prev) => {
         if (prev !== null && prev >= 100) {
           clearInterval(interval);
-          // Set beautiful unsplash fallback related to covers
-          setCover('https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=600');
+          // Set beautiful unsplash fallback related to covers with PNG format
+          setCover('https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=600&fm=png');
           return 100;
         }
         return (prev || 0) + 20;
@@ -147,7 +147,7 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
             <div className="border-2 border-dashed border-white/10 hover:border-violet-500/40 rounded-2xl p-6 flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 transition-all relative">
               <input 
                 type="file" 
-                accept=".jpg,.jpeg,.webp"
+                accept=".png"
                 onChange={handleSimulatedUpload}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
@@ -155,7 +155,7 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
                 <>
                   <Upload size={24} className="text-purple-400 mb-2" />
                   <p className="text-xs font-bold text-purple-200">اسحب صورة الغلاف إلى هنا أو تصفح ملفاتك</p>
-                  <p className="text-[10px] text-purple-400 mt-1">نقبل فقط ملفات JPG, JPEG, WEBP ونقوم بقصها آلياً بنسبة 2:3</p>
+                  <p className="text-[10px] text-purple-400 mt-1">نقبل فقط ملفات PNG ونقوم بقصها آلياً بنسبة 2:3</p>
                 </>
               ) : uploadProgress < 100 ? (
                 <div className="w-full max-w-xs text-center flex flex-col items-center">

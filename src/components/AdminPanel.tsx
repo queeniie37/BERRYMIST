@@ -13,9 +13,84 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings'>('novels');
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [activeRejectId, setActiveRejectId] = useState<string | null>(null);
+
+  const [siteNameInput, setSiteNameInput] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
+  const [siteLogoInput, setSiteLogoInput] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+  const [siteBannerInput, setSiteBannerInput] = useState(() => BerryDatabase.get<string>('site_banner', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200'));
+
+  // Footer dynamic inputs
+  const [footerDescInput, setFooterDescInput] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
+  const [footerEmailInput, setFooterEmailInput] = useState(() => BerryDatabase.get<string>('footer_email', 'support@berrymist.com'));
+  const [footerSupportInput, setFooterSupportInput] = useState(() => BerryDatabase.get<string>('footer_support_text', 'عبر تذكرة الديسكورد الرسمية بالأسفل'));
+  const [footerCommunityTextInput, setFooterCommunityTextInput] = useState(() => BerryDatabase.get<string>('footer_community_text', 'انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها قبل الجميع حياً!'));
+
+  const defaultSocialLinks = [
+    { id: "discord", name: "Discord", icon: "👾", url: "https://discord.gg/berrymist", active: true },
+    { id: "telegram", name: "Telegram", icon: "📢", url: "https://t.me/berrymist", active: true },
+    { id: "facebook", name: "Facebook", icon: "👥", url: "", active: false },
+    { id: "twitter", name: "Twitter / X", icon: "🐦", url: "", active: false },
+    { id: "instagram", name: "Instagram", icon: "📸", url: "", active: false },
+    { id: "tiktok", name: "TikTok", icon: "🎵", url: "", active: false },
+    { id: "youtube", name: "YouTube", icon: "📺", url: "", active: false },
+    { id: "whatsapp", name: "WhatsApp", icon: "💬", url: "", active: false }
+  ];
+  const [footerSocialsInput, setFooterSocialsInput] = useState<any[]>(() => BerryDatabase.get<any[]>('footer_socials', defaultSocialLinks));
+
+  const handleSocialUrlChange = (id: string, url: string) => {
+    setFooterSocialsInput(prev => prev.map(item => item.id === id ? { ...item, url } : item));
+  };
+
+  const handleSocialActiveToggle = (id: string) => {
+    setFooterSocialsInput(prev => prev.map(item => item.id === id ? { ...item, active: !item.active } : item));
+  };
+
+  const handleSaveFooterSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    BerryDatabase.set('footer_description', footerDescInput.trim());
+    BerryDatabase.set('footer_email', footerEmailInput.trim());
+    BerryDatabase.set('footer_support_text', footerSupportInput.trim());
+    BerryDatabase.set('footer_community_text', footerCommunityTextInput.trim());
+    BerryDatabase.set('footer_socials', footerSocialsInput);
+    
+    // Dispatch event to update App.tsx footer state in real-time
+    window.dispatchEvent(new Event('footer-settings-updated'));
+    alert('تم حفظ إعدادات الفوتر وقنوات المجتمع بنجاح ونشرها حياً في الفوتر! 🎉');
+  };
+
+  const handleSaveSiteSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!siteNameInput.trim()) {
+      alert('الرجاء إدخال اسم موقع صالح.');
+      return;
+    }
+    
+    // PNG validations for image attachments
+    if (siteLogoInput.trim().startsWith('http')) {
+      const cleanLogo = siteLogoInput.trim().split('?')[0].split('#')[0].toLowerCase();
+      if (!cleanLogo.endsWith('.png') && !siteLogoInput.toLowerCase().includes('.png')) {
+        alert('عذراً، يجب أن يكون رابط الشعار بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض والشفافية!');
+        return;
+      }
+    }
+    if (siteBannerInput.trim().startsWith('http')) {
+      const cleanBanner = siteBannerInput.trim().split('?')[0].split('#')[0].toLowerCase();
+      if (!cleanBanner.endsWith('.png') && !siteBannerInput.toLowerCase().includes('.png')) {
+        alert('عذراً، يجب أن يكون رابط بانر الموقع بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض والشفافية!');
+        return;
+      }
+    }
+
+    BerryDatabase.set('site_name', siteNameInput.trim());
+    BerryDatabase.set('site_logo', siteLogoInput.trim() || '🍇');
+    BerryDatabase.set('site_banner', siteBannerInput.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&fm=png');
+    
+    // Dispatch event to update other components in real-time
+    window.dispatchEvent(new Event('site-settings-updated'));
+    alert('تم حفظ إعدادات هوية المنصة بنجاح وتحديثها في شريط التنقل والواجهة الرئيسية! 🎉');
+  };
 
   useEffect(() => {
     // Load pending novels
@@ -338,6 +413,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
           <span>سجل نشاط الخادم والمنصة 🖥️</span>
           {activeTab === 'logs' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
+        <button 
+          onClick={() => setActiveTab('settings')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'settings' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>إعدادات هوية المنصة ⚙️</span>
+          {activeTab === 'settings' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
       </div>
 
       {/* Panel Tab Content */}
@@ -372,6 +454,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                             {req.status === 'PENDING' && '⏳ قيد الانتظار'}
                             {req.status === 'ACCEPTED' && '✅ مقبول'}
                             {req.status === 'REJECTED' && '❌ مرفوض'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${req.joinType === 'TEAM' ? 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'}`}>
+                            {req.joinType === 'TEAM' ? '👥 انضمام كـ فريق' : '✍️ انضمام كـ فرد'}
                           </span>
                         </div>
                         <p className="text-[10px] text-purple-400 mt-0.5">{req.email}</p>
@@ -584,6 +669,203 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
             <p>[2026-06-28 11:30:20] SUCCESS: Watermark signed using current active user credentials.</p>
             <p>[2026-06-28 11:32:00] INFO: News Ticker Linear translation left-to-right initialized.</p>
             <p className="text-white mt-4">=== نهاية السجل الحالي. المنصة خضراء وآمنة بالكامل ===</p>
+          </div>
+        )}
+
+        {/* TAB 4: Identity Settings */}
+        {activeTab === 'settings' && (
+          <div className="flex flex-col gap-6 text-right animate-in fade-in duration-300">
+            <div className="p-6 bg-[#1A1625] rounded-3xl border border-white/5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+              <div className="absolute bottom-0 right-0 w-48 h-48 bg-berry-600/5 rounded-full blur-[60px]" />
+
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
+                <Settings className="text-violet-400" size={20} />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">تخصيص هوية المنصة الفاخرة</h3>
+                  <p className="text-[10px] text-purple-400 mt-0.5">يمكنك بصفتك مالك المنصة تعديل الاسم، الشعار، وبانر الموقع الرئيسي فورا.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveSiteSettings} className="flex flex-col gap-5 text-right">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">اسم الموقع الجديد</label>
+                    <input 
+                      type="text"
+                      value={siteNameInput}
+                      onChange={(e) => setSiteNameInput(e.target.value)}
+                      placeholder="مثال: BerryMist"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">شعار الموقع (إيموجي أو رابط صورة)</label>
+                    <input 
+                      type="text"
+                      value={siteLogoInput}
+                      onChange={(e) => setSiteLogoInput(e.target.value)}
+                      placeholder="مثال: 🍇 أو رابط صورة شعار"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-purple-200">رابط بانر الموقع الرئيسي (صورة الغلاف/Hero Banner)</label>
+                  <input 
+                    type="text"
+                    value={siteBannerInput}
+                    onChange={(e) => setSiteBannerInput(e.target.value)}
+                    placeholder="أدخل رابط صورة مباشر وعالي الدقة للبانر العلوي بالصفحة الرئيسية"
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
+                    dir="ltr"
+                    required
+                  />
+                </div>
+
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 mt-2 flex items-center gap-4">
+                  <span className="text-lg">👁️</span>
+                  <div>
+                    <span className="text-xs font-bold text-violet-300 block mb-1">معاينة الهوية المقترحة:</span>
+                    <div className="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 w-fit">
+                      {siteLogoInput.startsWith('http') ? (
+                        <img src={siteLogoInput} alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-lg">{siteLogoInput}</span>
+                      )}
+                      <span className="text-xs font-extrabold text-white">{siteNameInput}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-[#100%] py-3.5 mt-4 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+                >
+                  <Check size={16} />
+                  <span>حفظ وتطبيق إعدادات الهوية الجديدة</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Footer and Social Links customization */}
+            <div className="p-6 bg-[#1A1625] rounded-3xl border border-white/5 shadow-xl relative overflow-hidden mt-6">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
+                <Settings className="text-[#FF2255]" size={20} />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">تعديل بيانات الفوتر وقنوات المجتمع الاجتماعي (أسفل الموقع)</h3>
+                  <p className="text-[10px] text-purple-400 mt-0.5">يمكنك التحكم بجميع النصوص في الفوتر وتحديد روابط شبكات التواصل الاجتماعي المعروضة للزوار.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveFooterSettings} className="flex flex-col gap-5 text-right">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">نبذة الموقع في أسفل الصفحة (من نحن)</label>
+                    <textarea 
+                      rows={3}
+                      value={footerDescInput}
+                      onChange={(e) => setFooterDescInput(e.target.value)}
+                      placeholder="منصة عربية رائدة لترجمة وقراءة الروايات الخفيفة..."
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors resize-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">نص دعوة انضم لعائلتنا (انضم لمجتمعنا)</label>
+                    <textarea 
+                      rows={3}
+                      value={footerCommunityTextInput}
+                      onChange={(e) => setFooterCommunityTextInput(e.target.value)}
+                      placeholder="انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها..."
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors resize-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">البريد الإلكتروني المعتمد للدعم الفني</label>
+                    <input 
+                      type="email"
+                      value={footerEmailInput}
+                      onChange={(e) => setFooterEmailInput(e.target.value)}
+                      placeholder="support@berrymist.com"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
+                      dir="ltr"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">طريقة تواصل الدعم السريع</label>
+                    <input 
+                      type="text"
+                      value={footerSupportInput}
+                      onChange={(e) => setFooterSupportInput(e.target.value)}
+                      placeholder="مثال: عبر تذكرة الديسكورد الرسمية بالأسفل"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Social media URLs and toggles */}
+                <div className="border-t border-white/5 pt-5 mt-2">
+                  <h4 className="text-xs font-bold text-violet-300 mb-3 flex items-center gap-1.5">
+                    <span>🔗 تخصيص شبكات التواصل الاجتماعي (انضم لمجتمعنا):</span>
+                  </h4>
+                  <p className="text-[9px] text-purple-400 mb-4">قم بتفعيل الشبكات التي تريدها وإضافة الرابط الخاص بها، وإلغاء تفعيل الشبكات التي لا ترغب بعرضها.</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {footerSocialsInput.map((social) => (
+                      <div key={social.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-lg">{social.icon}</span>
+                            <span className="text-xs font-bold text-white">{social.name}</span>
+                          </div>
+                          
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <span className="text-[10px] text-purple-400">{social.active ? 'نشط ومفعل ✓' : 'معطل ومخفي ✗'}</span>
+                            <input 
+                              type="checkbox"
+                              checked={social.active}
+                              onChange={() => handleSocialActiveToggle(social.id)}
+                              className="w-3.5 h-3.5 accent-violet-600 rounded cursor-pointer"
+                            />
+                          </label>
+                        </div>
+
+                        <input 
+                          type="text"
+                          value={social.url || ''}
+                          onChange={(e) => handleSocialUrlChange(social.id, e.target.value)}
+                          placeholder={`أدخل رابط حساب ${social.name} هنا...`}
+                          className="w-full px-3 py-1.5 bg-black/30 border border-white/5 rounded-xl text-[10px] text-purple-200 focus:outline-none focus:border-violet-500 transition-colors"
+                          disabled={!social.active}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full py-3.5 mt-4 bg-gradient-to-r from-berry-600 to-violet-600 hover:from-berry-500 hover:to-violet-500 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-berry-500/20 flex items-center justify-center gap-2"
+                >
+                  <Check size={16} />
+                  <span>حفظ ونشر جميع إعدادات الفوتر والشبكات الاجتماعية</span>
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </div>

@@ -21,6 +21,18 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   
+  const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
+  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+
+  useEffect(() => {
+    const handleSiteUpdate = () => {
+      setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
+      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
+    };
+    window.addEventListener('site-settings-updated', handleSiteUpdate);
+    return () => window.removeEventListener('site-settings-updated', handleSiteUpdate);
+  }, []);
+
   // Real-time search results
   const [searchResults, setSearchResults] = useState<any[]>([]);
   
@@ -63,9 +75,13 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             onClick={() => onNavigate('home')} 
             className="flex items-center gap-2 cursor-pointer select-none"
           >
-            <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">🍇</span>
+            {siteLogo.startsWith('http') ? (
+              <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{siteLogo}</span>
+            )}
             <span className="font-extrabold text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
-              BerryMist
+              {siteName}
             </span>
           </div>
 
@@ -102,7 +118,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
               onClick={() => onNavigate('teams')} 
               className={`hover:text-white transition-colors py-2 relative ${currentPage === 'teams' ? 'text-white font-semibold' : ''}`}
             >
-              الفرق
+              المترجمين
               {currentPage === 'teams' && (
                 <span className="absolute bottom-0 right-0 left-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />
               )}
@@ -474,8 +490,8 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                 onClick={() => { onNavigate('teams'); setMobileMenuOpen(false); }} 
                 className={`py-3.5 px-5 rounded-2xl text-right transition-all flex items-center justify-between cursor-pointer ${currentPage === 'teams' ? 'bg-gradient-to-r from-violet-600 to-berry-500 text-white' : 'bg-white/5 hover:bg-white/10'}`}
               >
-                <span>⚔️ الفرق</span>
-                <span className="text-xs text-purple-400 font-normal">فريق التحرير والترجمة</span>
+                <span>⚔️ المترجمين</span>
+                <span className="text-xs text-purple-400 font-normal">فريق التحرير والترجمة والمترجمين</span>
               </button>
               <button 
                 onClick={() => { onNavigate('ads'); setMobileMenuOpen(false); }} 

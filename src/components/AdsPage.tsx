@@ -44,8 +44,8 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
 
   // Handle PNG/Image file conversion to Base64
   const processImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('يرجى اختيار ملف صورة صالح بصيغة PNG أو JPG أو WebP.');
+    if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
+      setError('يرجى اختيار ملف صورة صالح بصيغة PNG فقط لضمان توافق جودة التصاميم الفاخرة.');
       return;
     }
     const reader = new FileReader();
@@ -94,6 +94,14 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
     if (!title.trim() || !image.trim() || !content.trim()) {
       setError('يرجى ملء جميع الحقول المطلوبة بالكامل.');
       return;
+    }
+
+    if (image.trim().startsWith('http')) {
+      const cleanImg = image.trim().split('?')[0].split('#')[0].toLowerCase();
+      if (!cleanImg.endsWith('.png') && !image.toLowerCase().includes('.png')) {
+        setError('عذراً، يجب أن يكون رابط الصورة بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض!');
+        return;
+      }
     }
 
     const newAd: Ad = {
@@ -241,14 +249,14 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
                     <input 
                       type="file" 
                       id="ad-image-uploader"
-                      accept="image/*"
+                      accept="image/png"
                       onChange={handleImageFileChange}
                       className="hidden"
                     />
                     <label htmlFor="ad-image-uploader" className="cursor-pointer w-full h-full flex flex-col items-center">
                       <Upload size={24} className="text-violet-400 animate-bounce mb-1" />
                       <span className="font-bold text-white text-xs">اسحب صورة الإعلان (PNG) وأفلتها هنا أو انقر للتصفح 📂</span>
-                      <span className="text-[10px] text-purple-400 mt-1">يدعم ملفات الصور بصيغة PNG أو JPG كحد أقصى</span>
+                      <span className="text-[10px] text-purple-400 mt-1">يدعم فقط ملفات الصور بصيغة PNG لضمان جودة التصاميم الفاخرة</span>
                     </label>
                   </div>
 

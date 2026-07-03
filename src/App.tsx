@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Compass, Flame, Clock, Award, Plus, Layers, Search, 
   MessageSquare, Users, Shield, BookOpen, Heart, 
-  ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone
+  ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone, Send
 } from 'lucide-react';
-import { User, UserRole, Novel, Suggestion, Reservation, News, Team } from './types';
+import { User, UserRole, Novel, Suggestion, Reservation, News, Team, TranslatorRequest } from './types';
 import { DEFAULT_USERS, BerryDatabase } from './data';
 
 // Component imports
@@ -13,7 +13,6 @@ import NewsTicker from './components/NewsTicker';
 import HeroSlider from './components/HeroSlider';
 import NovelCard from './components/NovelCard';
 import ContinueReading from './components/ContinueReading';
-import StatsCounter from './components/StatsCounter';
 import SuggestNovelDialog from './components/SuggestNovelDialog';
 import ExploreLibrary from './components/ExploreLibrary';
 import NovelDetails from './components/NovelDetails';
@@ -43,6 +42,39 @@ export default function App() {
   const [showProfileFavorites, setShowProfileFavorites] = useState(true);
   const [refreshAdsTrigger, setRefreshAdsTrigger] = useState(0);
 
+  // Join Form State for translators page
+  const [showJoinForm, setShowJoinForm] = useState(false);
+  const [joinType, setJoinType] = useState<'INDIVIDUAL' | 'TEAM'>('INDIVIDUAL');
+  const [joinName, setJoinName] = useState('');
+  const [joinLanguages, setJoinLanguages] = useState('');
+  const [joinContact, setJoinContact] = useState('');
+  const [joinExperience, setJoinExperience] = useState('');
+  const [joinReason, setJoinReason] = useState('');
+  const [joinSuccess, setJoinSuccess] = useState('');
+  const [joinError, setJoinError] = useState('');
+
+  const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
+  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+  const [siteBanner, setSiteBanner] = useState(() => BerryDatabase.get<string>('site_banner', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200'));
+
+  // Footer dynamic values
+  const [footerDesc, setFooterDesc] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
+  const [footerEmail, setFooterEmail] = useState(() => BerryDatabase.get<string>('footer_email', 'support@berrymist.com'));
+  const [footerSupport, setFooterSupport] = useState(() => BerryDatabase.get<string>('footer_support_text', 'عبر تذكرة الديسكورد الرسمية بالأسفل'));
+  const [footerCommunityText, setFooterCommunityText] = useState(() => BerryDatabase.get<string>('footer_community_text', 'انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها قبل الجميع حياً!'));
+  
+  const defaultSocialLinks = [
+    { id: "discord", name: "Discord", icon: "👾", url: "https://discord.gg/berrymist", active: true },
+    { id: "telegram", name: "Telegram", icon: "📢", url: "https://t.me/berrymist", active: true },
+    { id: "facebook", name: "Facebook", icon: "👥", url: "", active: false },
+    { id: "twitter", name: "Twitter / X", icon: "🐦", url: "", active: false },
+    { id: "instagram", name: "Instagram", icon: "📸", url: "", active: false },
+    { id: "tiktok", name: "TikTok", icon: "🎵", url: "", active: false },
+    { id: "youtube", name: "YouTube", icon: "📺", url: "", active: false },
+    { id: "whatsapp", name: "WhatsApp", icon: "💬", url: "", active: false }
+  ];
+  const [footerSocials, setFooterSocials] = useState<any[]>(() => BerryDatabase.get<any[]>('footer_socials', defaultSocialLinks));
+
   // Initialize data on mount
   useEffect(() => {
     BerryDatabase.initialize();
@@ -59,6 +91,27 @@ export default function App() {
       }
     };
     window.addEventListener('user-updated', handleUserUpdate);
+
+    const handleSiteUpdate = () => {
+      setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
+      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
+      setSiteBanner(BerryDatabase.get<string>('site_banner', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200'));
+    };
+    window.addEventListener('site-settings-updated', handleSiteUpdate);
+
+    const handleFooterUpdate = () => {
+      setFooterDesc(BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
+      setFooterEmail(BerryDatabase.get<string>('footer_email', 'support@berrymist.com'));
+      setFooterSupport(BerryDatabase.get<string>('footer_support_text', 'عبر تذكرة الديسكورد الرسمية بالأسفل'));
+      setFooterCommunityText(BerryDatabase.get<string>('footer_community_text', 'انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها قبل الجميع حياً!'));
+      setFooterSocials(BerryDatabase.get<any[]>('footer_socials', defaultSocialLinks));
+    };
+    window.addEventListener('footer-settings-updated', handleFooterUpdate);
+
+    const handleNovelsUpdate = () => {
+      setNovels(BerryDatabase.get<Novel[]>('novels', []));
+    };
+    window.addEventListener('novels-updated', handleNovelsUpdate);
     
     // Load from local database
     const savedUser = BerryDatabase.get<User | null>('current_user_data', null);
@@ -91,6 +144,9 @@ export default function App() {
       clearInterval(schedulerInterval);
       window.removeEventListener('ads-updated', handleAdsUpdate);
       window.removeEventListener('user-updated', handleUserUpdate);
+      window.removeEventListener('site-settings-updated', handleSiteUpdate);
+      window.removeEventListener('footer-settings-updated', handleFooterUpdate);
+      window.removeEventListener('novels-updated', handleNovelsUpdate);
     };
   }, []);
 
@@ -196,6 +252,56 @@ export default function App() {
       setNovels([...allNovels]);
       setSuggestions([...allSuggestions]);
     }
+  };
+
+  // Handle join team or individual request
+  const handleJoinRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    setJoinSuccess('');
+    setJoinError('');
+
+    if (!joinName.trim() || !joinLanguages.trim() || !joinContact.trim() || !joinExperience.trim() || !joinReason.trim()) {
+      setJoinError('يرجى ملء جميع الحقول المطلوبة بالكامل.');
+      return;
+    }
+
+    const newRequest: TranslatorRequest = {
+      id: `req-${Date.now()}`,
+      username: currentUser.username,
+      email: currentUser.email,
+      discord: joinContact,
+      telegram: joinContact,
+      experience: joinExperience,
+      languages: joinLanguages.split('،').map(l => l.trim()).filter(Boolean),
+      reason: joinReason,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      joinType: joinType
+    };
+
+    // Save to DB
+    const allReqs = BerryDatabase.get<TranslatorRequest[]>('translator_requests', []);
+    BerryDatabase.set('translator_requests', [newRequest, ...allReqs]);
+
+    // Send notifications to owner
+    const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+    const newNotif = {
+      id: `notif-req-${Date.now()}`,
+      userId: 'berrymist-owner',
+      title: '📥 طلب انضمام كمترجم/فريق جديد',
+      message: `العضو "${currentUser.username}" أرسل طلب انضمام كـ ${joinType === 'INDIVIDUAL' ? 'مترجم فرد' : 'فريق ترجمة كامل'} (${joinName}) لمراجعته وقبوله.`,
+      type: 'ROLE' as any,
+      isRead: false,
+      createdAt: 'الآن'
+    };
+    BerryDatabase.set('notifications', [...allNotifs, newNotif]);
+
+    setJoinSuccess(`تم تقديم طلب انضمامك كـ ${joinType === 'INDIVIDUAL' ? 'مترجم فرد' : 'فريق كامل'} بنجاح! جاري مراجعته حالياً من قبل مالك المنصة. 🍇`);
+    setJoinName('');
+    setJoinLanguages('');
+    setJoinContact('');
+    setJoinExperience('');
+    setJoinReason('');
   };
 
   // Handle suggestion claim directly
@@ -458,6 +564,31 @@ export default function App() {
         {/* ==================== SCREEN 1: HOMEPAGE ==================== */}
         {currentPage === 'home' && (
           <div className="flex flex-col gap-10">
+            {/* dynamic custom hero welcome banner requested by user */}
+            <div className="relative w-full h-[160px] md:h-[240px] rounded-3xl overflow-hidden border border-white/5 shadow-xl flex items-center justify-between p-6 md:p-10 text-right animate-in fade-in duration-300">
+              <div 
+                className="absolute inset-0 bg-cover bg-center transition-all duration-500 hover:scale-[1.01]"
+                style={{ backgroundImage: `url(${siteBanner})`, filter: 'brightness(0.35)' }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-l from-[#0F0B14] via-[#0F0B14]/40 to-transparent" />
+              <div className="relative z-10 flex flex-col gap-2 max-w-2xl">
+                <h1 className="text-2xl md:text-4xl font-extrabold text-white flex items-center gap-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+                  {siteLogo.startsWith('http') ? (
+                    <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span>{siteLogo}</span>
+                  )}
+                  <span>{siteName}</span>
+                </h1>
+                <p className="text-xs md:text-sm text-purple-200 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] font-semibold">
+                  المنصة العربية الفاخرة لترجمة وتأليف الروايات والقصص الخيالية ✨
+                </p>
+                <p className="text-[10px] text-purple-300/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)] hidden sm:block leading-relaxed">
+                  استكشف فصولاً حصرية، وتابع مترجميك المفضلين، وشارك آرائك في بيئة قراءة مصممة خصيصاً للشغوفين بالخيال والأكشن!
+                </p>
+              </div>
+            </div>
+
             {activeNovels.length === 0 ? (
               <div className="w-full text-right p-8 md:p-12 rounded-3xl bg-white/5 border border-white/5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-64 h-64 bg-violet-600/10 rounded-full blur-[80px]" />
@@ -590,9 +721,6 @@ export default function App() {
                 </div>
               </>
             )}
-
-            {/* Platform statistics bottom deck */}
-            <StatsCounter />
           </div>
         )}
 
@@ -709,12 +837,157 @@ export default function App() {
           <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-6 flex items-center gap-2">
               <Users size={20} className="text-violet-400 animate-pulse" />
-              <span>فهرس ودليل فرق الترجمة المعتمدة</span>
+              <span>دليل المترجمين وفرق العمل المعتمدة ✍️</span>
             </h2>
+
+            {/* Request to Join Box */}
+            <div className="mb-8 p-6 bg-gradient-to-r from-violet-950/30 to-purple-950/30 border border-violet-500/20 rounded-3xl relative overflow-hidden text-right shadow-xl">
+              <div className="absolute top-0 left-0 w-32 h-32 bg-violet-600/5 rounded-full blur-[40px] pointer-events-none" />
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 border-b border-white/5 pb-4 mb-6">
+                <div>
+                  <h3 className="text-sm md:text-base font-extrabold text-white flex items-center gap-2">
+                    <Award size={18} className="text-violet-400" />
+                    <span>طلب الانضمام كـ (فرد مستقل) أو (فريق عمل متكامل)</span>
+                  </h3>
+                  <p className="text-[10px] text-purple-300 mt-1">هل أنت مترجم مستقل ترغب بنشر فصولك؟ أم لديك فريق ترجمة كامل ترغب بتسجيله بالمنصة؟ قدّم طلبك الآن!</p>
+                </div>
+                {currentUser.role === 'GUEST' ? (
+                  <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl font-bold">
+                    ⚠️ يرجى تسجيل الدخول أولاً لتقديم طلب الانضمام
+                  </span>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      setShowJoinForm(!showJoinForm);
+                      setJoinSuccess('');
+                      setJoinError('');
+                    }}
+                    className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5 self-start cursor-pointer hover:shadow-violet-500/10"
+                  >
+                    {showJoinForm ? 'إغلاق نموذج الطلب ▲' : 'فتح نموذج تقديم طلب الانضمام ▼'}
+                  </button>
+                )}
+              </div>
+
+              {showJoinForm && currentUser.role !== 'GUEST' && (
+                <form onSubmit={handleJoinRequest} className="flex flex-col gap-5 text-xs font-medium bg-black/30 p-5 rounded-2xl border border-white/5 animate-in slide-in-from-top-2 duration-300">
+                  {joinSuccess && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/20 text-green-300 rounded-xl text-center font-bold">
+                      {joinSuccess}
+                    </div>
+                  )}
+                  {joinError && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-300 rounded-xl text-center font-bold">
+                      {joinError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Join Type Selector */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-purple-200 font-bold">طبيعة الانضمام المطلوب *</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setJoinType('INDIVIDUAL')}
+                          className={`py-2 px-3 rounded-xl border font-bold transition-all text-center flex justify-center items-center gap-1.5 ${joinType === 'INDIVIDUAL' ? 'bg-violet-600 border-violet-500 text-white' : 'bg-white/5 border-white/5 text-purple-300 hover:bg-white/10'}`}
+                        >
+                          <span>مترجم فرد مستقل ✍️</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setJoinType('TEAM')}
+                          className={`py-2 px-3 rounded-xl border font-bold transition-all text-center flex justify-center items-center gap-1.5 ${joinType === 'TEAM' ? 'bg-violet-600 border-violet-500 text-white' : 'bg-white/5 border-white/5 text-purple-300 hover:bg-white/10'}`}
+                        >
+                          <span>فريق ترجمة كامل 👥</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Team/Individual Name */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-purple-200 font-bold">الاسم (الاسم الشخصي أو اسم الفريق) *</label>
+                      <input
+                        type="text"
+                        required
+                        value={joinName}
+                        onChange={(e) => setJoinName(e.target.value)}
+                        placeholder={joinType === 'INDIVIDUAL' ? 'أدخل اسمك الفني كمترجم...' : 'أدخل اسم الفريق المُراد تسجيله...'}
+                        className="bg-[#14101D] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-2.5 text-white text-xs transition-all text-right"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Languages */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-purple-200 font-bold">اللغات التي تترجم منها *</label>
+                      <input
+                        type="text"
+                        required
+                        value={joinLanguages}
+                        onChange={(e) => setJoinLanguages(e.target.value)}
+                        placeholder="مثال: الكورية، الإنجليزية، اليابانية..."
+                        className="bg-[#14101D] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-2.5 text-white text-xs transition-all text-right"
+                      />
+                    </div>
+
+                    {/* Discord/Telegram */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-purple-200 font-bold">رابط أو معرف للتواصل (ديسكورد / تليجرام) *</label>
+                      <input
+                        type="text"
+                        required
+                        value={joinContact}
+                        onChange={(e) => setJoinContact(e.target.value)}
+                        placeholder="مثال: dsc.gg/yourteam أو معرف تليجرام..."
+                        className="bg-[#14101D] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-2.5 text-white text-xs transition-all text-right"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Experience */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-purple-200 font-bold">الخبرة السابقة ومشاريعكم السابقة بالتفصيل *</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={joinExperience}
+                        onChange={(e) => setJoinExperience(e.target.value)}
+                        placeholder="أدخل أسماء الروايات أو الفصول التي قمت بترجمتها سابقاً..."
+                        className="bg-[#14101D] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-2.5 text-white text-xs transition-all text-right resize-none"
+                      />
+                    </div>
+
+                    {/* Reason / Bio */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-purple-200 font-bold">نبذة أو سبب رغبتك بالانضمام لمنصتنا *</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={joinReason}
+                        onChange={(e) => setJoinReason(e.target.value)}
+                        placeholder="لماذا تود نشر ترجماتك أو نقل فريقك الفاخر للعمل على منصة بيري ميست؟..."
+                        className="bg-[#14101D] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-2.5 text-white text-xs transition-all text-right resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full md:w-fit px-8 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold transition-all shadow-md self-end flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Send size={14} />
+                    <span>تقديم طلب الانضمام للإدارة 🚀</span>
+                  </button>
+                </form>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {teams.map((team) => (
-                <div key={team.id} className="p-6 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col justify-between text-right">
+                <div key={team.id} className="p-6 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col justify-between text-right shadow-md">
                   <div>
                     <div className="flex items-center gap-3 pb-4 border-b border-white/5 mb-4">
                       <span className="text-3xl p-2 bg-white/5 rounded-2xl border border-white/5">{team.logo}</span>
@@ -1033,13 +1306,13 @@ export default function App() {
           {/* Col 1: Brand Info */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">🍇</span>
+              <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{siteLogo}</span>
               <span className="font-extrabold text-xl bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
-                BerryMist
+                {siteName}
               </span>
             </div>
             <p className="text-xs text-purple-300 leading-relaxed max-w-xs">
-              منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.
+              {footerDesc}
             </p>
           </div>
 
@@ -1047,10 +1320,10 @@ export default function App() {
           <div>
             <h4 className="font-extrabold text-xs text-white uppercase tracking-wider mb-4 border-r-2 border-violet-500 pr-2">أقسام سريعة</h4>
             <div className="flex flex-col gap-2.5 text-xs text-purple-300">
-              <button onClick={() => handleNavigate('home')} className="hover:text-white transition-colors text-right">الرئيسية</button>
-              <button onClick={() => handleNavigate('explore')} className="hover:text-white transition-colors text-right">المكتبة والاستكشاف</button>
-              <button onClick={() => handleNavigate('suggestions')} className="hover:text-white transition-colors text-right">اقتراحات الأعضاء</button>
-              <button onClick={() => handleNavigate('teams')} className="hover:text-white transition-colors text-right">الفرق المعتمدة</button>
+              <button onClick={() => handleNavigate('home')} className="hover:text-white transition-colors text-right cursor-pointer">الرئيسية</button>
+              <button onClick={() => handleNavigate('explore')} className="hover:text-white transition-colors text-right cursor-pointer">المكتبة والاستكشاف</button>
+              <button onClick={() => handleNavigate('suggestions')} className="hover:text-white transition-colors text-right cursor-pointer">اقتراحات الأعضاء</button>
+              <button onClick={() => handleNavigate('teams')} className="hover:text-white transition-colors text-right cursor-pointer">المترجمين والفرق</button>
             </div>
           </div>
 
@@ -1059,23 +1332,32 @@ export default function App() {
             <h4 className="font-extrabold text-xs text-white uppercase tracking-wider mb-4 border-r-2 border-berry-500 pr-2">تواصل معنا والدعم</h4>
             <div className="flex flex-col gap-2.5 text-xs text-purple-300">
               <span className="text-purple-400">البريد المعتمد:</span>
-              <span className="text-white font-mono">support@berrymist.com</span>
+              <span className="text-white font-mono">{footerEmail}</span>
               <span className="text-purple-400 mt-1">تواصل الدعم السريع:</span>
-              <span className="text-white">عبر تذكرة الديسكورد الرسمية بالأسفل</span>
+              <span className="text-white">{footerSupport}</span>
             </div>
           </div>
 
           {/* Col 4: Community Links */}
           <div>
             <h4 className="font-extrabold text-xs text-white uppercase tracking-wider mb-4 border-r-2 border-violet-500 pr-2">انضم لمجتمعنا الاجتماعي</h4>
-            <p className="text-xs text-purple-300 mb-3 max-w-xs">انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها قبل الجميع حياً!</p>
-            <div className="flex gap-2 justify-start select-none">
-              <a href="https://discord.gg/berrymist" target="_blank" rel="noreferrer" className="p-2.5 bg-white/5 border border-white/5 rounded-xl text-purple-300 hover:text-white hover:bg-violet-600 transition-all text-sm font-bold shadow-md" title="ديسكورد">
-                Discord 👾
-              </a>
-              <a href="https://t.me/berrymist" target="_blank" rel="noreferrer" className="p-2.5 bg-white/5 border border-white/5 rounded-xl text-purple-300 hover:text-white hover:bg-sky-600 transition-all text-sm font-bold shadow-md" title="تيليجرام">
-                Telegram 📢
-              </a>
+            <p className="text-xs text-purple-300 mb-3 max-w-xs">{footerCommunityText}</p>
+            <div className="flex gap-2 flex-wrap justify-start select-none">
+              {footerSocials.filter(s => s.active && s.url).map((social) => (
+                <a 
+                  key={social.id}
+                  href={social.url} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="p-2.5 bg-white/5 border border-white/5 rounded-xl text-purple-300 hover:text-white hover:bg-violet-600 transition-all text-xs font-bold shadow-md flex items-center gap-1 cursor-pointer" 
+                  title={social.name}
+                >
+                  <span>{social.name} {social.icon}</span>
+                </a>
+              ))}
+              {footerSocials.filter(s => s.active && s.url).length === 0 && (
+                <span className="text-[10px] text-purple-400 font-semibold italic">لم يتم ربط أي شبكات تواصل اجتماعي نشطة حالياً</span>
+              )}
             </div>
           </div>
 
@@ -1083,7 +1365,7 @@ export default function App() {
 
         {/* Sub-footer Copyright */}
         <div className="max-w-7xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-purple-400 gap-4">
-          <span>حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة Berry Mist وللمترجمين المعتمدين.</span>
+          <span>حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
           <div className="flex gap-4">
             <span className="hover:text-white cursor-pointer">شروط الخدمة والاستخدام</span>
             <span className="hover:text-white cursor-pointer">سياسة الخصوصية وحماية البيانات</span>

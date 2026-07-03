@@ -403,6 +403,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setNewChapterPublishAt('');
   };
 
+  const isTranslatorOrOwner = currentUser.role === 'OWNER' || (novel && novel.translatorId === currentUser.id);
+
   return (
     <div className="w-full text-right mt-4 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
       
@@ -422,8 +424,39 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         />
 
         {/* Cover image wrapper */}
-        <div className="relative w-48 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0">
-          <img src={novel.cover} alt={novel.titleAr} className="w-full h-full object-cover" />
+        <div className="flex flex-col gap-3 shrink-0">
+          <div className="relative w-48 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+            <img src={novel.cover} alt={novel.titleAr} className="w-full h-full object-cover" />
+          </div>
+          {isTranslatorOrOwner && (
+            <button 
+              onClick={() => {
+                const newUrl = prompt('الرجاء إدخال رابط الصورة الجديد لغلاف الرواية (يجب أن يكون بصيغة .png فقط):', novel.cover);
+                if (newUrl !== null && newUrl.trim() !== '') {
+                  const trimmedUrl = newUrl.trim();
+                  const cleanUrl = trimmedUrl.split('?')[0].split('#')[0].toLowerCase();
+                  if (!cleanUrl.endsWith('.png') && !trimmedUrl.includes('.png')) {
+                    alert('عذراً، يجب أن يكون رابط الصورة بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض الفاخرة بالمنصة!');
+                    return;
+                  }
+                  // Update in database
+                  const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+                  const updatedNovels = allNovels.map(n => n.id === novel.id ? { ...n, cover: trimmedUrl } : n);
+                  BerryDatabase.set('novels', updatedNovels);
+                  
+                  // Update local state
+                  setNovel({ ...novel, cover: trimmedUrl });
+                  alert('تم تحديث غلاف الرواية بنجاح! 🎉');
+                  // Trigger event so any other components update if listening
+                  window.dispatchEvent(new Event('novels-updated'));
+                }
+              }}
+              className="w-full py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/30 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-violet-500/5"
+            >
+              <Image size={12} />
+              <span>تغيير غلاف الرواية 🎨</span>
+            </button>
+          )}
         </div>
 
         {/* Right Info pane */}
