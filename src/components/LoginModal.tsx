@@ -1,0 +1,227 @@
+import React, { useState } from 'react';
+import { LogIn, UserPlus, X, Shield, Mail, Lock, User as UserIcon } from 'lucide-react';
+import { User, UserRole } from '../types';
+import { BerryDatabase, DEFAULT_USERS } from '../data';
+
+interface LoginModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onLoginSuccess: (user: User) => void;
+}
+
+export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!email || !password || (isRegister && !username)) {
+      setError('يرجى ملء جميع الحقول المطلوبة.');
+      return;
+    }
+
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+
+    if (isRegister) {
+      // Sign Up
+      const emailExists = usersDb.some(u => u.email.toLowerCase() === email.toLowerCase());
+      if (emailExists) {
+        setError('البريد الإلكتروني مسجل بالفعل.');
+        return;
+      }
+
+      // Check if trying to register owner email
+      const isOwnerEmail = email.toLowerCase() === 'berrymist11@gmail.com';
+      const role: UserRole = isOwnerEmail ? 'OWNER' : 'MEMBER';
+
+      const newUser: User & { password?: string } = {
+        id: `user-${Date.now()}`,
+        username: username,
+        email: email.toLowerCase(),
+        role: role,
+        xp: role === 'OWNER' ? 15400 : 0,
+        level: role === 'OWNER' ? 50 : 1,
+        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`,
+        bio: role === 'OWNER' 
+          ? 'مؤسس وصاحب منصة Berry Mist الفاخرة لروايات الخيال والأكشن المترجمة.' 
+          : 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
+        password: password
+      };
+
+      BerryDatabase.set('users_db', [...usersDb, newUser]);
+      BerryDatabase.set('current_user_data', newUser);
+      BerryDatabase.set('current_role', role);
+
+      setSuccess(role === 'OWNER' ? 'تم إنشاء حساب المالك بنجاح! 👑' : 'تم إنشاء الحساب بنجاح كقارئ! 👤');
+      setTimeout(() => {
+        onLoginSuccess(newUser);
+        onClose();
+      }, 1500);
+
+    } else {
+      // Sign In
+      // Check for hardcoded owner login
+      if (email.toLowerCase() === 'berrymist11@gmail.com' && password === 'berry11') {
+        const ownerUser = {
+          ...DEFAULT_USERS.OWNER,
+          email: 'berrymist11@gmail.com'
+        };
+        BerryDatabase.set('current_user_data', ownerUser);
+        BerryDatabase.set('current_role', 'OWNER' as UserRole);
+        setSuccess('تم تسجيل دخول المالك بنجاح! 👑');
+        setTimeout(() => {
+          onLoginSuccess(ownerUser);
+          onClose();
+        }, 1500);
+        return;
+      }
+
+      // Check in user database
+      const user = usersDb.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+      if (!user) {
+        setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+        return;
+      }
+
+      BerryDatabase.set('current_user_data', user);
+      BerryDatabase.set('current_role', user.role);
+      setSuccess(`أهلاً بك مجدداً، ${user.username}! ✨`);
+      setTimeout(() => {
+        onLoginSuccess(user);
+        onClose();
+      }, 1500);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex justify-center items-center p-4">
+      <div className="w-full max-w-md glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 relative overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/10 rounded-full blur-[60px] pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-48 h-48 bg-berry-600/10 rounded-full blur-[60px] pointer-events-none" />
+
+        {/* Close Button */}
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 left-4 p-2 rounded-full bg-white/5 border border-white/5 text-purple-200 hover:text-white transition-colors cursor-pointer"
+        >
+          <X size={18} />
+        </button>
+
+        {/* Title */}
+        <div className="text-center mb-6">
+          <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-3 block">🍇</span>
+          <h3 className="font-extrabold text-2xl text-white bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
+            {isRegister ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
+          </h3>
+          <p className="text-xs text-purple-300 mt-1">
+            {isRegister ? 'انضم إلى مجتمع بيري ميست الفاخر للروايات' : 'سجل دخولك لمتابعة قراءاتك وطلباتك'}
+          </p>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-right">
+          {error && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 font-semibold text-center animate-shake">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-xs text-green-300 font-semibold text-center">
+              🎉 {success}
+            </div>
+          )}
+
+          {isRegister && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-purple-200">اسم المستخدم</label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="مثال: قارئ_الضباب"
+                  className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors text-right"
+                  required
+                />
+                <UserIcon size={14} className="absolute top-3.5 right-3.5 text-purple-400" />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-purple-200">البريد الإلكتروني</label>
+            <div className="relative">
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@domain.com"
+                className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors text-right"
+                dir="ltr"
+                required
+              />
+              <Mail size={14} className="absolute top-3.5 right-3.5 text-purple-400" />
+            </div>
+            {!isRegister && (
+              <span className="text-[10px] text-purple-400 block mt-0.5 text-right">
+                بريد المالك: <code className="text-violet-300 font-mono">berrymist11@gmail.com</code> (كلمة السر: <code className="text-violet-300 font-mono">berry11</code>)
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-purple-200">كلمة المرور</label>
+            <div className="relative">
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors text-right"
+                required
+              />
+              <Lock size={14} className="absolute top-3.5 right-3.5 text-purple-400" />
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            className="w-full py-3 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer flex items-center justify-center gap-2 mt-2 shadow-lg shadow-violet-500/20"
+          >
+            {isRegister ? <UserPlus size={16} /> : <LogIn size={16} />}
+            <span>{isRegister ? 'إنشاء حساب جديد وعضوية قارئ' : 'دخول للمنصة'}</span>
+          </button>
+        </form>
+
+        {/* Switch mode */}
+        <div className="mt-6 pt-4 border-t border-white/5 text-center text-xs text-purple-300">
+          {isRegister ? (
+            <span>
+              لديك حساب بالفعل؟{' '}
+              <button onClick={() => setIsRegister(false)} className="text-violet-400 hover:text-violet-300 font-bold underline cursor-pointer">
+                تسجيل الدخول هنا
+              </button>
+            </span>
+          ) : (
+            <span>
+              ليس لديك حساب بعد؟{' '}
+              <button onClick={() => setIsRegister(true)} className="text-violet-400 hover:text-violet-300 font-bold underline cursor-pointer">
+                أنشئ حساب قارئ الآن
+              </button>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

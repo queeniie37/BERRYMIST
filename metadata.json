@@ -1,0 +1,6 @@
+{
+  "name": "Berry Mist",
+  "description": "منصة عربية فاخرة لاقتراح وترجمة ونشر وقراءة الروايات بنظام حجز وتفاعل متطور",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
