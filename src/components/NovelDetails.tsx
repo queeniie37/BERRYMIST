@@ -530,12 +530,21 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {/* Interactive Actions Pane */}
           <div className="flex flex-wrap gap-3 mt-6">
             {chapters.length > 0 ? (
-              <button 
-                onClick={() => onReadChapter(novel.id, 1)}
-                className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-violet-500/10 cursor-pointer"
-              >
-                <span>ابدأ القراءة الأولى</span>
-              </button>
+              currentUser.role === 'GUEST' ? (
+                <button 
+                  onClick={() => window.dispatchEvent(new Event('open-login-modal'))}
+                  className="px-6 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-violet-500/10 cursor-pointer animate-pulse"
+                >
+                  <span>🔒 سجل دخولك للقراءة</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={() => onReadChapter(novel.id, 1)}
+                  className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-violet-500/10 cursor-pointer"
+                >
+                  <span>ابدأ القراءة الأولى</span>
+                </button>
+              )
             ) : (
               <button 
                 disabled
@@ -804,7 +813,22 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               )}
 
               {/* Grid of Chapters */}
-              {chapters.length > 0 ? (
+              {currentUser.role === 'GUEST' ? (
+                <div className="glass-panel p-8 md:p-12 text-center rounded-2xl border border-white/5 bg-violet-950/5 relative overflow-hidden flex flex-col items-center justify-center gap-4 shadow-xl">
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-violet-600/10 rounded-full blur-2xl" />
+                  <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)]">🔒</span>
+                  <h3 className="text-base font-extrabold text-white">الفصول المنشورة حصرية للأعضاء!</h3>
+                  <p className="text-xs text-purple-300 leading-relaxed max-w-md">
+                    عذراً يا زائرنا الكريم، لم تعد الفصول المنشورة تظهر لزوار الموقع لحماية الحقوق وتقديم ميزات قراءة فخمة. يرجى تسجيل الدخول أو إنشاء حساب جديد مجاناً لمتابعة القراءة والاستمتاع بكافة فصول الروايات حياً ومباشراً!
+                  </p>
+                  <button 
+                    onClick={() => window.dispatchEvent(new Event('open-login-modal'))}
+                    className="mt-2 px-6 py-2.5 rounded-full text-xs font-bold bg-gradient-to-r from-violet-600 to-berry-500 text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                  >
+                    تسجيل الدخول أو تسجيل حساب جديد 🍇
+                  </button>
+                </div>
+              ) : chapters.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {chapters.map((chapter) => (
                     <div 

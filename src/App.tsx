@@ -626,6 +626,10 @@ export default function App() {
 
   // Read Chapter helper (Routes to full screen reader)
   const handleReadChapter = (novelId: string, chapterNumber: number) => {
+    if (currentUser.role === 'GUEST') {
+      window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
     handleNavigate('reader', { novelId, chapterNumber });
   };
 
@@ -825,36 +829,53 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {latestChaptersList.map((novel) => (
-                      <div 
-                        key={novel.id}
-                        onClick={() => handleReadChapter(novel.id, novel.chaptersCount)}
-                        className="p-4 bg-[#14101D] hover:bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex gap-4 cursor-pointer transition-all hover:-translate-y-0.5 group relative"
+                  {currentUser.role === 'GUEST' ? (
+                    <div className="glass-panel p-8 md:p-12 text-center rounded-3xl border border-white/5 bg-violet-950/5 relative overflow-hidden flex flex-col items-center justify-center gap-4 max-w-2xl mx-auto shadow-xl">
+                      <div className="absolute -top-10 -right-10 w-40 h-40 bg-violet-600/10 rounded-full blur-2xl" />
+                      <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)]">🔒</span>
+                      <h3 className="text-lg font-extrabold text-white">الفصول المنشورة حصرية للأعضاء!</h3>
+                      <p className="text-xs text-purple-300 leading-relaxed max-w-md text-center">
+                        عذراً يا زائرنا الكريم، لم تعد الفصول المنشورة تظهر لزوار الموقع لحماية الحقوق وتقديم ميزات قراءة فخمة. يرجى تسجيل الدخول أو إنشاء حساب جديد مجاناً بلحظة واحدة لمتابعة القراءة والاستمتاع بكافة فصول الروايات حياً ومباشراً!
+                      </p>
+                      <button 
+                        onClick={() => window.dispatchEvent(new Event('open-login-modal'))}
+                        className="mt-2 px-6 py-2.5 rounded-full text-xs font-bold bg-gradient-to-r from-violet-600 to-berry-500 text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
                       >
-                        {/* Purple "جديد" (New) ribbon badge as requested in specs */}
-                        <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[9px] font-bold bg-violet-600 text-white shadow-md animate-pulse">
-                          جديد
-                        </span>
+                        تسجيل الدخول أو تسجيل حساب جديد 🍇
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {latestChaptersList.map((novel) => (
+                        <div 
+                          key={novel.id}
+                          onClick={() => handleReadChapter(novel.id, novel.chaptersCount)}
+                          className="p-4 bg-[#14101D] hover:bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex gap-4 cursor-pointer transition-all hover:-translate-y-0.5 group relative"
+                        >
+                          {/* Purple "جديد" (New) ribbon badge as requested in specs */}
+                          <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[9px] font-bold bg-violet-600 text-white shadow-md animate-pulse">
+                            جديد
+                          </span>
 
-                        <img src={novel.cover} alt={novel.titleAr} className="w-12 h-18 rounded-xl object-cover shrink-0" loading="lazy" referrerPolicy="no-referrer" />
-                        
-                        <div className="flex-1 flex flex-col justify-between min-w-0 text-right">
-                          <div>
-                            <h4 className="font-extrabold text-xs text-white group-hover:text-violet-400 transition-colors truncate">
-                              {novel.titleAr}
-                            </h4>
-                            <span className="text-[10px] text-purple-400 truncate mt-0.5 block">{novel.titleEn}</span>
-                          </div>
+                          <img src={novel.cover} alt={novel.titleAr} className="w-12 h-18 rounded-xl object-cover shrink-0" loading="lazy" referrerPolicy="no-referrer" />
                           
-                          <div className="flex justify-between items-center mt-2 text-[10px] text-purple-300 border-t border-white/5 pt-2">
-                            <span className="font-bold text-violet-300">قراءة الفصل {novel.chaptersCount} ←</span>
-                            <span className="text-purple-400">منذ دقائق</span>
+                          <div className="flex-1 flex flex-col justify-between min-w-0 text-right">
+                            <div>
+                              <h4 className="font-extrabold text-xs text-white group-hover:text-violet-400 transition-colors truncate">
+                                {novel.titleAr}
+                              </h4>
+                              <span className="text-[10px] text-purple-400 truncate mt-0.5 block">{novel.titleEn}</span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center mt-2 text-[10px] text-purple-300 border-t border-white/5 pt-2">
+                              <span className="font-bold text-violet-300">قراءة الفصل {novel.chaptersCount} ←</span>
+                              <span className="text-purple-400">منذ دقائق</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}

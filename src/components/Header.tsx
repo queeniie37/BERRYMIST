@@ -21,6 +21,16 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   
+  useEffect(() => {
+    const handleOpenLoginModal = () => {
+      setLoginModalOpen(true);
+    };
+    window.addEventListener('open-login-modal', handleOpenLoginModal);
+    return () => {
+      window.removeEventListener('open-login-modal', handleOpenLoginModal);
+    };
+  }, []);
+  
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
   const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
 
