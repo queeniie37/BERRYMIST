@@ -876,6 +876,38 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* All Published Novels / Latest Added Section */}
+                <div className="w-full text-right mt-10">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl md:text-2xl font-extrabold text-white flex items-center gap-2">
+                      <span className="text-violet-400">✨</span>
+                      <span>جميع الروايات المنشورة بالمنصة (أحدث الإضافات)</span>
+                    </h2>
+                    <span className="text-xs text-purple-400">تحديث تلقائي فوري</span>
+                  </div>
+                  
+                  {activeNovels.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-4">
+                      {/* Sort by createdAt descending, so newly added always appear first */}
+                      {[...activeNovels]
+                        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                        .map((novel) => (
+                          <NovelCard 
+                            key={novel.id}
+                            novel={novel}
+                            isBookmarked={bookmarks.includes(novel.id)}
+                            onBookmarkToggle={handleBookmarkToggle}
+                            onClick={(id) => handleNavigate('novel', { id })}
+                          />
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
+                      <p className="text-xs">لا توجد روايات منشورة حالياً.</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Latest added chapters section (آخر الفصول المضافة) */}
                 <div className="w-full text-right my-4">
                   <div className="flex items-center justify-between mb-6">

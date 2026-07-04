@@ -113,6 +113,21 @@ export class BerryDatabase {
     try {
       localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
       
+      // Dispatch standard custom events so that App.tsx receives updates reactive and instantly
+      if (key === 'novels') {
+        window.dispatchEvent(new Event('novels-updated'));
+      } else if (key === 'notifications') {
+        window.dispatchEvent(new Event('notifications-updated'));
+      } else if (key === 'ads') {
+        window.dispatchEvent(new Event('ads-updated'));
+      } else if (key === 'site_name' || key === 'site_logo' || key === 'site_banner') {
+        window.dispatchEvent(new Event('site-settings-updated'));
+      } else if (key.startsWith('footer_')) {
+        window.dispatchEvent(new Event('footer-settings-updated'));
+      } else {
+        window.dispatchEvent(new Event(`${key}-updated`));
+      }
+
       // Sync to backend Express server database asynchronously
       fetch('/api/db', {
         method: 'POST',
