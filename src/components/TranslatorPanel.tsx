@@ -648,22 +648,23 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                       <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-white/5 text-[10px] text-purple-300">
                         <span>{novel.chaptersCount} فصل منشور</span>
                         <div className="flex gap-2.5 items-center">
+                          {/* Owner downloads anything; translator only after owner approval */}
+                          {(currentUser.role === 'OWNER' || novel.status !== 'PENDING') && (
+                            <button
+                              onClick={() => downloadNovelAndChapters(novel)}
+                              className="px-2.5 py-1.5 bg-[#1F172B] hover:bg-[#2A203C] text-violet-300 hover:text-white border border-violet-500/20 hover:border-violet-500/40 rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                              title="تنزيل الرواية وفصولها بالكامل كملف نصي"
+                            >
+                              <span>تنزيل 📥</span>
+                            </button>
+                          )}
                           {novel.status !== 'PENDING' && (
-                            <>
-                              <button 
-                                onClick={() => downloadNovelAndChapters(novel)}
-                                className="px-2.5 py-1.5 bg-[#1F172B] hover:bg-[#2A203C] text-violet-300 hover:text-white border border-violet-500/20 hover:border-violet-500/40 rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
-                                title="تنزيل الرواية وفصولها بالكامل كملف نصي"
-                              >
-                                <span>تنزيل 📥</span>
-                              </button>
-                              <button 
-                                onClick={() => onNavigate('novel', { id: novel.id, autoOpenAddChapter: true })}
-                                className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
-                              >
-                                <span>إضافة فصل جديد +</span>
-                              </button>
-                            </>
+                            <button
+                              onClick={() => onNavigate('novel', { id: novel.id, autoOpenAddChapter: true })}
+                              className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <span>إضافة فصل جديد +</span>
+                            </button>
                           )}
                           <button 
                             onClick={() => onNavigate('novel', { id: novel.id })}

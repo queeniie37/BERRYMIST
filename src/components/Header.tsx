@@ -570,13 +570,33 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                 <span>⚔️ المترجمين</span>
                 <span className="text-xs text-purple-400 font-normal">فريق التحرير والترجمة والمترجمين</span>
               </button>
-              <button 
-                onClick={() => { onNavigate('ads'); setMobileMenuOpen(false); }} 
+              <button
+                onClick={() => { onNavigate('ads'); setMobileMenuOpen(false); }}
                 className={`py-3.5 px-5 rounded-2xl text-right transition-all flex items-center justify-between cursor-pointer ${currentPage === 'ads' ? 'bg-gradient-to-r from-violet-600 to-berry-500 text-white' : 'bg-white/5 hover:bg-white/10'}`}
               >
                 <span>📢 صفحة الإعلانات العامة</span>
                 <span className="text-xs text-purple-400 font-normal">آخر الأخبار والإعلانات</span>
               </button>
+
+              {/* Control panels — shown per role so the owner sees all panels */}
+              {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER' || currentUser.role === 'OWNER') && (
+                <button
+                  onClick={() => { onNavigate('translator-panel'); setMobileMenuOpen(false); }}
+                  className={`py-3.5 px-5 rounded-2xl text-right transition-all flex items-center justify-between cursor-pointer ${currentPage === 'translator-panel' ? 'bg-gradient-to-r from-violet-600 to-berry-500 text-white' : 'bg-white/5 hover:bg-white/10'}`}
+                >
+                  <span>✍️ لوحة العمل (مترجم/كاتب)</span>
+                  <span className="text-xs text-purple-400 font-normal">إنشاء ونشر رواياتك</span>
+                </button>
+              )}
+              {currentUser.role === 'OWNER' && (
+                <button
+                  onClick={() => { onNavigate('admin'); setMobileMenuOpen(false); }}
+                  className={`py-3.5 px-5 rounded-2xl text-right transition-all flex items-center justify-between cursor-pointer ${currentPage === 'admin' ? 'bg-gradient-to-r from-violet-600 to-berry-500 text-white' : 'bg-white/5 hover:bg-white/10'}`}
+                >
+                  <span>🛡️ لوحة المالك والإدارة</span>
+                  <span className="text-xs text-purple-400 font-normal">إدارة المنصة بالكامل</span>
+                </button>
+              )}
             </nav>
           </div>
 

@@ -310,7 +310,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
     const targetEmail = allReqs[reqIndex].email.toLowerCase();
 
-    // Update users_db
+    // Publish the role assignment to the shared DB so the translator's own
+    // device picks it up on next sync and gains the work panel.
+    const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
+    assignments[targetEmail] = 'TRANSLATOR';
+    BerryDatabase.set('role_assignments', assignments);
+
+    // Update users_db (local to this device)
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
     const userIndex = usersDb.findIndex(u => u.email.toLowerCase() === targetEmail);
     if (userIndex !== -1) {
@@ -386,6 +392,11 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     usersDb[userIndex].role = newRoleVal;
     BerryDatabase.set('users_db', usersDb);
     setUsers(usersDb);
+
+    // Propagate the role change to the user's own device via the shared DB
+    const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
+    assignments[targetEmail.toLowerCase()] = newRoleVal;
+    BerryDatabase.set('role_assignments', assignments);
 
     // If that user is logged in, update current_user_data
     const currentUserData = BerryDatabase.get<any>('current_user_data', null);

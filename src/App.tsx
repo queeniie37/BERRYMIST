@@ -206,9 +206,28 @@ export default function App() {
     setReadingHistory(BerryDatabase.get<any[]>('reading_history', []));
     setTeams(BerryDatabase.get<Team[]>('teams', []));
 
+    // Apply any role assignment the owner made for this user (e.g. approving a
+    // translator) that arrived via the shared DB, so their panel access updates
+    // without needing to log out and back in. The owner account is never touched.
+    const applyRoleAssignment = () => {
+      const saved = BerryDatabase.get<User | null>('current_user_data', null);
+      if (!saved || !saved.email) return;
+      const email = saved.email.toLowerCase();
+      if (email === 'hanona37hh@gmail.com') return;
+      const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
+      const assigned = assignments[email];
+      if (assigned && assigned !== saved.role) {
+        const updated = { ...saved, role: assigned as UserRole };
+        BerryDatabase.set('current_user_data', updated);
+        BerryDatabase.set('current_role', assigned);
+        setCurrentUser(updated);
+      }
+    };
+
     // Async server synchronization immediately on mount
     const syncDb = async () => {
       await BerryDatabase.syncWithServer();
+      applyRoleAssignment();
       // Refresh React states with the newly synced server data
       setNovels(BerryDatabase.get<Novel[]>('novels', []));
       setNews(BerryDatabase.get<News[]>('news', []));

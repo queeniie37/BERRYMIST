@@ -47,6 +47,9 @@ const defaults: any = {
   translator_requests: [],
   chapters: [],
   ads: [],
+  // email(lowercase) -> role, so owner role approvals propagate across devices
+  // without ever syncing account credentials (users_db stays private)
+  role_assignments: {},
   site_name: "BerryMist",
   site_logo: "🍇",
   site_banner: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200",

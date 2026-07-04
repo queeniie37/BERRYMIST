@@ -157,10 +157,10 @@ export class BerryDatabase {
       const serverDb = await response.json();
       
       const keysToSync = [
-        'novels', 'chapters', 'news', 'teams', 'suggestions', 'comments', 
-        'reviews', 'reservations', 'notifications', 'reports', 
-        'translator_requests', 'ads', 'site_name', 'site_logo', 'site_banner',
-        'footer_description', 'footer_email', 'footer_support_text', 
+        'novels', 'chapters', 'news', 'teams', 'suggestions', 'comments',
+        'reviews', 'reservations', 'notifications', 'reports',
+        'translator_requests', 'ads', 'role_assignments', 'site_name', 'site_logo', 'site_banner',
+        'footer_description', 'footer_email', 'footer_support_text',
         'footer_community_text', 'footer_socials'
       ];
       

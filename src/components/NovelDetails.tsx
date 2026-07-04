@@ -570,19 +570,27 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               <span>{isBookmarked ? 'في المفضلة' : 'أضف للمفضلة'}</span>
             </button>
 
-            {currentUser.role === 'OWNER' ? (
+            {/* Owner downloads anything; the assigned translator can download only
+                after the owner has approved the novel (status is no longer PENDING). */}
+            {(currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING')) ? (
               <button
                 onClick={downloadFullNovelAndChapters}
                 className="px-5 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 border border-violet-500/20 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-violet-500/10 transition-all duration-300"
-                title="تنزيل الرواية وفصولها بالكامل كملف نصي (متاح للمالك حصرياً)"
+                title="تنزيل الرواية وفصولها بالكامل كملف نصي"
               >
                 <Download size={14} />
                 <span>تحميل الرواية وفصولها 📥</span>
               </button>
             ) : (
-              <button disabled className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2" title="التحميل متاح للمالك فقط لحماية حقوق الترجمة">
+              <button
+                disabled
+                className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2"
+                title={novel.translatorId === currentUser.id && novel.status === 'PENDING'
+                  ? 'التحميل متاح بعد موافقة المالك على نشر الرواية'
+                  : 'التحميل متاح للمالك والمترجم المعيّن فقط لحماية حقوق الترجمة'}
+              >
                 <Download size={14} className="opacity-50" />
-                <span>التحميل محمي 🔒</span>
+                <span>{novel.translatorId === currentUser.id && novel.status === 'PENDING' ? 'التحميل بعد الموافقة 🔒' : 'التحميل محمي 🔒'}</span>
               </button>
             )}
 
