@@ -3,7 +3,7 @@ import {
   Compass, Flame, Clock, Award, Plus, Layers, Search, 
   MessageSquare, Users, Shield, BookOpen, Heart, 
   ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone, Send,
-  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell
+  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell, X
 } from 'lucide-react';
 import { User, UserRole, Novel, Suggestion, Reservation, News, Team, TranslatorRequest } from './types';
 import { DEFAULT_USERS, BerryDatabase } from './data';
@@ -36,6 +36,7 @@ export default function App() {
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [readingHistory, setReadingHistory] = useState<any[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   
   // Modals / Overlays
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
@@ -751,11 +752,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-white/5 flex flex-wrap gap-3 items-center text-xs text-purple-400">
-                  <span>💡 يمكنك تبديل دورك الحالي (رتبتك) في أي وقت لتجربة مزايا الأعضاء والقراء والزوار عبر النقر على زر </span>
-                  <span className="px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 font-bold border border-violet-500/20">رتبة: المالك 👑</span>
-                  <span>الموجود بالأعلى في شريط التنقل.</span>
-                </div>
+
               </div>
             ) : (
               <>
@@ -1112,10 +1109,13 @@ export default function App() {
               {teams.map((team) => (
                 <div key={team.id} className="p-6 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col justify-between text-right shadow-md">
                   <div>
-                    <div className="flex items-center gap-3 pb-4 border-b border-white/5 mb-4">
+                    <div 
+                      onClick={() => setSelectedTeam(team)}
+                      className="flex items-center gap-3 pb-4 border-b border-white/5 mb-4 cursor-pointer hover:opacity-80 transition-opacity"
+                    >
                       <span className="text-3xl p-2 bg-white/5 rounded-2xl border border-white/5">{team.logo}</span>
                       <div>
-                        <h3 className="font-extrabold text-sm text-white">{team.name}</h3>
+                        <h3 className="font-extrabold text-sm text-white hover:text-violet-300 transition-colors">{team.name}</h3>
                         <span className="text-[10px] text-purple-400">تاريخ التأسيس: {new Date(team.createdAt).toLocaleDateString('ar-EG')}</span>
                       </div>
                     </div>
@@ -1133,9 +1133,23 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center text-[10px] text-purple-400 pt-3 border-t border-white/5">
-                    <span>يشرف على {team.novelsCount} روايات نشطة</span>
-                    <button className="text-violet-400 hover:text-white font-extrabold cursor-pointer">انضم للفريق</button>
+                  <div className="flex justify-between items-center text-[10px] pt-3 border-t border-white/5">
+                    <span className="text-purple-400">يشرف على {team.novelsCount} روايات نشطة</span>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setSelectedTeam(team)}
+                        className="text-violet-400 hover:text-white font-extrabold cursor-pointer transition-colors"
+                      >
+                        عرض التفاصيل والأعمال 📂
+                      </button>
+                      <span className="text-white/10">|</span>
+                      <button 
+                        onClick={() => alert(`شكراً لاهتمامك بالانضمام إلى "${team.name}"! يرجى التواصل مع مسؤول الفريق المكتوب في تفاصيل الفريق لطلب الانضمام.`)}
+                        className="text-purple-300 hover:text-white font-bold cursor-pointer transition-colors"
+                      >
+                        انضم للفريق
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1790,6 +1804,141 @@ export default function App() {
           onClose={() => setShowSuggestDialog(false)} 
           onAddSuggestion={handleAddSuggestion}
         />
+      )}
+
+      {/* ==================== TEAM DETAILS MODAL ==================== */}
+      {selectedTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative w-full max-w-2xl bg-[#14101D] border border-white/10 rounded-3xl overflow-hidden text-right shadow-2xl animate-in zoom-in-95 duration-200">
+            
+            {/* Cover Banner */}
+            <div className="relative h-40 w-full overflow-hidden bg-gradient-to-r from-violet-950 to-purple-950">
+              {selectedTeam.banner && (
+                <img src={selectedTeam.banner} alt="Banner" className="w-full h-full object-cover opacity-35" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#14101D] to-transparent" />
+              
+              {/* Close Button */}
+              <button 
+                onClick={() => setSelectedTeam(null)}
+                className="absolute top-4 left-4 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full border border-white/10 transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+
+              {/* Team Info Header inside Banner */}
+              <div className="absolute bottom-4 right-6 flex items-center gap-4">
+                <span className="text-4xl p-3 bg-[#1A1625] border border-white/10 rounded-2xl shadow-xl">{selectedTeam.logo}</span>
+                <div>
+                  <h3 className="text-lg md:text-xl font-extrabold text-white">
+                    <span>{selectedTeam.name}</span>
+                  </h3>
+                  <p className="text-xs text-purple-300 mt-1">تاريخ التأسيس: {new Date(selectedTeam.createdAt).toLocaleDateString('ar-EG')}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 md:p-8 flex flex-col gap-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Bio / Description */}
+              <div className="flex flex-col gap-2">
+                <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">🍇 نبذة عن المترجم / الفريق:</h4>
+                <p className="text-sm text-purple-200 leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">
+                  {selectedTeam.bio}
+                </p>
+              </div>
+
+              {/* Team Members List */}
+              <div className="flex flex-col gap-3">
+                <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">👥 أعضاء الفريق المعتمدين ({selectedTeam.members.length}):</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {selectedTeam.members.map((member, idx) => (
+                    <div key={idx} className="flex items-center gap-3 bg-white/[0.02] border border-white/5 p-3 rounded-2xl transition-all hover:bg-white/5">
+                      <img src={member.avatar} alt={member.username} className="w-10 h-10 rounded-full border-2 border-violet-500/20 bg-black" />
+                      <div className="text-right">
+                        <p className="text-xs font-extrabold text-white">{member.username}</p>
+                        <span className="text-[10px] text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/10 mt-1 inline-block">{member.role}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Support / Donation info */}
+              {selectedTeam.supportUrl && (
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">💖 دعم الفريق وتطوير أعماله:</h4>
+                  <div className="p-4 bg-gradient-to-r from-violet-950/20 to-pink-950/20 border border-violet-500/10 rounded-2xl flex items-center justify-between flex-wrap gap-4">
+                    <p className="text-xs text-purple-300 max-w-sm">هل تحب أعمال هذا المترجم وترغب في دعمه للاستمرار والسرعة في النشر؟</p>
+                    <a 
+                      href={selectedTeam.supportUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-violet-500/15 flex items-center gap-1.5 transition-all"
+                    >
+                      <Heart size={14} className="fill-current text-white animate-pulse" />
+                      <span>تقديم دعم للمترجم / الفريق</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Associated Works / Novels */}
+              <div className="flex flex-col gap-3">
+                <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">📚 أعمال ومشاريع المترجم المعتمدة:</h4>
+                {(() => {
+                  const teamNovels = novels.filter(n => n.teamId === selectedTeam.id || selectedTeam.works?.includes(n.id));
+                  if (teamNovels.length === 0) {
+                    return (
+                      <div className="p-4 bg-white/[0.01] rounded-2xl border border-dashed border-white/5 text-center text-xs text-purple-400">
+                        لا توجد أعمال معلنة لهذا المترجم حالياً.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {teamNovels.map((novel) => (
+                        <div 
+                          key={novel.id} 
+                          onClick={() => {
+                            setSelectedTeam(null);
+                            handleNavigate('novel', { id: novel.id });
+                          }}
+                          className="flex gap-3 bg-white/[0.02] hover:bg-violet-600/10 border border-white/5 hover:border-violet-500/20 p-3 rounded-2xl transition-all cursor-pointer group"
+                        >
+                          <img src={novel.cover} alt={novel.titleAr} className="w-12 h-16 object-cover rounded-xl border border-white/10" />
+                          <div className="text-right flex-1 flex flex-col justify-between">
+                            <div>
+                              <h5 className="text-xs font-extrabold text-white group-hover:text-violet-300 transition-colors line-clamp-1">{novel.titleAr}</h5>
+                              <p className="text-[10px] text-purple-400 mt-0.5 font-mono line-clamp-1">{novel.titleEn}</p>
+                            </div>
+                            <div className="flex items-center justify-between text-[9px] text-purple-300">
+                              <span>{novel.chaptersCount} فصلاً</span>
+                              <span className="bg-white/5 px-2 py-0.5 rounded-lg border border-white/5 text-violet-300">{novel.status === 'TRANSLATING' ? 'قيد الترجمة' : 'مستمر'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 bg-[#1A1625] border-t border-white/5 flex justify-end">
+              <button 
+                onClick={() => setSelectedTeam(null)}
+                className="px-5 py-2 bg-white/5 hover:bg-white/10 text-purple-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                إغلاق النافذة
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {/* Shared Full-Featured Footer */}

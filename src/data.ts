@@ -22,20 +22,7 @@ export const INITIAL_COMMENTS: Comment[] = [];
 export const INITIAL_REVIEWS: Review[] = [];
 
 export const generateChapters = (novelId: string, count: number): Chapter[] => {
-  const chapters: Chapter[] = [];
-  for (let i = 1; i <= count; i++) {
-    chapters.push({
-      id: `${novelId}-chap-${i}`,
-      novelId,
-      number: i,
-      title: `الفصل ${i}: بداية التحدي الأكبر لقوى بيري ميست`,
-      content: `هذا هو نص الفصل ${i}. بدأ كل شيء عندما تجمعت الغيوم الداكنة فوق قمم الجبال الشاهقة، معلنةً عن وصول عاصفة لم يشهد لها العالم مثيلاً من قبل.\n\nوقف البطل في منتصف الساحة، مستشعرًا طاقة هائلة تتدفق في عروقه. "أخيراً، حانت اللحظة التي طالما انتظرتها،" همس لنفسه والشرر البنفسجي يتطاير من عينيه المتوهجتين.\n\nتجمعت الأرواح من حوله، تهتف باسمه في صمت مهيب، وكل روح تعبر عن استعدادها للقتال من أجل مليكها الجديد. واجه الأعداء بابتسامة ساخرة، ممسكاً بسيفه المشع ببريق التوت البري الضبابي الفاخر.\n\n"إذا كنتم تعتقدون أن الظلام سيبتلعني، فأنتم واهمون. أنا هو الظلام نفسه، وأنا من يحدد النهاية والبداية!" هكذا صرخ واندفع كالبرق الخاطف متجاوزاً خطوط الدفاع بكل ثقة وبسالة.\n\nاستمرت المعركة لساعات طالت فيها التضحيات وسقط فيها الجبابرة، لكن عزيمة البطل ظلت كالجبل الراسخ لا تتزعزع. وفي نهاية المطاف، سجد الجميع طاعة وخضوعاً لقوته الخارقة الجديدة التي ستغير مصير هذا العالم إلى الأبد.`,
-      views: Math.floor(Math.random() * 500) + 10,
-      createdAt: new Date().toISOString(),
-      isDraft: false
-    });
-  }
-  return chapters;
+  return [];
 };
 
 // Default Current User (Required for the role-simulator/evaluator)
@@ -131,27 +118,27 @@ export class BerryDatabase {
   }
 
   static initialize() {
-    const isCleaned = localStorage.getItem('berry_mist_cleaned_v3');
+    const isCleaned = localStorage.getItem('berry_mist_cleaned_v6');
     if (!isCleaned) {
-      // Clear all previous fake items to ensure the user sees an absolutely clean platform!
-      this.set('novels', []);
-      this.set('news', []);
-      this.set('teams', []);
-      this.set('suggestions', []);
-      this.set('comments', []);
-      this.set('reviews', []);
-      this.set('reservations', []);
-      this.set('notifications', []);
-      this.set('reports', []);
-      this.set('translator_requests', []);
-      this.set('reading_history', []);
-      this.set('bookmarks', []);
+      // Clear and reset the database with clean, non-mock data
+      this.set('novels', INITIAL_NOVELS);
+      this.set('news', INITIAL_NEWS);
+      this.set('teams', INITIAL_TEAMS);
+      this.set('suggestions', INITIAL_SUGGESTIONS);
+      this.set('comments', INITIAL_COMMENTS);
+      this.set('reviews', INITIAL_REVIEWS);
+      this.set('reservations', [] as Reservation[]);
+      this.set('notifications', [] as Notification[]);
+      this.set('reports', [] as Report[]);
+      this.set('translator_requests', [] as TranslatorRequest[]);
+      this.set('reading_history', [] as any[]);
+      this.set('bookmarks', [] as string[]);
       this.set('current_role', 'GUEST'); // Default to GUEST to secure the platform
-      this.set('ads', []);
-      this.set('chapters', []);
+      this.set('ads', INITIAL_ADS);
+      this.set('chapters', [] as Chapter[]);
       
       localStorage.setItem('berry_mist_initialized', 'true');
-      localStorage.setItem('berry_mist_cleaned_v3', 'true');
+      localStorage.setItem('berry_mist_cleaned_v6', 'true');
       return;
     }
 

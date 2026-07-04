@@ -199,6 +199,8 @@ export interface Team {
   members: { username: string; role: string; avatar: string }[];
   novelsCount: number;
   createdAt: string;
+  supportUrl?: string;
+  works?: string[];
 }
 
 export interface Ad {

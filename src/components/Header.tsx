@@ -190,21 +190,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             </button>
           )}
 
-          {/* Quick Role Switcher Trigger (For Demo/Evaluation) */}
-          <button 
-            onClick={() => setRoleSelectorOpen(!roleSelectorOpen)} 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-violet-500/10 border border-violet-500/30 hover:border-violet-500/60 transition-all text-violet-300 shadow-[0_0_15px_rgba(139,92,246,0.15)] cursor-pointer"
-            title="تبديل رتب العضوية لتجربة المزايا بالكامل"
-          >
-            <Layers size={14} className="animate-pulse" />
-            <span>رتبة:</span>
-            <span className="text-berry-300">
-              {currentUser.role === 'OWNER' ? 'المالك 👑' :
-               currentUser.role === 'SUPERVISOR' ? 'مشرف 🛡️' :
-               currentUser.role === 'TRANSLATOR' ? 'مترجم ✍️' :
-               currentUser.role === 'MEMBER' ? 'عضو 👤' : 'زائر 🌐'}
-            </span>
-          </button>
+          {/* Quick Role Switcher removed for privacy, keeping only the one in profile next to user's name */}
 
           {/* Search Button */}
           <button 
