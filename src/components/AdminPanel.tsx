@@ -116,18 +116,18 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     setTranslatorRequests(allReqs);
 
     // Load registered users from database or set defaults
-    const defaultUsersList = [
-      { id: 'member-1', username: 'عضو_الضباب', email: 'member@berrymist.com', role: 'MEMBER', xp: 250, level: 3, avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=member1', bio: 'قارئ شغوف للروايات الكورية والصينية، أهوى التفاعل وكتابة المراجعات العميقة.' },
-      { id: 'translator-1', username: 'مترجم_الظلال', email: 'translator@berrymist.com', role: 'TRANSLATOR', xp: 2450, level: 12, avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=translator1', bio: 'مترجم روايات فانتازيا وأكشن بخبرة تزيد عن 3 سنوات. شعاري: الدقة والسرعة في النشر.' },
-      { id: 'writer-1', username: 'كاتب_الأساطير', email: 'writer@berrymist.com', role: 'WRITER', xp: 1200, level: 8, avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=writer1', bio: 'كاتب ومؤلف قصص خيالية وفانتازيا عربية أصلية بمستويات شيقة ومثيرة.' }
-    ];
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
-    if (usersDb.length === 0) {
-      BerryDatabase.set('users_db', defaultUsersList);
-      setUsers(defaultUsersList);
-    } else {
-      setUsers(usersDb);
-    }
+    // Clear out fake/mock users completely
+    const filteredUsers = usersDb.filter((u: any) => 
+      u.id !== 'member-1' && 
+      u.id !== 'translator-1' && 
+      u.id !== 'writer-1' && 
+      u.id !== 'supervisor-1' && 
+      u.id !== 'guest-user' && 
+      !u.email.endsWith('@berrymist.com')
+    );
+    BerryDatabase.set('users_db', filteredUsers);
+    setUsers(filteredUsers);
   }, []);
 
   // Approve pending novel

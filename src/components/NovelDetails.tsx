@@ -86,8 +86,9 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     let foundChapters = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
     
-    // Filter out scheduled chapters for non-author / non-owner users
-    const isAuthorized = currentUser.role === 'OWNER' || (foundNovel && foundNovel.translatorId === currentUser.id);
+    // Filter out scheduled chapters for non-author / non-owner users (unless published by the owner)
+    const isPublishedByOwner = foundNovel && (foundNovel.translatorId === 'berrymist-owner' || foundNovel.translatorName === 'BERRYMIST');
+    const isAuthorized = currentUser.role === 'OWNER' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
     if (!isAuthorized) {
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }

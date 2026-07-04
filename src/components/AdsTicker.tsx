@@ -13,7 +13,8 @@ export default function AdsTicker({ onAdClick, refreshTrigger }: AdsTickerProps)
 
   useEffect(() => {
     const allAds = BerryDatabase.get<Ad[]>('ads', []);
-    setAds(allAds.filter(ad => ad.showInTicker));
+    // Every advertisement published by the owner is fully visible to both visitors and subscribers
+    setAds(allAds);
   }, [refreshTrigger]);
 
   if (ads.length === 0) return null;

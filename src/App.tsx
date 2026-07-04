@@ -646,8 +646,8 @@ export default function App() {
     handleNavigate('reader', { novelId, chapterNumber: nextNum });
   };
 
-  // Filter novels list based on status (Awaiting approved drafts only for main view)
-  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'PENDING'), [novels]);
+  // Filter novels list based on status (Awaiting approved drafts only for main view, unless published by the owner)
+  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'PENDING' || n.translatorId === 'berrymist-owner' || n.translatorName === 'BERRYMIST'), [novels]);
 
   // Filter trending list (sorted by views / popular)
   const trendingNovels = useMemo(() => [...activeNovels]
