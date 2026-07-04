@@ -318,8 +318,17 @@ export default function App() {
     document.title = title;
   }, [currentPage, currentParams, novels, siteName]);
 
+  // Guest browsers must stay read-only on shared data: never let an anonymous
+  // visitor's automated housekeeping write to the shared server collections
+  // (this is what used to wipe novels for everyone).
+  const isAuthenticatedClient = () => {
+    const u = BerryDatabase.get<User | null>('current_user_data', null);
+    return !!u && u.role !== 'GUEST';
+  };
+
   // Auto-check and publish scheduled chapters when their Gregorian date is reached
   const checkScheduledChapters = () => {
+    if (!isAuthenticatedClient()) return;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const allNovels = BerryDatabase.get<any[]>('novels', []);
     const allNotifs = BerryDatabase.get<any[]>('notifications', []);
@@ -367,6 +376,7 @@ export default function App() {
 
   // Auto check and expire inactive reservations past 30 days
   const checkReservationsExpiration = (currentNovelsList?: Novel[], currentSugsList?: Suggestion[]) => {
+    if (!isAuthenticatedClient()) return;
     const allReservations = BerryDatabase.get<Reservation[]>('reservations', []);
     const allNovels = currentNovelsList || BerryDatabase.get<Novel[]>('novels', []);
     const allSuggestions = currentSugsList || BerryDatabase.get<Suggestion[]>('suggestions', []);
