@@ -496,8 +496,8 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       return;
     }
 
-    const isOwner = currentUser.role === 'OWNER' || currentUser.email === 'hanona37hh@gmail.com';
-    const status = isOwner ? 'AVAILABLE' : 'PENDING';
+    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+    const status = 'AVAILABLE'; // Make all novels active and AVAILABLE instantly so they appear on the homepage for visitors right away!
 
     const newNovel: Novel = {
       id: `novel-draft-${Date.now()}`,
@@ -513,7 +513,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       bookmarksCount: 0,
       rating: 5.0,
       ratingCount: 0,
-      status: status, // Published immediately if Owner, else needs approval!
+      status: status, // Published immediately!
       language: lang,
       genres: selectedGenres,
       description: desc,
@@ -525,19 +525,19 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     BerryDatabase.set('novels', [newNovel, ...allNovels]);
 
     if (!isOwner) {
-      // Notify administrators if created by Translator/Writer
+      // Notify administrators
       const allNotifs = BerryDatabase.get<any[]>('notifications', []);
       const newNotif = {
         id: `notif-review-${Date.now()}`,
         userId: 'berrymist-owner', // Notify Super Admin
-        title: 'رواية جديدة قيد المراجعة',
-        message: `قام ${currentUser.role === 'WRITER' ? 'الكاتب' : 'المترجم'} "${currentUser.username}" بإنشاء رواية جديدة "${titleAr}" وبانتظار موافقتك الرسمية.`,
+        title: 'تم نشر رواية جديدة تلقائياً',
+        message: `قام ${currentUser.role === 'WRITER' ? 'الكاتب' : 'المترجم'} "${currentUser.username}" بنشر رواية جديدة "${titleAr}" بنجاح على الموقع.`,
         type: 'SYSTEM',
         isRead: false,
         createdAt: 'الآن'
       };
       BerryDatabase.set('notifications', [...allNotifs, newNotif]);
-      setSuccess('تم نشر روايتك بنجاح وهي الآن ظاهرة للجميع بالصفحة الرئيسية والمكتبة، وسيراجعها المالك لاعتمادها رسمياً.');
+      setSuccess('تهانينا! تم إنشاء ونشر روايتك بنجاح وأصبحت نشطة فوراً لجميع الزوار على الصفحة الرئيسية! 🎉');
     } else {
       setSuccess('تمت إضافة ونشر الرواية الجديدة مباشرة بنجاح بصفك مالك المنصة! 🎉');
     }

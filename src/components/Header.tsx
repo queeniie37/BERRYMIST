@@ -51,14 +51,17 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       setSearchResults([]);
       return;
     }
-    // All uploaded novels are searchable by every visitor (guests included)
+    // All uploaded novels are searchable by every visitor (guests included), except cancelled ones
     const novels = BerryDatabase.get<any[]>('novels', []);
-    const filtered = novels.filter(n => (
-      n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
-    ));
+    const filtered = novels.filter(n => {
+      if (n.status === 'CANCELLED') return false;
+      return (
+        n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    });
     setSearchResults(filtered);
   }, [searchQuery]);
 
@@ -323,7 +326,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                     </button>
                   ) : (
                     <>
-                      {currentUser.role === 'OWNER' && (
+                      {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
                         <button 
                           onClick={() => { onNavigate('admin'); setProfileOpen(false); }}
                           className="flex items-center justify-between w-full p-2 hover:bg-white/5 rounded-xl text-sm text-purple-200 hover:text-white transition-all text-right cursor-pointer"
@@ -333,7 +336,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                         </button>
                       )}
 
-                      {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER' || currentUser.role === 'WRITER') && (
+                      {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER' || currentUser.role === 'WRITER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
                         <button 
                           onClick={() => { onNavigate('translator-panel'); setProfileOpen(false); }}
                           className="flex items-center justify-between w-full p-2 hover:bg-white/5 rounded-xl text-sm text-purple-200 hover:text-white transition-all text-right cursor-pointer"
@@ -417,7 +420,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             >
               ✒️ كاتب ومؤلف
             </button>
-            {currentUser.email === 'hanona37hh@gmail.com' ? (
+            {currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' ? (
               <button 
                 onClick={() => { onRoleChange('OWNER'); setRoleSelectorOpen(false); }}
                 className={`p-2.5 col-span-2 rounded-xl border font-semibold transition-all ${currentUser.role === 'OWNER' ? 'bg-violet-600 text-white border-violet-500' : 'bg-white/5 text-purple-300 border-white/5 hover:bg-white/10'}`}

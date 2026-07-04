@@ -9,6 +9,7 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps) {
+  const [allNovels, setAllNovels] = useState<Novel[]>([]);
   const [pendingNovels, setPendingNovels] = useState<Novel[]>([]);
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -100,8 +101,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
   useEffect(() => {
     // Load pending novels
-    const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-    setPendingNovels(allNovels.filter(n => n.status === 'PENDING'));
+    const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
+    setAllNovels(loadedNovels);
+    setPendingNovels(loadedNovels.filter(n => n.status === 'PENDING'));
 
     // Load active reservations
     const allReservations = BerryDatabase.get<Reservation[]>('reservations', []);
@@ -129,6 +131,32 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     BerryDatabase.set('users_db', filteredUsers);
     setUsers(filteredUsers);
   }, []);
+
+  const handleDeleteNovelFromAdmin = (novelId: string) => {
+    const target = allNovels.find(n => n.id === novelId);
+    if (!target) return;
+    if (!window.confirm(`هل أنت متأكد من رغبتك في حذف رواية "${target.titleAr}" نهائياً من الموقع بالكامل مع جميع الفصول والتعليقات الخاصة بها؟ هذا الإجراء لا يمكن التراجع عنه!`)) {
+      return;
+    }
+
+    const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
+    const updated = loadedNovels.filter(n => n.id !== novelId);
+    BerryDatabase.set('novels', updated);
+    setAllNovels(updated);
+    setPendingNovels(updated.filter(n => n.status === 'PENDING'));
+
+    // Also delete chapters & reservations
+    const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const updatedChapters = allChapters.filter(c => c.novelId !== novelId);
+    BerryDatabase.set('chapters', updatedChapters);
+
+    const allReservations = BerryDatabase.get<any[]>('reservations', []);
+    const updatedReservations = allReservations.filter(r => r.novelId !== novelId);
+    BerryDatabase.set('reservations', updatedReservations);
+
+    window.dispatchEvent(new Event('novels-updated'));
+    alert(`تم حذف الرواية "${target.titleAr}" بنجاح مع كافة فصولها وبياناتها!`);
+  };
 
   // Approve pending novel
   const handleApproveNovel = (novelId: string) => {
@@ -682,6 +710,48 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   <p className="text-sm">لا توجد طلبات موافقة روائية متبقية. كل الروايات نشطة وموافق عليها!</p>
                 </div>
               )}
+
+            {/* Manage Published Novels Section */}
+            <div className="mt-12 pt-8 border-t border-white/5">
+              <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                <span>📚 إدارة وحذف الروايات المنشورة في الموقع</span>
+                <span className="text-xs bg-violet-600/20 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-full font-normal">
+                  إجمالي الروايات: {allNovels.filter(n => n.status !== 'PENDING').length}
+                </span>
+              </h3>
+              <p className="text-xs text-purple-400 mb-6 leading-relaxed">
+                بصفتك مالك الموقع، يمكنك هنا استعراض جميع الروايات المنشورة والموافَق عليها بالمنصة، وحذف أي رواية غير مرغوب فيها نهائياً بضغطة زر واحدة.
+              </p>
+
+              {allNovels.filter(n => n.status !== 'PENDING').length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {allNovels.filter(n => n.status !== 'PENDING').map((novel) => (
+                    <div key={novel.id} className="p-4 bg-[#14101D] border border-white/5 rounded-2xl flex gap-4 items-center justify-between">
+                      <div className="flex gap-3 items-center min-w-0">
+                        <img src={novel.cover} alt={novel.titleAr} className="w-12 h-16 rounded-lg object-cover border border-white/5" />
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-xs text-white truncate">{novel.titleAr}</h4>
+                          <p className="text-[9px] text-purple-400 mt-0.5 truncate">{novel.titleEn}</p>
+                          <p className="text-[9px] text-violet-300 mt-1">بواسطة المترجم: <span className="font-bold text-white">{novel.translatorName}</span></p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteNovelFromAdmin(novel.id)}
+                        className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                        title="حذف الرواية نهائياً من الموقع"
+                      >
+                        حذف 🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
+                  <p className="text-xs">لا توجد روايات منشورة حالياً في المنصة.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

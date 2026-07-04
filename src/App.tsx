@@ -199,7 +199,20 @@ export default function App() {
     const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
     const loadedSuggestions = BerryDatabase.get<Suggestion[]>('suggestions', []);
     
-    setNovels(loadedNovels);
+    // Automatically repair any of the Owner's novels that might have been saved as PENDING
+    let databaseNeedsSave = false;
+    const repairedNovels = loadedNovels.map(n => {
+      if (n.status === 'PENDING' && (n.translatorName === 'BERRYMIST' || n.translatorId === 'berrymist-owner')) {
+        databaseNeedsSave = true;
+        return { ...n, status: 'AVAILABLE' as const };
+      }
+      return n;
+    });
+    if (databaseNeedsSave) {
+      BerryDatabase.set('novels', repairedNovels);
+    }
+
+    setNovels(databaseNeedsSave ? repairedNovels : loadedNovels);
     setNews(BerryDatabase.get<News[]>('news', []));
     setSuggestions(loadedSuggestions);
     setBookmarks(BerryDatabase.get<string[]>('bookmarks', []));
@@ -229,7 +242,20 @@ export default function App() {
       await BerryDatabase.syncWithServer();
       applyRoleAssignment();
       // Refresh React states with the newly synced server data
-      setNovels(BerryDatabase.get<Novel[]>('novels', []));
+      const syncedNovels = BerryDatabase.get<Novel[]>('novels', []);
+      let syncedNeedsSave = false;
+      const repairedSynced = syncedNovels.map(n => {
+        if (n.status === 'PENDING' && (n.translatorName === 'BERRYMIST' || n.translatorId === 'berrymist-owner')) {
+          syncedNeedsSave = true;
+          return { ...n, status: 'AVAILABLE' as const };
+        }
+        return n;
+      });
+      if (syncedNeedsSave) {
+        BerryDatabase.set('novels', repairedSynced);
+      }
+      
+      setNovels(syncedNeedsSave ? repairedSynced : syncedNovels);
       setNews(BerryDatabase.get<News[]>('news', []));
       setSuggestions(BerryDatabase.get<Suggestion[]>('suggestions', []));
       setTeams(BerryDatabase.get<Team[]>('teams', []));
@@ -560,7 +586,7 @@ export default function App() {
 
   // Update dynamic simulated user role
   const handleRoleChange = (newRole: UserRole) => {
-    if (newRole === 'OWNER' && currentUser.email !== 'hanona37hh@gmail.com') {
+    if (newRole === 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
       alert('خطأ أمني: رتبة المالك مخصصة حصرياً لمالك الموقع! يرجى تسجيل الدخول بحساب المالك (hanona37hh@gmail.com) أولاً للوصول إلى لوحة الإدارة.');
       return;
     }
@@ -623,6 +649,25 @@ export default function App() {
 
   // Safe navigation
   const handleNavigate = (page: string, params: any = null) => {
+    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+    const isTranslatorOrWriter = currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER';
+
+    if (page === 'admin') {
+      if (!isOwner) {
+        alert('عذراً، لوحة المالك والإدارة مخصصة حصرياً للمالك!');
+        setCurrentPage('home');
+        return;
+      }
+    }
+
+    if (page === 'translator-panel') {
+      if (!isOwner && !isTranslatorOrWriter) {
+        alert('عذراً، لوحة العمل مخصصة للمترجمين، الكتاب، أو المالك فقط!');
+        setCurrentPage('home');
+        return;
+      }
+    }
+
     setCurrentPage(page);
     setCurrentParams(params);
     window.scrollTo(0, 0);
@@ -733,9 +778,9 @@ export default function App() {
     handleNavigate('reader', { novelId, chapterNumber: nextNum });
   };
 
-  // All uploaded novels are publicly visible to every visitor (guests included).
-  // Interaction (bookmarks, comments, votes) still requires signing in.
-  const activeNovels = useMemo(() => novels, [novels]);
+  // All uploaded novels are publicly visible to every visitor (guests included),
+  // except cancelled ones. Interaction (bookmarks, comments, votes) still requires signing in.
+  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'CANCELLED'), [novels]);
 
   // Filter trending list (sorted by views / popular)
   const trendingNovels = useMemo(() => [...activeNovels]
@@ -866,6 +911,38 @@ export default function App() {
                       />
                     ))}
                   </div>
+                </div>
+
+                {/* All Published Novels / Latest Added Section */}
+                <div className="w-full text-right mt-10">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl md:text-2xl font-extrabold text-white flex items-center gap-2">
+                      <span className="text-violet-400">✨</span>
+                      <span>جميع الروايات المنشورة بالمنصة (أحدث الإضافات)</span>
+                    </h2>
+                    <span className="text-xs text-purple-400">تحديث تلقائي فوري</span>
+                  </div>
+                  
+                  {activeNovels.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-4">
+                      {/* Sort by createdAt descending, so newly added always appear first */}
+                      {[...activeNovels]
+                        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                        .map((novel) => (
+                          <NovelCard 
+                            key={novel.id}
+                            novel={novel}
+                            isBookmarked={bookmarks.includes(novel.id)}
+                            onBookmarkToggle={handleBookmarkToggle}
+                            onClick={(id) => handleNavigate('novel', { id })}
+                          />
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
+                      <p className="text-xs">لا توجد روايات منشورة حالياً.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Latest added chapters section (آخر الفصول المضافة) */}

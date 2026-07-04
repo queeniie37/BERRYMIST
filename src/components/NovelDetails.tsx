@@ -99,7 +99,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       ownerUserIds.has(foundNovel.translatorId) || 
       foundNovel.translatorName === 'BERRYMIST'
     );
-    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email === 'hanona37hh@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
+    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
     if (!isAuthorized) {
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
@@ -420,7 +420,31 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setNewChapterPublishAt('');
   };
 
-  const isTranslatorOrOwner = currentUser.role === 'OWNER' || (novel && novel.translatorId === currentUser.id);
+  const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+  const isTranslatorOrOwner = isOwner || (novel && novel.translatorId === currentUser.id);
+
+  const handleDeleteNovel = () => {
+    if (!novel) return;
+    if (!window.confirm(`هل أنت متأكد من رغبتك في حذف رواية "${novel.titleAr}" نهائياً من الموقع بالكامل مع جميع الفصول والتعليقات الخاصة بها؟ هذا الإجراء لا يمكن التراجع عنه!`)) {
+      return;
+    }
+
+    const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+    const updatedNovels = allNovels.filter(n => n.id !== novel.id);
+    BerryDatabase.set('novels', updatedNovels);
+
+    const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const updatedChapters = allChapters.filter(c => c.novelId !== novel.id);
+    BerryDatabase.set('chapters', updatedChapters);
+
+    const allReservations = BerryDatabase.get<any[]>('reservations', []);
+    const updatedReservations = allReservations.filter(r => r.novelId !== novel.id);
+    BerryDatabase.set('reservations', updatedReservations);
+
+    window.dispatchEvent(new Event('novels-updated'));
+    alert(`تم حذف الرواية "${novel.titleAr}" بنجاح مع كافة فصولها وبياناتها!`);
+    onBack();
+  };
 
   return (
     <div className="w-full text-right mt-4 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -601,6 +625,18 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 className="px-6 py-3 bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-yellow-500 hover:to-amber-400 text-black font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-yellow-500/15 cursor-pointer"
               >
                 <span>طلب حجز واستلام الرواية 📝</span>
+              </button>
+            )}
+
+            {/* Owner Delete button */}
+            {isOwner && (
+              <button 
+                onClick={handleDeleteNovel}
+                className="px-5 py-3 bg-red-600/25 hover:bg-red-600 hover:text-white text-red-200 border border-red-500/30 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-red-500/10 transition-all duration-300"
+                title="حذف الرواية نهائياً من الموقع"
+              >
+                <Trash2 size={14} />
+                <span>حذف الرواية 🗑️</span>
               </button>
             )}
           </div>
