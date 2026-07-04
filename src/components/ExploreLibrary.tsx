@@ -10,7 +10,7 @@ interface ExploreLibraryProps {
   onNovelClick: (novelId: string) => void;
 }
 
-const GENRES = ['الكل', 'أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع'];
+const GENRES = ['الكل', 'أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع', 'موسيقى'];
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'كل الحالات' },
   { value: 'TRANSLATING', label: 'قيد الترجمة' },

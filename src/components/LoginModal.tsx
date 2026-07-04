@@ -178,11 +178,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
               />
               <Mail size={14} className="absolute top-3.5 right-3.5 text-purple-400" />
             </div>
-            {!isRegister && (
-              <span className="text-[10px] text-purple-400 block mt-0.5 text-right">
-                بريد المالك: <code className="text-violet-300 font-mono">hanona37hh@gmail.com</code> (كلمة السر: <code className="text-violet-300 font-mono">berry11</code>)
-              </span>
-            )}
+            {/* Owner credentials display hidden for privacy and security */}
           </div>
 
           <div className="flex flex-col gap-1.5">

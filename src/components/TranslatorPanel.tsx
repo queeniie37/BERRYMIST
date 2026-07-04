@@ -35,7 +35,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [editChapterPublishAt, setEditChapterPublishAt] = useState('');
   const [editChapterImages, setEditChapterImages] = useState('');
 
-  const genresOptions = ['أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع'];
+  const genresOptions = ['أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع', 'موسيقى'];
 
   const loadChaptersAndDeleted = () => {
     // 1. Load active chapters

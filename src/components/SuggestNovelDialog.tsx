@@ -8,7 +8,7 @@ interface SuggestNovelDialogProps {
   onAddSuggestion: (suggestion: Partial<Suggestion>) => void;
 }
 
-const KNOWN_GENRES = ['أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع'];
+const KNOWN_GENRES = ['أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع', 'موسيقى'];
 
 export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggestion }: SuggestNovelDialogProps) {
   const [titleAr, setTitleAr] = useState('');
