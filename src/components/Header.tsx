@@ -103,27 +103,29 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full glass-panel h-20 transition-all duration-300 flex items-center border-b border-white/5 px-6 lg:px-12 justify-between">
+      <header className="sticky top-0 z-50 w-full glass-panel h-20 transition-all duration-300 flex items-center border-b border-white/5 px-4 sm:px-6 lg:px-12 justify-between">
         {/* Right Side: Logo & Hamburger */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Hamburger button for mobile/tablet */}
           <button 
             onClick={() => setMobileMenuOpen(true)}
-            className="lg:hidden p-2.5 rounded-full bg-white/5 border border-white/5 text-purple-200 hover:text-white transition-all cursor-pointer"
+            className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-600/10 border border-violet-500/25 text-violet-300 hover:text-white hover:bg-violet-600/30 transition-all cursor-pointer shadow-[0_0_15px_rgba(139,92,246,0.12)] whitespace-nowrap"
+            title="الأقسام والصفحات"
           >
-            <Menu size={20} />
+            <Menu size={16} />
+            <span className="text-xs font-bold font-sans">القائمة</span>
           </button>
 
           <div 
             onClick={() => onNavigate('home')} 
-            className="flex items-center gap-2 cursor-pointer select-none"
+            className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none"
           >
             {siteLogo.startsWith('http') ? (
-              <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
+              <img src={siteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             ) : (
-              <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{siteLogo}</span>
+              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{siteLogo}</span>
             )}
-            <span className="font-extrabold text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
+            <span className="font-extrabold text-lg sm:text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
               {siteName}
             </span>
           </div>
@@ -179,13 +181,13 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
         </div>
 
         {/* Left Side: Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {currentUser.role === 'GUEST' && (
             <button 
               onClick={() => setLoginModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-violet-600 to-berry-500 text-white shadow-lg hover:brightness-110 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold bg-gradient-to-r from-violet-600 to-berry-500 text-white shadow-lg hover:brightness-110 transition-all cursor-pointer whitespace-nowrap"
             >
-              <LogIn size={13} />
+              <LogIn size={12} />
               <span>تسجيل الدخول 🍇</span>
             </button>
           )}
@@ -195,9 +197,9 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
           {/* Search Button */}
           <button 
             onClick={() => setSearchOpen(true)}
-            className="p-2.5 rounded-full bg-white/5 border border-white/5 text-purple-200/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+            className="p-2 sm:p-2.5 rounded-full bg-white/5 border border-white/5 text-purple-200/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
           >
-            <Search size={18} />
+            <Search size={16} />
           </button>
 
           {/* Notifications Trigger */}
@@ -207,9 +209,9 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                 setNotificationsOpen(!notificationsOpen);
                 setProfileOpen(false);
               }}
-              className="p-2.5 rounded-full bg-white/5 border border-white/5 text-purple-200/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-full bg-white/5 border border-white/5 text-purple-200/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
             >
-              <Bell size={18} />
+              <Bell size={16} />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-berry-500 rounded-full animate-ping" />
               )}

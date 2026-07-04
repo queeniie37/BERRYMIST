@@ -112,8 +112,60 @@ export class BerryDatabase {
   static set<T>(key: string, value: T): void {
     try {
       localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
+      
+      // Sync to backend Express server database asynchronously
+      fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value })
+      }).catch(err => console.error("Error syncing to backend database:", err));
     } catch (e) {
       console.error("Error writing to localStorage", e);
+    }
+  }
+
+  static async syncWithServer(): Promise<void> {
+    try {
+      const response = await fetch('/api/db');
+      if (!response.ok) return;
+      const serverDb = await response.json();
+      
+      const keysToSync = [
+        'novels', 'chapters', 'news', 'teams', 'suggestions', 'comments', 
+        'reviews', 'reservations', 'notifications', 'reports', 
+        'translator_requests', 'ads', 'site_name', 'site_logo', 'site_banner',
+        'footer_description', 'footer_email', 'footer_support_text', 
+        'footer_community_text', 'footer_socials'
+      ];
+      
+      for (const key of keysToSync) {
+        if (key in serverDb) {
+          const localValStr = localStorage.getItem(`berry_mist_${key}`);
+          const serverValStr = JSON.stringify(serverDb[key]);
+          
+          if (localValStr !== serverValStr) {
+            localStorage.setItem(`berry_mist_${key}`, serverValStr);
+            
+            // Dispatch standard custom events so that App.tsx receives updates reactive
+            if (key === 'novels') {
+              window.dispatchEvent(new Event('novels-updated'));
+            } else if (key === 'notifications') {
+              window.dispatchEvent(new Event('notifications-updated'));
+            } else if (key === 'ads') {
+              window.dispatchEvent(new Event('ads-updated'));
+            } else if (key === 'site_name' || key === 'site_logo' || key === 'site_banner') {
+              window.dispatchEvent(new Event('site-settings-updated'));
+            } else if (key.startsWith('footer_')) {
+              window.dispatchEvent(new Event('footer-settings-updated'));
+            } else {
+              // General trigger for other state variables
+              window.dispatchEvent(new Event(`${key}-updated`));
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync database with server:", err);
     }
   }
 

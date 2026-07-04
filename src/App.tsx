@@ -151,6 +151,22 @@ export default function App() {
     setReadingHistory(BerryDatabase.get<any[]>('reading_history', []));
     setTeams(BerryDatabase.get<Team[]>('teams', []));
 
+    // Async server synchronization immediately on mount
+    const syncDb = async () => {
+      await BerryDatabase.syncWithServer();
+      // Refresh React states with the newly synced server data
+      setNovels(BerryDatabase.get<Novel[]>('novels', []));
+      setNews(BerryDatabase.get<News[]>('news', []));
+      setSuggestions(BerryDatabase.get<Suggestion[]>('suggestions', []));
+      setTeams(BerryDatabase.get<Team[]>('teams', []));
+    };
+    syncDb();
+
+    // Poll the backend server database every 4 seconds to auto-update in real-time across all devices
+    const syncInterval = setInterval(() => {
+      syncDb();
+    }, 4000);
+
     // Run automatic reservation expiration check
     checkReservationsExpiration(loadedNovels, loadedSuggestions);
     checkScheduledChapters();
@@ -162,6 +178,7 @@ export default function App() {
 
     return () => {
       clearInterval(schedulerInterval);
+      clearInterval(syncInterval);
       window.removeEventListener('ads-updated', handleAdsUpdate);
       window.removeEventListener('notifications-updated', handleNotificationsUpdate);
       window.removeEventListener('user-updated', handleUserUpdate);
