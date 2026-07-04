@@ -163,7 +163,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // Claim/Reservation action handler
   const handleClaimNovel = () => {
     if (currentUser.role === 'GUEST') {
-      alert('عذراً، يجب عليك اختيار رتبة "مترجم" أو "عضو" لتتمكن من حجز الرواية للترجمة.');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من حجز الرواية للترجمة. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
 
@@ -221,11 +222,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // Add Comment Handler
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (commentText.trim() === '') return;
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك صلاحية كتابة التعليقات. قم بالتبديل لرتبة "عضو" من الأعلى!');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من كتابة التعليقات. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
+    if (commentText.trim() === '') return;
 
     const newComment: Comment = {
       id: `comm-${Date.now()}`,
@@ -250,7 +252,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   // Like comment handler
   const handleLikeComment = (commentId: string) => {
-    if (currentUser.role === 'GUEST') return;
+    if (currentUser.role === 'GUEST') {
+      window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const updated = allComments.map(c => {
       if (c.id === commentId) {
@@ -483,7 +488,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         </div>
 
         {/* Right Info pane */}
-        <div className="flex-1 flex flex-col justify-between h-full">
+        <div className="flex-1 w-full min-w-0 flex flex-col justify-between h-full">
           <div>
             <div className="flex flex-wrap gap-2 items-center mb-3">
               <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-violet-600/10 border border-violet-600/30 text-violet-300">
@@ -610,7 +615,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       {/* Main Tab Area */}
       <div className="w-full mt-8">
         {/* Navigation Tabs Bar */}
-        <div className="flex border-b border-white/5 mb-6 text-sm font-semibold text-purple-300/80">
+        <div className="flex border-b border-white/5 mb-6 text-sm font-semibold text-purple-300/80 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('chapters')}
             className={`pb-3 px-6 relative transition-colors ${activeTab === 'chapters' ? 'text-white' : 'hover:text-white'}`}
@@ -634,7 +639,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {activeTab === 'chapters' && (
             <div className="flex flex-col gap-4">
               {/* Toolbar */}
-              <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+              <div className="flex flex-wrap justify-between items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
                 <span className="text-xs text-purple-300 font-semibold">إجمالي الفصول المنشورة: {chapters.length} فصلاً</span>
                 
                 {/* Show Add Chapter trigger for OWNER, TRANSLATOR, or WRITER */}
@@ -863,18 +868,20 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
               {/* Form to submit comment */}
               <form onSubmit={handleAddComment} className="flex gap-3">
-                <input 
-                  type="text" 
-                  placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول أو غير رتبتك من الأعلى لكتابة تعليق...' : 'اكتب تعليقك هنا حول الرواية...'}
-                  disabled={currentUser.role === 'GUEST'}
+                <input
+                  type="text"
+                  placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول لكتابة تعليق حول الرواية... 🍇' : 'اكتب تعليقك هنا حول الرواية...'}
+                  readOnly={currentUser.role === 'GUEST'}
+                  onClick={() => {
+                    if (currentUser.role === 'GUEST') window.dispatchEvent(new Event('open-login-modal'));
+                  }}
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  className="flex-1 bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3.5 text-white placeholder-purple-300/40 text-xs text-right transition-all"
+                  className="flex-1 min-w-0 bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3.5 text-white placeholder-purple-300/40 text-xs text-right transition-all"
                 />
-                <button 
+                <button
                   type="submit"
-                  disabled={currentUser.role === 'GUEST'}
-                  className="px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all cursor-pointer shrink-0"
                 >
                   إرسال
                 </button>
@@ -911,9 +918,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                         >
                           <span>إعجاب ({comment.likes})</span>
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
-                            if (currentUser.role === 'GUEST') return;
+                            if (currentUser.role === 'GUEST') {
+                              window.dispatchEvent(new Event('open-login-modal'));
+                              return;
+                            }
                             setActiveReplyId(activeReplyId === comment.id ? null : comment.id);
                           }}
                           className="hover:text-white transition-colors cursor-pointer"

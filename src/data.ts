@@ -112,13 +112,24 @@ export class BerryDatabase {
   static set<T>(key: string, value: T): void {
     try {
       localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
-      
+
       // Sync to backend Express server database asynchronously
       fetch('/api/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, value })
       }).catch(err => console.error("Error syncing to backend database:", err));
+    } catch (e) {
+      console.error("Error writing to localStorage", e);
+    }
+  }
+
+  // Local-only write: never pushed to the shared server database.
+  // Used during first-visit initialization so a fresh visitor's empty
+  // defaults do not wipe the site's real content for everyone.
+  static setLocal<T>(key: string, value: T): void {
+    try {
+      localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
     } catch (e) {
       console.error("Error writing to localStorage", e);
     }
@@ -170,47 +181,30 @@ export class BerryDatabase {
   }
 
   static initialize() {
+    // First visit on this browser: seed the LOCAL cache only. The real site
+    // content is then pulled from the server by syncWithServer(). Writing
+    // these empty defaults with set() would push them to /api/db and erase
+    // the shared database for every visitor.
     const isCleaned = localStorage.getItem('berry_mist_cleaned_v6');
-    if (!isCleaned) {
-      // Clear and reset the database with clean, non-mock data
-      this.set('novels', INITIAL_NOVELS);
-      this.set('news', INITIAL_NEWS);
-      this.set('teams', INITIAL_TEAMS);
-      this.set('suggestions', INITIAL_SUGGESTIONS);
-      this.set('comments', INITIAL_COMMENTS);
-      this.set('reviews', INITIAL_REVIEWS);
-      this.set('reservations', [] as Reservation[]);
-      this.set('notifications', [] as Notification[]);
-      this.set('reports', [] as Report[]);
-      this.set('translator_requests', [] as TranslatorRequest[]);
-      this.set('reading_history', [] as any[]);
-      this.set('bookmarks', [] as string[]);
-      this.set('current_role', 'GUEST'); // Default to GUEST to secure the platform
-      this.set('ads', INITIAL_ADS);
-      this.set('chapters', [] as Chapter[]);
-      
+    if (!isCleaned || !localStorage.getItem('berry_mist_initialized')) {
+      this.setLocal('novels', INITIAL_NOVELS);
+      this.setLocal('news', INITIAL_NEWS);
+      this.setLocal('teams', INITIAL_TEAMS);
+      this.setLocal('suggestions', INITIAL_SUGGESTIONS);
+      this.setLocal('comments', INITIAL_COMMENTS);
+      this.setLocal('reviews', INITIAL_REVIEWS);
+      this.setLocal('reservations', [] as Reservation[]);
+      this.setLocal('notifications', [] as Notification[]);
+      this.setLocal('reports', [] as Report[]);
+      this.setLocal('translator_requests', [] as TranslatorRequest[]);
+      this.setLocal('reading_history', [] as any[]);
+      this.setLocal('bookmarks', [] as string[]);
+      this.setLocal('current_role', 'GUEST'); // Default to GUEST to secure the platform
+      this.setLocal('ads', INITIAL_ADS);
+      this.setLocal('chapters', [] as Chapter[]);
+
       localStorage.setItem('berry_mist_initialized', 'true');
       localStorage.setItem('berry_mist_cleaned_v6', 'true');
-      return;
-    }
-
-    if (!localStorage.getItem('berry_mist_initialized')) {
-      this.set('novels', INITIAL_NOVELS);
-      this.set('news', INITIAL_NEWS);
-      this.set('teams', INITIAL_TEAMS);
-      this.set('suggestions', INITIAL_SUGGESTIONS);
-      this.set('comments', INITIAL_COMMENTS);
-      this.set('reviews', INITIAL_REVIEWS);
-      this.set('reservations', [] as Reservation[]);
-      this.set('notifications', [] as Notification[]);
-      this.set('reports', [] as Report[]);
-      this.set('translator_requests', [] as TranslatorRequest[]);
-      this.set('reading_history', [] as any[]);
-      this.set('bookmarks', [] as string[]);
-      this.set('current_role', 'GUEST');
-      this.set('ads', INITIAL_ADS);
-      this.set('chapters', [] as Chapter[]);
-      localStorage.setItem('berry_mist_initialized', 'true');
     }
   }
 }

@@ -537,7 +537,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
         createdAt: 'الآن'
       };
       BerryDatabase.set('notifications', [...allNotifs, newNotif]);
-      setSuccess('تم تقديم طلب إنشاء الرواية بنجاح وهي قيد مراجعة المالك للموافقة عليها قبل النشر بالمنصة.');
+      setSuccess('تم نشر روايتك بنجاح وهي الآن ظاهرة للجميع بالصفحة الرئيسية والمكتبة، وسيراجعها المالك لاعتمادها رسمياً.');
     } else {
       setSuccess('تمت إضافة ونشر الرواية الجديدة مباشرة بنجاح بصفك مالك المنصة! 🎉');
     }

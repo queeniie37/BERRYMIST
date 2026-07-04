@@ -546,7 +546,8 @@ export default function App() {
   // Toggle Novel Bookmarks (Mofaddala)
   const handleBookmarkToggle = (novelId: string) => {
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك صلاحية إضافة الروايات للمفضلة. غير رتبتك من الأعلى لعضو أولاً!');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من إضافة الروايات إلى مفضلتك. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
 
@@ -600,7 +601,8 @@ export default function App() {
   // Vote on specific suggestion
   const handleVoteSuggestion = (sugId: string) => {
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك حق التصويت. غير رتبتك إلى عضو أو مترجم من شريط التحكم.');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من التصويت على الاقتراحات. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
 
@@ -646,25 +648,9 @@ export default function App() {
     handleNavigate('reader', { novelId, chapterNumber: nextNum });
   };
 
-  // Filter novels list based on status (Awaiting approved drafts only for main view, unless published by the owner)
-  const activeNovels = useMemo(() => {
-    const usersDb = BerryDatabase.get<any[]>('users_db', []);
-    const ownerUserIds = new Set(
-      usersDb
-        .filter(u => u.email.toLowerCase() === 'hanona37hh@gmail.com')
-        .map(u => u.id)
-    );
-    ownerUserIds.add('berrymist-owner'); // fallback
-
-    return novels.filter(n => {
-      // Show if it is not PENDING
-      if (n.status !== 'PENDING') return true;
-      // Show if published by the owner under any simulated ID or email
-      if (ownerUserIds.has(n.translatorId)) return true;
-      if (n.translatorName === 'BERRYMIST') return true;
-      return false;
-    });
-  }, [novels]);
+  // All uploaded novels are publicly visible to every visitor (guests included).
+  // Interaction (bookmarks, comments, votes) still requires signing in.
+  const activeNovels = useMemo(() => novels, [novels]);
 
   // Filter trending list (sorted by views / popular)
   const trendingNovels = useMemo(() => [...activeNovels]
@@ -813,7 +799,7 @@ export default function App() {
                     </h2>
                     <span className="text-xs text-purple-400">تحديث فوري</span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                     {trendingNovels.map((novel, idx) => (
                       <NovelCard 
                         key={novel.id}
@@ -915,7 +901,7 @@ export default function App() {
         {/* ==================== SCREEN 5: TRANSLATORS CLAIMS / SUGGESTIONS LIST ==================== */}
         {currentPage === 'suggestions' && (
           <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
-            <div className="p-6 bg-[#1A1625] rounded-3xl mb-8 flex items-center justify-between">
+            <div className="p-6 bg-[#1A1625] rounded-3xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
                   <Compass size={24} className="text-berry-400 animate-pulse" />
@@ -926,12 +912,13 @@ export default function App() {
               <button 
                 onClick={() => {
                   if (currentUser.role === 'GUEST') {
-                    alert('عذراً، يجب عليك تسجيل الدخول أو اختيار رتبة "عضو" على الأقل لتقديم المقترحات.');
+                    alert('يجب تسجيل الدخول أولاً لتتمكن من تقديم اقتراحات الروايات. 🍇');
+                    window.dispatchEvent(new Event('open-login-modal'));
                     return;
                   }
                   setShowSuggestDialog(true);
                 }}
-                className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg"
+                className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg self-start sm:self-auto shrink-0 cursor-pointer"
               >
                 تقديم اقتراح جديد +
               </button>
@@ -2043,8 +2030,8 @@ export default function App() {
 
         {/* Sub-footer Copyright */}
         <div className="max-w-7xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-purple-400 gap-4">
-          <span>حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
-          <div className="flex gap-4">
+          <span className="text-center sm:text-right">حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
+          <div className="flex flex-wrap justify-center gap-4">
             <span className="hover:text-white cursor-pointer">شروط الخدمة والاستخدام</span>
             <span className="hover:text-white cursor-pointer">سياسة الخصوصية وحماية البيانات</span>
             <span className="hover:text-white cursor-pointer">DMCA وحقوق الملكية</span>

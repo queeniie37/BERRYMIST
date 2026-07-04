@@ -117,11 +117,12 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
   // Add Comment Handler
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim() || !chapter) return;
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك صلاحية التعليق.');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من كتابة التعليقات. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
+    if (!commentText.trim() || !chapter) return;
 
     const newComment: Comment = {
       id: `comm-${Date.now()}`,
@@ -146,6 +147,10 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
   // Like Comment Handler
   const handleLikeComment = (commentId: string) => {
+    if (currentUser.role === 'GUEST') {
+      window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
     if (!chapter) return;
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const updated = allComments.map(c => {
@@ -165,9 +170,12 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
   // Add Reply Handler
   const handleAddReply = (commentId: string) => {
+    if (currentUser.role === 'GUEST') {
+      window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
     const replyText = replyTexts[commentId];
     if (!replyText || !replyText.trim() || !chapter) return;
-    if (currentUser.role === 'GUEST') return;
 
     const newReply = {
       id: `rep-${Date.now()}`,
@@ -220,7 +228,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       </div>
 
       {/* Reader Bar (Title, Navigation actions) */}
-      <div className="sticky top-0 z-40 w-full glass-panel h-16 flex items-center justify-between px-6 border-b border-white/5">
+      <div className="sticky top-0 z-40 w-full glass-panel h-16 flex items-center justify-between gap-2 px-3 sm:px-6 border-b border-white/5">
         <button 
           onClick={onBack}
           className="text-xs font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer"
@@ -228,9 +236,9 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
           <span>← عودة للرواية</span>
         </button>
 
-        <div className="text-center">
-          <h4 className="font-extrabold text-xs text-white truncate max-w-[200px] sm:max-w-md">{novel.titleAr}</h4>
-          <span className="text-[10px] text-purple-400 mt-0.5 block font-bold">الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim()}</span>
+        <div className="text-center min-w-0">
+          <h4 className="font-extrabold text-xs text-white truncate max-w-[140px] sm:max-w-md mx-auto">{novel.titleAr}</h4>
+          <span className="text-[10px] text-purple-400 mt-0.5 block font-bold truncate max-w-[140px] sm:max-w-md mx-auto">الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim()}</span>
         </div>
 
         {/* Customizer triggers */}
@@ -247,7 +255,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
       {/* Settings Menu Drawer */}
       {showSettings && (
-        <div className="fixed top-18 left-6 z-50 w-72 glass-panel p-4 rounded-2xl border border-white/10 shadow-2xl animate-in fade-in slide-in-from-top-4 text-right">
+        <div className="fixed top-18 left-3 sm:left-6 z-50 w-72 max-w-[calc(100vw-1.5rem)] glass-panel p-4 rounded-2xl border border-white/10 shadow-2xl animate-in fade-in slide-in-from-top-4 text-right">
           <h4 className="font-extrabold text-xs text-white border-b border-white/5 pb-2 mb-3">تخصيص قارئ الرواية</h4>
           
           {/* Themes switcher */}
@@ -333,7 +341,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       {/* Main Chapter Content Frame */}
       <div 
         ref={readerRef}
-        className={`w-full max-w-3xl mx-auto px-6 py-12 md:py-16 text-right leading-relaxed relative watermarked-text ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}
+        className={`w-full max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 text-right leading-relaxed relative watermarked-text ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}
         data-watermark={`BERRY MIST - ${currentUser.username}`}
         style={{ 
           fontSize: `${fontSize}px`, 
@@ -387,25 +395,25 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
         )}
 
         {/* Navigation bottom buttons (with correctly inverted arrow icons) */}
-        <div className="flex justify-between items-center border-t border-white/5 pt-8 mt-12 select-none">
-          <button 
+        <div className="flex flex-wrap justify-between items-center gap-2 border-t border-white/5 pt-8 mt-12 select-none">
+          <button
             onClick={() => onNavigateChapter('prev')}
-            className="px-5 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer transition-all border border-white/5 hover:border-white/10"
+            className="px-3 sm:px-5 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer transition-all border border-white/5 hover:border-white/10"
           >
             <ChevronRight size={14} className="text-purple-400" />
             <span>الفصل السابق</span>
           </button>
 
-          <button 
+          <button
             onClick={onBack}
-            className="px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-purple-300"
+            className="px-3 sm:px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-purple-300 cursor-pointer"
           >
             فهرس الفصول
           </button>
 
-          <button 
+          <button
             onClick={() => onNavigateChapter('next')}
-            className="px-5 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-md shadow-violet-500/10"
+            className="px-3 sm:px-5 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-md shadow-violet-500/10"
           >
             <span>الفصل التالي</span>
             <ChevronLeft size={14} className="text-white" />
@@ -421,18 +429,20 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
           {/* Form to submit comment */}
           <form onSubmit={handleAddComment} className="flex gap-3 mb-8">
-            <input 
-              type="text" 
-              placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول أو غير رتبتك من الأعلى لكتابة تعليق...' : 'اكتب تعليقك هنا حول أحداث الفصل...'}
-              disabled={currentUser.role === 'GUEST'}
+            <input
+              type="text"
+              placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول لكتابة تعليق حول الفصل... 🍇' : 'اكتب تعليقك هنا حول أحداث الفصل...'}
+              readOnly={currentUser.role === 'GUEST'}
+              onClick={() => {
+                if (currentUser.role === 'GUEST') window.dispatchEvent(new Event('open-login-modal'));
+              }}
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              className="flex-1 bg-[#14101D] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3 text-white placeholder-purple-300/40 text-xs text-right transition-all"
+              className="flex-1 min-w-0 bg-[#14101D] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3 text-white placeholder-purple-300/40 text-xs text-right transition-all"
             />
-            <button 
+            <button
               type="submit"
-              disabled={currentUser.role === 'GUEST'}
-              className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all disabled:opacity-50 cursor-pointer"
+              className="px-4 sm:px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all cursor-pointer shrink-0"
             >
               إرسال
             </button>
@@ -471,9 +481,12 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
                     >
                       <span>إعجاب ({comment.likes})</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
-                        if (currentUser.role === 'GUEST') return;
+                        if (currentUser.role === 'GUEST') {
+                          window.dispatchEvent(new Event('open-login-modal'));
+                          return;
+                        }
                         setActiveReplyId(activeReplyId === comment.id ? null : comment.id);
                       }}
                       className="hover:text-white transition-colors cursor-pointer"

@@ -110,7 +110,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex justify-center items-center p-4">
-      <div className="w-full max-w-md glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 relative overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 relative animate-in zoom-in-95 duration-200">
         <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/10 rounded-full blur-[60px] pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-48 h-48 bg-berry-600/10 rounded-full blur-[60px] pointer-events-none" />
 

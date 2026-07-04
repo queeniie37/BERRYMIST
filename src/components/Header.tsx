@@ -51,26 +51,14 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       setSearchResults([]);
       return;
     }
+    // All uploaded novels are searchable by every visitor (guests included)
     const novels = BerryDatabase.get<any[]>('novels', []);
-    const usersDb = BerryDatabase.get<any[]>('users_db', []);
-    const ownerUserIds = new Set(
-      usersDb
-        .filter((u: any) => u.email.toLowerCase() === 'hanona37hh@gmail.com')
-        .map((u: any) => u.id)
-    );
-    ownerUserIds.add('berrymist-owner');
-
-    const filtered = novels.filter(n => {
-      const isVisible = n.status !== 'PENDING' || ownerUserIds.has(n.translatorId) || n.translatorName === 'BERRYMIST';
-      if (!isVisible) return false;
-
-      return (
-        n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    });
+    const filtered = novels.filter(n => (
+      n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
+    ));
     setSearchResults(filtered);
   }, [searchQuery]);
 
@@ -136,7 +124,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             title="الأقسام والصفحات"
           >
             <Menu size={16} />
-            <span className="text-xs font-bold font-sans">القائمة</span>
+            <span className="text-xs font-bold font-sans hidden min-[400px]:inline">القائمة</span>
           </button>
 
           <div 
@@ -211,7 +199,8 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
               className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold bg-gradient-to-r from-violet-600 to-berry-500 text-white shadow-lg hover:brightness-110 transition-all cursor-pointer whitespace-nowrap"
             >
               <LogIn size={12} />
-              <span>تسجيل الدخول 🍇</span>
+              <span className="hidden sm:inline">تسجيل الدخول 🍇</span>
+              <span className="sm:hidden">دخول</span>
             </button>
           )}
 
@@ -245,7 +234,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
 
             {/* Notifications Panel */}
             {notificationsOpen && (
-              <div className="absolute left-0 mt-3 w-80 glass-panel rounded-2xl p-4 shadow-2xl border border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute left-0 mt-3 w-80 max-w-[calc(100vw-2rem)] glass-panel rounded-2xl p-4 shadow-2xl border border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
                   <h4 className="font-bold text-sm text-purple-200">الإشعارات</h4>
                   <button 
@@ -531,13 +520,17 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
 
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[140] bg-black/95 backdrop-blur-xl flex flex-col justify-between p-6 animate-in fade-in duration-300 lg:hidden">
+        <div className="fixed inset-0 z-[140] bg-black/95 backdrop-blur-xl flex flex-col justify-between gap-6 p-6 overflow-y-auto animate-in fade-in duration-300 lg:hidden">
           <div>
             <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-8">
               <div className="flex items-center gap-2">
-                <span className="text-3xl">🍇</span>
+                {siteLogo.startsWith('http') ? (
+                  <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-3xl">{siteLogo}</span>
+                )}
                 <span className="font-extrabold text-2xl bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
-                  BerryMist
+                  {siteName}
                 </span>
               </div>
               <button 
