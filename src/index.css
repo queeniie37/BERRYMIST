@@ -45,12 +45,32 @@
   --glow-berry: 0 0 0 1px rgba(200,75,122,.40), 0 6px 24px rgba(200,75,122,.35);
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background-color: #0F0B14;
   color: #F5F1FF;
   font-family: "IBM Plex Sans Arabic", "Tajawal", "Cairo", system-ui, sans-serif;
   overflow-x: hidden;
   direction: rtl;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img, video {
+  max-width: 100%;
+}
+
+/* Hide scrollbars for horizontal scroll ribbons (genre chips, tab bars) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* Glassmorphism utility classes */
@@ -140,6 +160,30 @@ body {
 
 .animate-float-slow {
   animation: float-ambient 20s ease-in-out infinite;
+}
+
+/* Copy protection: hide protected chapter content when printing / saving as PDF
+   (browser menu printing bypasses the Ctrl+P shortcut blocker). Owners don't
+   get the .print-protected class, so their printing keeps working. */
+@media print {
+  .print-protected {
+    display: none !important;
+  }
+
+  .print-only-notice {
+    display: block !important;
+    text-align: center;
+    font-weight: 700;
+    padding: 4rem 2rem;
+  }
+}
+
+/* Block long-press image saving and dragging inside protected chapters (mobile) */
+.print-protected img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Watermark styles */

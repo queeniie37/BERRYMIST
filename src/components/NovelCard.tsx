@@ -56,11 +56,12 @@ export default function NovelCard({ novel, isBookmarked, onBookmarkToggle, onCli
 
       {/* Cover Image Wrapper with 2:3 constraint */}
       <div className="relative aspect-[2/3] w-full overflow-hidden bg-black/40">
-        <img 
-          src={novel.cover} 
-          alt={novel.titleAr} 
+        <img
+          src={novel.cover}
+          alt={novel.titleAr}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
+          referrerPolicy="no-referrer"
         />
         {/* Soft Shadow Veil */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#1A1625] via-[#1A1625]/20 to-transparent" />
