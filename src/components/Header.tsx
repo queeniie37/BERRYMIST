@@ -61,8 +61,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
     ownerUserIds.add('berrymist-owner');
 
     const filtered = novels.filter(n => {
-      const isVisible = n.status !== 'PENDING' || ownerUserIds.has(n.translatorId) || n.translatorName === 'BERRYMIST';
-      if (!isVisible) return false;
+      if (n.status === 'CANCELLED') return false;
 
       return (
         n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
