@@ -144,7 +144,20 @@ export default function App() {
     const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
     const loadedSuggestions = BerryDatabase.get<Suggestion[]>('suggestions', []);
     
-    setNovels(loadedNovels);
+    // Automatically repair any of the Owner's novels that might have been saved as PENDING
+    let databaseNeedsSave = false;
+    const repairedNovels = loadedNovels.map(n => {
+      if (n.status === 'PENDING' && (n.translatorName === 'BERRYMIST' || n.translatorId === 'berrymist-owner')) {
+        databaseNeedsSave = true;
+        return { ...n, status: 'AVAILABLE' as const };
+      }
+      return n;
+    });
+    if (databaseNeedsSave) {
+      BerryDatabase.set('novels', repairedNovels);
+    }
+
+    setNovels(databaseNeedsSave ? repairedNovels : loadedNovels);
     setNews(BerryDatabase.get<News[]>('news', []));
     setSuggestions(loadedSuggestions);
     setBookmarks(BerryDatabase.get<string[]>('bookmarks', []));
@@ -155,7 +168,20 @@ export default function App() {
     const syncDb = async () => {
       await BerryDatabase.syncWithServer();
       // Refresh React states with the newly synced server data
-      setNovels(BerryDatabase.get<Novel[]>('novels', []));
+      const syncedNovels = BerryDatabase.get<Novel[]>('novels', []);
+      let syncedNeedsSave = false;
+      const repairedSynced = syncedNovels.map(n => {
+        if (n.status === 'PENDING' && (n.translatorName === 'BERRYMIST' || n.translatorId === 'berrymist-owner')) {
+          syncedNeedsSave = true;
+          return { ...n, status: 'AVAILABLE' as const };
+        }
+        return n;
+      });
+      if (syncedNeedsSave) {
+        BerryDatabase.set('novels', repairedSynced);
+      }
+      
+      setNovels(syncedNeedsSave ? repairedSynced : syncedNovels);
       setNews(BerryDatabase.get<News[]>('news', []));
       setSuggestions(BerryDatabase.get<Suggestion[]>('suggestions', []));
       setTeams(BerryDatabase.get<Team[]>('teams', []));
@@ -475,7 +501,7 @@ export default function App() {
 
   // Update dynamic simulated user role
   const handleRoleChange = (newRole: UserRole) => {
-    if (newRole === 'OWNER' && currentUser.email !== 'hanona37hh@gmail.com') {
+    if (newRole === 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
       alert('خطأ أمني: رتبة المالك مخصصة حصرياً لمالك الموقع! يرجى تسجيل الدخول بحساب المالك (hanona37hh@gmail.com) أولاً للوصول إلى لوحة الإدارة.');
       return;
     }
@@ -538,6 +564,25 @@ export default function App() {
 
   // Safe navigation
   const handleNavigate = (page: string, params: any = null) => {
+    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+    const isTranslatorOrWriter = currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER';
+
+    if (page === 'admin') {
+      if (!isOwner) {
+        alert('عذراً، لوحة المالك والإدارة مخصصة حصرياً للمالك!');
+        setCurrentPage('home');
+        return;
+      }
+    }
+
+    if (page === 'translator-panel') {
+      if (!isOwner && !isTranslatorOrWriter) {
+        alert('عذراً، لوحة العمل مخصصة للمترجمين، الكتاب، أو المالك فقط!');
+        setCurrentPage('home');
+        return;
+      }
+    }
+
     setCurrentPage(page);
     setCurrentParams(params);
     window.scrollTo(0, 0);
@@ -759,31 +804,35 @@ export default function App() {
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
-                    <span className="text-lg font-bold text-violet-300 block mb-2">🛡️ لوحة المالك والإدارة</span>
-                    <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                      بصفتك المالك، يمكنك إدارة الروايات بالكامل، مراجعة طلبات الترجمة، تخصيص وتعديل الأخبار، تفعيل الإعلانات، وتنسيق الأقسام.
-                    </p>
-                    <button 
-                      onClick={() => handleNavigate('admin')}
-                      className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
-                    >
-                      الدخول للوحة المالك ←
-                    </button>
-                  </div>
+                  {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
+                      <span className="text-lg font-bold text-violet-300 block mb-2">🛡️ لوحة المالك والإدارة</span>
+                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
+                        بصفتك المالك، يمكنك إدارة الروايات بالكامل، مراجعة طلبات الترجمة، تخصيص وتعديل الأخبار، تفعيل الإعلانات، وتنسيق الأقسام.
+                      </p>
+                      <button 
+                        onClick={() => handleNavigate('admin')}
+                        className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
+                      >
+                        الدخول للوحة المالك ←
+                      </button>
+                    </div>
+                  )}
 
-                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-berry-500/20 transition-all">
-                    <span className="text-lg font-bold text-berry-300 block mb-2">✍️ لوحة المترجمين والكتّاب</span>
-                    <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                      قم بإنشاء وتأليف الروايات الخاصة بك، إضافة الفصول والمقاطع، وحجز الأعمال المقترحة من قبل الأعضاء لبدء الترجمة والنشر.
-                    </p>
-                    <button 
-                      onClick={() => handleNavigate('translator-panel')}
-                      className="px-4 py-2 bg-berry-600/20 hover:bg-berry-600 text-berry-200 hover:text-white rounded-xl text-xs font-bold border border-berry-500/30 transition-all cursor-pointer"
-                    >
-                      الدخول للوحة العمل ←
-                    </button>
-                  </div>
+                  {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER' || currentUser.role === 'WRITER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-berry-500/20 transition-all">
+                      <span className="text-lg font-bold text-berry-300 block mb-2">✍️ لوحة المترجمين والكتّاب</span>
+                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
+                        قم بإنشاء وتأليف الروايات الخاصة بك، إضافة الفصول والمقاطع، وحجز الأعمال المقترحة من قبل الأعضاء لبدء الترجمة والنشر.
+                      </p>
+                      <button 
+                        onClick={() => handleNavigate('translator-panel')}
+                        className="px-4 py-2 bg-berry-600/20 hover:bg-berry-600 text-berry-200 hover:text-white rounded-xl text-xs font-bold border border-berry-500/30 transition-all cursor-pointer"
+                      >
+                        الدخول للوحة العمل ←
+                      </button>
+                    </div>
+                  )}
                 </div>
 
 

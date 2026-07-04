@@ -99,7 +99,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       ownerUserIds.has(foundNovel.translatorId) || 
       foundNovel.translatorName === 'BERRYMIST'
     );
-    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email === 'hanona37hh@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
+    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
     if (!isAuthorized) {
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
