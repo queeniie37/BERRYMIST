@@ -831,18 +831,21 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
-                    <span className="text-lg font-bold text-violet-300 block mb-2">💡 اقترح رواية للترجمة</span>
-                    <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                      شارك مجتمع القراء باقتراحاتك للروايات التي تتمنى رؤيتها مترجمة، وصوّت على اقتراحات الأعضاء الآخرين.
-                    </p>
-                    <button
-                      onClick={() => handleNavigate('suggestions')}
-                      className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
-                    >
-                      صفحة الاقتراحات ←
-                    </button>
-                  </div>
+                  {/* Guests and readers (no control panel) get a public call to action instead */}
+                  {(currentUser.role === 'GUEST' || currentUser.role === 'MEMBER') && (
+                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
+                      <span className="text-lg font-bold text-violet-300 block mb-2">💡 اقترح رواية للترجمة</span>
+                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
+                        شارك مجتمع القراء باقتراحاتك للروايات التي تتمنى رؤيتها مترجمة، وصوّت على اقتراحات الأعضاء الآخرين.
+                      </p>
+                      <button
+                        onClick={() => handleNavigate('suggestions')}
+                        className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
+                      >
+                        صفحة الاقتراحات ←
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
