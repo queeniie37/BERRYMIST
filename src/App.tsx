@@ -796,57 +796,9 @@ export default function App() {
                 
                 <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">🍇</span>
                 <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {siteName} الفاخرة!</h2>
-                <p className="text-purple-300 text-sm md:text-base leading-relaxed mb-6 max-w-3xl">
-                  لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية!
+                <p className="text-purple-300 text-sm md:text-base leading-relaxed max-w-3xl">
+                  لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية! ✨
                 </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-                  {currentUser.role === 'OWNER' && (
-                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
-                      <span className="text-lg font-bold text-violet-300 block mb-2">🛡️ لوحة المالك والإدارة</span>
-                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                        بصفتك المالك، يمكنك إدارة الروايات بالكامل، مراجعة طلبات الترجمة، تخصيص وتعديل الأخبار، تفعيل الإعلانات، وتنسيق الأقسام.
-                      </p>
-                      <button
-                        onClick={() => handleNavigate('admin')}
-                        className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
-                      >
-                        الدخول للوحة المالك ←
-                      </button>
-                    </div>
-                  )}
-
-                  {['TRANSLATOR', 'WRITER', 'OWNER'].includes(currentUser.role) && (
-                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-berry-500/20 transition-all">
-                      <span className="text-lg font-bold text-berry-300 block mb-2">✍️ لوحة المترجمين والكتّاب</span>
-                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                        قم بإنشاء وتأليف الروايات الخاصة بك، إضافة الفصول والمقاطع، وحجز الأعمال المقترحة من قبل الأعضاء لبدء الترجمة والنشر.
-                      </p>
-                      <button
-                        onClick={() => handleNavigate('translator-panel')}
-                        className="px-4 py-2 bg-berry-600/20 hover:bg-berry-600 text-berry-200 hover:text-white rounded-xl text-xs font-bold border border-berry-500/30 transition-all cursor-pointer"
-                      >
-                        الدخول للوحة العمل ←
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Guests and readers (no control panel) get a public call to action instead */}
-                  {(currentUser.role === 'GUEST' || currentUser.role === 'MEMBER') && (
-                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
-                      <span className="text-lg font-bold text-violet-300 block mb-2">💡 اقترح رواية للترجمة</span>
-                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                        شارك مجتمع القراء باقتراحاتك للروايات التي تتمنى رؤيتها مترجمة، وصوّت على اقتراحات الأعضاء الآخرين.
-                      </p>
-                      <button
-                        onClick={() => handleNavigate('suggestions')}
-                        className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
-                      >
-                        صفحة الاقتراحات ←
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             ) : (
               <>
