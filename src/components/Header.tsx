@@ -52,12 +52,25 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       return;
     }
     const novels = BerryDatabase.get<any[]>('novels', []);
-    const filtered = novels.filter(n => 
-      n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+    const ownerUserIds = new Set(
+      usersDb
+        .filter((u: any) => u.email.toLowerCase() === 'hanona37hh@gmail.com')
+        .map((u: any) => u.id)
     );
+    ownerUserIds.add('berrymist-owner');
+
+    const filtered = novels.filter(n => {
+      const isVisible = n.status !== 'PENDING' || ownerUserIds.has(n.translatorId) || n.translatorName === 'BERRYMIST';
+      if (!isVisible) return false;
+
+      return (
+        n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    });
     setSearchResults(filtered);
   }, [searchQuery]);
 

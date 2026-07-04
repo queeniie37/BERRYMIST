@@ -647,7 +647,24 @@ export default function App() {
   };
 
   // Filter novels list based on status (Awaiting approved drafts only for main view, unless published by the owner)
-  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'PENDING' || n.translatorId === 'berrymist-owner' || n.translatorName === 'BERRYMIST'), [novels]);
+  const activeNovels = useMemo(() => {
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+    const ownerUserIds = new Set(
+      usersDb
+        .filter(u => u.email.toLowerCase() === 'hanona37hh@gmail.com')
+        .map(u => u.id)
+    );
+    ownerUserIds.add('berrymist-owner'); // fallback
+
+    return novels.filter(n => {
+      // Show if it is not PENDING
+      if (n.status !== 'PENDING') return true;
+      // Show if published by the owner under any simulated ID or email
+      if (ownerUserIds.has(n.translatorId)) return true;
+      if (n.translatorName === 'BERRYMIST') return true;
+      return false;
+    });
+  }, [novels]);
 
   // Filter trending list (sorted by views / popular)
   const trendingNovels = useMemo(() => [...activeNovels]
