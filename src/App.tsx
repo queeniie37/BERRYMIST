@@ -24,6 +24,35 @@ import AdsTicker from './components/AdsTicker';
 import AdsPage from './components/AdsPage';
 import TranslatorRequestForm from './components/TranslatorRequestForm';
 
+// Shown instead of the admin/translator panels for users without the required role
+function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: string; isGuest: boolean; onNavigateHome: () => void }) {
+  return (
+    <div className="w-full text-center mt-12 pb-12 animate-in fade-in duration-300">
+      <div className="max-w-md mx-auto p-8 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col items-center gap-4">
+        <Shield size={40} className="text-berry-400" />
+        <h2 className="text-lg font-extrabold text-white">هذه الصفحة محمية 🔒</h2>
+        <p className="text-xs text-purple-300 leading-relaxed">{message}</p>
+        <div className="flex gap-3 mt-2">
+          {isGuest && (
+            <button
+              onClick={() => window.dispatchEvent(new Event('open-login-modal'))}
+              className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer"
+            >
+              تسجيل الدخول 🍇
+            </button>
+          )}
+          <button
+            onClick={onNavigateHome}
+            className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-purple-300 rounded-xl text-xs font-bold cursor-pointer"
+          >
+            العودة للرئيسية
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
@@ -739,40 +768,55 @@ export default function App() {
                 <div className="absolute bottom-0 right-0 w-64 h-64 bg-berry-600/10 rounded-full blur-[80px]" />
                 
                 <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">🍇</span>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة بيري ميست (Berry Mist) الفاخرة!</h2>
+                <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {siteName} الفاخرة!</h2>
                 <p className="text-purple-300 text-sm md:text-base leading-relaxed mb-6 max-w-3xl">
-                  لقد قمنا بحذف جميع البيانات والمسودات التجريبية الوهمية بنجاح بناءً على طلبك لتوفير بيئة عمل نظيفة وجاهزة تماماً للاستخدام الفعلي. يمكنك الآن إنشاء أعمالك الفخمة والترجمات الحقيقية والمحتوى الروائي مباشرة!
+                  لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية!
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                  {currentUser.role === 'OWNER' && (
+                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
+                      <span className="text-lg font-bold text-violet-300 block mb-2">🛡️ لوحة المالك والإدارة</span>
+                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
+                        بصفتك المالك، يمكنك إدارة الروايات بالكامل، مراجعة طلبات الترجمة، تخصيص وتعديل الأخبار، تفعيل الإعلانات، وتنسيق الأقسام.
+                      </p>
+                      <button
+                        onClick={() => handleNavigate('admin')}
+                        className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
+                      >
+                        الدخول للوحة المالك ←
+                      </button>
+                    </div>
+                  )}
+
+                  {['TRANSLATOR', 'WRITER', 'OWNER'].includes(currentUser.role) && (
+                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-berry-500/20 transition-all">
+                      <span className="text-lg font-bold text-berry-300 block mb-2">✍️ لوحة المترجمين والكتّاب</span>
+                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
+                        قم بإنشاء وتأليف الروايات الخاصة بك، إضافة الفصول والمقاطع، وحجز الأعمال المقترحة من قبل الأعضاء لبدء الترجمة والنشر.
+                      </p>
+                      <button
+                        onClick={() => handleNavigate('translator-panel')}
+                        className="px-4 py-2 bg-berry-600/20 hover:bg-berry-600 text-berry-200 hover:text-white rounded-xl text-xs font-bold border border-berry-500/30 transition-all cursor-pointer"
+                      >
+                        الدخول للوحة العمل ←
+                      </button>
+                    </div>
+                  )}
+
                   <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
-                    <span className="text-lg font-bold text-violet-300 block mb-2">🛡️ لوحة المالك والإدارة</span>
+                    <span className="text-lg font-bold text-violet-300 block mb-2">💡 اقترح رواية للترجمة</span>
                     <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                      بصفتك المالك، يمكنك إدارة الروايات بالكامل، مراجعة طلبات الترجمة، تخصيص وتعديل الأخبار، تفعيل الإعلانات، وتنسيق الأقسام.
+                      شارك مجتمع القراء باقتراحاتك للروايات التي تتمنى رؤيتها مترجمة، وصوّت على اقتراحات الأعضاء الآخرين.
                     </p>
-                    <button 
-                      onClick={() => handleNavigate('admin')}
+                    <button
+                      onClick={() => handleNavigate('suggestions')}
                       className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
                     >
-                      الدخول للوحة المالك ←
-                    </button>
-                  </div>
-
-                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-berry-500/20 transition-all">
-                    <span className="text-lg font-bold text-berry-300 block mb-2">✍️ لوحة المترجمين والكتّاب</span>
-                    <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                      قم بإنشاء وتأليف الروايات الخاصة بك، إضافة الفصول والمقاطع، وحجز الأعمال المقترحة من قبل الأعضاء لبدء الترجمة والنشر.
-                    </p>
-                    <button 
-                      onClick={() => handleNavigate('translator-panel')}
-                      className="px-4 py-2 bg-berry-600/20 hover:bg-berry-600 text-berry-200 hover:text-white rounded-xl text-xs font-bold border border-berry-500/30 transition-all cursor-pointer"
-                    >
-                      الدخول للوحة العمل ←
+                      صفحة الاقتراحات ←
                     </button>
                   </div>
                 </div>
-
-
               </div>
             ) : (
               <>
@@ -1799,12 +1843,28 @@ export default function App() {
 
         {/* ==================== SCREEN 8: TRANSLATOR CONTROL DESK ==================== */}
         {currentPage === 'translator-panel' && (
-          <TranslatorPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          ['TRANSLATOR', 'WRITER', 'OWNER'].includes(currentUser.role) ? (
+            <TranslatorPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          ) : (
+            <AccessDeniedPanel
+              message="لوحة عمل المترجمين والكتّاب متاحة فقط للأعضاء الحاصلين على رتبة مترجم أو كاتب معتمد."
+              isGuest={currentUser.role === 'GUEST'}
+              onNavigateHome={() => handleNavigate('home')}
+            />
+          )
         )}
 
         {/* ==================== SCREEN 9: ADMIN PANEL ==================== */}
         {currentPage === 'admin' && (
-          <AdminPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          currentUser.role === 'OWNER' ? (
+            <AdminPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          ) : (
+            <AccessDeniedPanel
+              message="لوحة الإدارة والتحكم مخصصة حصرياً لمالك المنصة."
+              isGuest={currentUser.role === 'GUEST'}
+              onNavigateHome={() => handleNavigate('home')}
+            />
+          )
         )}
 
         {/* ==================== SCREEN 10: ADS AND ANNOUNCEMENTS PANEL ==================== */}

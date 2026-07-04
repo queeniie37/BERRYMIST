@@ -38,36 +38,38 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
 
     if (isRegister) {
-      // Sign Up
+      // Sign Up — new accounts are always created as regular MEMBER readers.
+      // The owner account can never be (re)registered; the owner signs in
+      // through the login form only. Otherwise anyone knowing the owner's
+      // email could register it and gain full admin control.
+      if (email.toLowerCase() === 'hanona37hh@gmail.com') {
+        setError('هذا البريد الإلكتروني محجوز لمالك المنصة. يرجى استخدام نموذج تسجيل الدخول بدلاً من إنشاء حساب.');
+        return;
+      }
+
       const emailExists = usersDb.some(u => u.email.toLowerCase() === email.toLowerCase());
       if (emailExists) {
         setError('البريد الإلكتروني مسجل بالفعل.');
         return;
       }
 
-      // Check if trying to register owner email
-      const isOwnerEmail = email.toLowerCase() === 'hanona37hh@gmail.com';
-      const role: UserRole = isOwnerEmail ? 'OWNER' : 'MEMBER';
-
       const newUser: User & { password?: string } = {
         id: `user-${Date.now()}`,
         username: username,
         email: email.toLowerCase(),
-        role: role,
-        xp: role === 'OWNER' ? 15400 : 0,
-        level: role === 'OWNER' ? 50 : 1,
+        role: 'MEMBER',
+        xp: 0,
+        level: 1,
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`,
-        bio: role === 'OWNER' 
-          ? 'مؤسس وصاحب منصة Berry Mist الفاخرة لروايات الخيال والأكشن المترجمة.' 
-          : 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
+        bio: 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
         password: password
       };
 
       BerryDatabase.set('users_db', [...usersDb, newUser]);
       BerryDatabase.set('current_user_data', newUser);
-      BerryDatabase.set('current_role', role);
+      BerryDatabase.set('current_role', 'MEMBER');
 
-      setSuccess(role === 'OWNER' ? 'تم إنشاء حساب المالك بنجاح! 👑' : 'تم إنشاء الحساب بنجاح كقارئ! 👤');
+      setSuccess('تم إنشاء الحساب بنجاح كقارئ! 👤');
       setTimeout(() => {
         onLoginSuccess(newUser);
         onClose();

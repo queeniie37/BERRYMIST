@@ -141,7 +141,7 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
       </div>
 
       {/* Pagination Dot Indicators with Progress bar inside the active dot */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-25 flex items-center gap-2 select-none">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 select-none">
         {featuredNovels.map((novel, index) => (
           <button 
             key={novel.id}

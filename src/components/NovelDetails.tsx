@@ -40,7 +40,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const novelChapters = allChapters
       .filter(c => c.novelId === novel.id)
-      .sort((a, b) => a.chapterNumber - b.chapterNumber);
+      .sort((a, b) => a.number - b.number);
 
     let fileContent = `==================================================\r\n`;
     fileContent += `رواية: ${novel.titleAr}\r\n`;
@@ -56,7 +56,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     } else {
       novelChapters.forEach((ch) => {
         fileContent += `--------------------------------------------------\r\n`;
-        fileContent += `الفصل ${ch.chapterNumber}: ${ch.title}\r\n`;
+        fileContent += `الفصل ${ch.number}: ${ch.title.split(':').slice(1).join(':').trim() || ch.title}\r\n`;
         fileContent += `تاريخ النشر: ${ch.publishAt || 'فوري'}\r\n`;
         fileContent += `--------------------------------------------------\r\n\r\n`;
         fileContent += `${ch.content}\r\n\r\n`;

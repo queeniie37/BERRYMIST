@@ -3,6 +3,17 @@ import { ChevronRight, ChevronLeft, Settings, Type, BookOpen, HelpCircle, Heart,
 import { Chapter, Novel, User, Comment, CommentReply } from '../types';
 import { BerryDatabase } from '../data';
 
+// Chapter text is author-provided. Escape all HTML, then re-allow only the
+// simple formatting tags the chapter editor can produce (<b>, <i>, <u>) so a
+// malicious chapter can't inject scripts into readers' browsers.
+function sanitizeChapterHtml(raw: string): string {
+  const escaped = raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return escaped.replace(/&lt;(\/?)(b|i|u)&gt;/gi, '<$1$2>');
+}
+
 interface ReaderViewProps {
   novelId: string;
   chapterNumber: number;
@@ -371,7 +382,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
             <p 
               key={idx} 
               className={`whitespace-pre-wrap ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}
-              dangerouslySetInnerHTML={{ __html: para }}
+              dangerouslySetInnerHTML={{ __html: sanitizeChapterHtml(para) }}
             />
           ))}
         </div>

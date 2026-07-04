@@ -98,6 +98,18 @@ export const DEFAULT_USERS: { [key in UserRole]: User } = {
   }
 };
 
+// Keys that belong to THIS browser/user only and must never be pushed to the
+// shared server database: users_db holds account credentials, and the rest
+// are per-device session/preference data. Leaking users_db to /api/db would
+// expose every registered email + password to any visitor.
+const PRIVATE_LOCAL_KEYS = new Set([
+  'users_db',
+  'current_user_data',
+  'current_role',
+  'bookmarks',
+  'reading_history'
+]);
+
 // Database class to handle localStorage safely with immediate cleanup migration
 export class BerryDatabase {
   static get<T>(key: string, defaultValue: T): T {
@@ -113,7 +125,10 @@ export class BerryDatabase {
     try {
       localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
 
-      // Sync to backend Express server database asynchronously
+      // Private per-user keys stay on this device only
+      if (PRIVATE_LOCAL_KEYS.has(key)) return;
+
+      // Sync shared site content to the backend Express server database asynchronously
       fetch('/api/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
