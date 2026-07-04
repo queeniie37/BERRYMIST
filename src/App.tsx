@@ -24,6 +24,20 @@ import AdsTicker from './components/AdsTicker';
 import AdsPage from './components/AdsPage';
 import TranslatorRequestForm from './components/TranslatorRequestForm';
 
+// Themed placeholders shown when a remote image (cover/avatar/banner) fails to
+// load, so visitors never see a broken-image icon. Inline SVG data URIs can
+// never themselves fail to load.
+const FALLBACK_COVER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A1625"/><stop offset="1" stop-color="#2A2240"/></linearGradient></defs><rect width="300" height="450" fill="url(#g)"/><text x="150" y="215" font-size="90" text-anchor="middle">🍇</text><text x="150" y="270" font-size="20" fill="#8B5CF6" text-anchor="middle" font-family="sans-serif">Berry Mist</text></svg>`
+  );
+const FALLBACK_AVATAR =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="120" height="120" fill="#2A2240"/><text x="60" y="80" font-size="56" text-anchor="middle">🍇</text></svg>`
+  );
+
 // Shown instead of the admin/translator panels for users without the required role
 function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: string; isGuest: boolean; onNavigateHome: () => void }) {
   return (
@@ -110,6 +124,18 @@ export default function App() {
   // Initialize data on mount
   useEffect(() => {
     BerryDatabase.initialize();
+
+    // Global fallback for any image that fails to load (dead remote host,
+    // network/adblock). Runs in the capture phase because `error` doesn't
+    // bubble. Guarded so a failing fallback can't loop.
+    const handleImageError = (e: Event) => {
+      const img = e.target as HTMLImageElement;
+      if (!img || img.tagName !== 'IMG' || img.dataset.fallbackApplied) return;
+      img.dataset.fallbackApplied = 'true';
+      const isAvatar = img.classList.contains('rounded-full') || img.width <= 64;
+      img.src = isAvatar ? FALLBACK_AVATAR : FALLBACK_COVER;
+    };
+    document.addEventListener('error', handleImageError, true);
 
     const handleAdsUpdate = () => {
       setRefreshAdsTrigger(prev => prev + 1);
@@ -208,6 +234,7 @@ export default function App() {
     return () => {
       clearInterval(schedulerInterval);
       clearInterval(syncInterval);
+      document.removeEventListener('error', handleImageError, true);
       window.removeEventListener('ads-updated', handleAdsUpdate);
       window.removeEventListener('notifications-updated', handleNotificationsUpdate);
       window.removeEventListener('user-updated', handleUserUpdate);

@@ -443,7 +443,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         {/* Cover image wrapper */}
         <div className="flex flex-col gap-3 shrink-0">
           <div className="relative w-48 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-            <img src={novel.cover} alt={novel.titleAr} className="w-full h-full object-cover" />
+            <img src={novel.cover} alt={novel.titleAr} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           </div>
           {isTranslatorOrOwner && (
             <button 

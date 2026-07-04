@@ -69,10 +69,11 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
         {/* Right side: Novel Art with Glass Framing */}
         <div className="hidden md:block w-[40%] h-full flex justify-center items-center">
           <div className="relative w-64 h-[360px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group-hover:scale-[1.02] transition-transform duration-500">
-            <img 
-              src={currentNovel.cover} 
-              alt={currentNovel.titleAr} 
+            <img
+              src={currentNovel.cover}
+              alt={currentNovel.titleAr}
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
             />
             {/* Ambient shadow reflection */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
