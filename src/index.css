@@ -162,6 +162,30 @@ img, video {
   animation: float-ambient 20s ease-in-out infinite;
 }
 
+/* Copy protection: hide protected chapter content when printing / saving as PDF
+   (browser menu printing bypasses the Ctrl+P shortcut blocker). Owners don't
+   get the .print-protected class, so their printing keeps working. */
+@media print {
+  .print-protected {
+    display: none !important;
+  }
+
+  .print-only-notice {
+    display: block !important;
+    text-align: center;
+    font-weight: 700;
+    padding: 4rem 2rem;
+  }
+}
+
+/* Block long-press image saving and dragging inside protected chapters (mobile) */
+.print-protected img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* Watermark styles */
 .watermarked-text {
   position: relative;

@@ -16,7 +16,9 @@ export default defineConfig(() => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // berry_db.json is rewritten by the Express API on every save; watching it
+      // would full-reload the page (kicking readers out of chapters) in dev.
+      watch: process.env.DISABLE_HMR === 'true' ? null : { ignored: ['**/berry_db.json'] },
     },
   };
 });

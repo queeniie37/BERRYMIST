@@ -338,10 +338,17 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
         </div>
       )}
 
+      {/* Print-only copyright notice replaces the protected content for non-owners */}
+      {currentUser.role !== 'OWNER' && (
+        <div className="print-only-notice hidden">
+          محتوى هذا الفصل محمي بموجب حقوق النشر والترجمة لمنصة Berry Mist © ولا يسمح بطباعته أو حفظه.
+        </div>
+      )}
+
       {/* Main Chapter Content Frame */}
-      <div 
+      <div
         ref={readerRef}
-        className={`w-full max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 text-right leading-relaxed relative watermarked-text ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}
+        className={`w-full max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 text-right leading-relaxed relative watermarked-text ${currentUser.role !== 'OWNER' ? 'select-none print-protected' : ''}`}
         data-watermark={`BERRY MIST - ${currentUser.username}`}
         style={{ 
           fontSize: `${fontSize}px`, 

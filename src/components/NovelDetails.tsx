@@ -570,17 +570,17 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               <span>{isBookmarked ? 'في المفضلة' : 'أضف للمفضلة'}</span>
             </button>
 
-            {currentUser.role === 'OWNER' || (currentUser.role === 'TRANSLATOR' && novel.translatorId === currentUser.id) ? (
-              <button 
+            {currentUser.role === 'OWNER' ? (
+              <button
                 onClick={downloadFullNovelAndChapters}
                 className="px-5 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 border border-violet-500/20 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-violet-500/10 transition-all duration-300"
-                title="تنزيل الرواية وفصولها بالكامل كملف نصي"
+                title="تنزيل الرواية وفصولها بالكامل كملف نصي (متاح للمالك حصرياً)"
               >
                 <Download size={14} />
                 <span>تحميل الرواية وفصولها 📥</span>
               </button>
             ) : (
-              <button disabled className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2" title="التحميل متاح فقط للمترجم المعين والمالك للحماية">
+              <button disabled className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2" title="التحميل متاح للمالك فقط لحماية حقوق الترجمة">
                 <Download size={14} className="opacity-50" />
                 <span>التحميل محمي 🔒</span>
               </button>
