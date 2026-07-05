@@ -1,0 +1,51 @@
+name: Deploy to Hostinger
+
+# Builds the site and uploads the production files (dist/) to Hostinger over FTP
+# every time you push to main. This is what makes the site actually work on
+# Hostinger shared hosting: visitors get the built app plus the PHP shared
+# database (api/db.php), so every published novel is visible to everyone.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the site
+        run: npm run build
+
+      - name: Deploy dist/ to Hostinger via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          # Add these three secrets in GitHub:
+          # Repo → Settings → Secrets and variables → Actions → New repository secret
+          #   FTP_SERVER   e.g. ftp.yourdomain.com  (from hPanel → Files → FTP Accounts)
+          #   FTP_USERNAME your Hostinger FTP username
+          #   FTP_PASSWORD your Hostinger FTP password
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # Local build output that gets uploaded:
+          local-dir: ./dist/
+          # Hostinger web root. For the main domain this is usually /public_html/
+          # For a subdomain/addon domain, point it at that domain's folder instead.
+          server-dir: /public_html/
+          # Keep the shared database file on the server between deploys so
+          # published novels are never wiped by a redeploy.
+          exclude: |
+            **/berry_db.json
