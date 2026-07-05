@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image } from 'lucide-react';
+import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown } from 'lucide-react';
 import { Novel, Chapter, Comment, Review, User, UserRole } from '../types';
 import { BerryDatabase } from '../data';
 
@@ -18,6 +18,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  // Chapter list ordering: true = ascending (1 → N), false = descending (N → 1)
+  const [chaptersAscending, setChaptersAscending] = useState(true);
   
   // Claim state variables
   const [timeRemaining, setTimeRemaining] = useState('');
@@ -68,7 +70,34 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${novel.titleAr}.txt`;
+    link.download = `${novel.titleAr} (كامل - ${novelChapters.length} فصل).txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download a single chapter as a text file whose name includes the chapter number
+  const downloadSingleChapter = (chapter: Chapter) => {
+    if (!novel) return;
+    const cleanTitle = chapter.title.split(':').slice(1).join(':').trim() || chapter.title;
+
+    let fileContent = `==================================================\r\n`;
+    fileContent += `رواية: ${novel.titleAr} (${novel.titleEn})\r\n`;
+    fileContent += `الفصل رقم: ${chapter.number}\r\n`;
+    fileContent += `عنوان الفصل: ${cleanTitle}\r\n`;
+    fileContent += `المترجم: ${novel.translatorName}\r\n`;
+    fileContent += `تاريخ النشر: ${new Date(chapter.createdAt).toLocaleDateString('ar-EG')}\r\n`;
+    fileContent += `==================================================\r\n\r\n`;
+    fileContent += `${chapter.content}\r\n`;
+
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, fileContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    // Chapter number is included in the file name as requested
+    link.download = `${novel.titleAr} - الفصل ${chapter.number}.txt`;
+    link.href = url;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -685,17 +714,32 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               {/* Toolbar */}
               <div className="flex flex-wrap justify-between items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
                 <span className="text-xs text-purple-300 font-semibold">إجمالي الفصول المنشورة: {chapters.length} فصلاً</span>
-                
-                {/* Show Add Chapter trigger for OWNER, TRANSLATOR, or WRITER */}
-                {(currentUser.role === 'OWNER' || currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER') && (
-                  <button 
-                    onClick={() => setShowAddChapterForm(!showAddChapterForm)}
-                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-violet-500/10"
-                  >
-                    <Plus size={14} />
-                    <span>إضافة فصل جديد للرواية</span>
-                  </button>
-                )}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Ascending / descending chapter order toggle */}
+                  {chapters.length > 0 && (
+                    <button
+                      onClick={() => setChaptersAscending(prev => !prev)}
+                      className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+                      title="تبديل ترتيب عرض الفصول"
+                    >
+                      {chaptersAscending
+                        ? <><ArrowUp size={14} className="text-violet-300" /><span>تصاعدي (الأقدم أولاً)</span></>
+                        : <><ArrowDown size={14} className="text-violet-300" /><span>تنازلي (الأحدث أولاً)</span></>}
+                    </button>
+                  )}
+
+                  {/* Show Add Chapter trigger for OWNER, TRANSLATOR, or WRITER */}
+                  {(currentUser.role === 'OWNER' || currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER') && (
+                    <button
+                      onClick={() => setShowAddChapterForm(!showAddChapterForm)}
+                      className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-violet-500/10"
+                    >
+                      <Plus size={14} />
+                      <span>إضافة فصل جديد للرواية</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Add Chapter Simulator Form inside Tab */}
@@ -864,28 +908,42 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 </form>
               )}
 
-              {/* Grid of Chapters */}
+              {/* Grid of Chapters (ordered by the ascending/descending toggle) */}
               {chapters.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {chapters.map((chapter) => (
-                    <div 
-                      key={chapter.id}
-                      onClick={() => onReadChapter(novel.id, chapter.number)}
-                      className="group p-4 bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex items-center justify-between cursor-pointer transition-all hover:bg-violet-950/5 text-right"
-                    >
-                      <div>
-                        <h4 className="font-bold text-xs text-purple-100 group-hover:text-violet-400 transition-colors">
-                          الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
-                        </h4>
-                        <span className="text-[10px] text-purple-400 mt-1 block">
-                          تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG')}
-                        </span>
+                  {[...chapters].sort((a, b) => chaptersAscending ? a.number - b.number : b.number - a.number).map((chapter) => {
+                    const canDownloadChapter = currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING');
+                    return (
+                      <div
+                        key={chapter.id}
+                        onClick={() => onReadChapter(novel.id, chapter.number)}
+                        className="group p-4 bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex items-center justify-between gap-2 cursor-pointer transition-all hover:bg-violet-950/5 text-right"
+                      >
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-xs text-purple-100 group-hover:text-violet-400 transition-colors truncate">
+                            الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+                          </h4>
+                          <span className="text-[10px] text-purple-400 mt-1 block">
+                            تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {canDownloadChapter && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); downloadSingleChapter(chapter); }}
+                              className="p-2 bg-white/5 hover:bg-violet-600 text-purple-300 hover:text-white rounded-xl transition-all cursor-pointer"
+                              title={`تنزيل الفصل ${chapter.number} كملف نصي`}
+                            >
+                              <Download size={13} />
+                            </button>
+                          )}
+                          <span className="px-3 py-1.5 bg-white/5 text-purple-300 rounded-xl text-[11px] font-bold group-hover:bg-violet-600 group-hover:text-white transition-all">
+                            قراءة الفصل ←
+                          </span>
+                        </div>
                       </div>
-                      <span className="px-3 py-1.5 bg-white/5 text-purple-300 rounded-xl text-[11px] font-bold group-hover:bg-violet-600 group-hover:text-white transition-all">
-                        قراءة الفصل ←
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="glass-panel p-12 text-center rounded-2xl border border-white/5 text-purple-400">
