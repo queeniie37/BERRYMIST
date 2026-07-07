@@ -6,7 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-
-# runtime shared database (created by the server/PHP)
-berry_db.json
-**/berry_db.json

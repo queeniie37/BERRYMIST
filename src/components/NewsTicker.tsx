@@ -24,9 +24,7 @@ export default function NewsTicker({ newsList, onNewsClick }: NewsTickerProps) {
 
   if (activeNews.length === 0) return null;
 
-  // The list can shrink between renders (news deleted / server sync), so the
-  // saved index may point past the end — wrap it instead of crashing.
-  const currentItem = activeNews[currentIndex % activeNews.length];
+  const currentItem = activeNews[currentIndex];
 
   return (
     <div 

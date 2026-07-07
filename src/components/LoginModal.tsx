@@ -38,38 +38,36 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
 
     if (isRegister) {
-      // Sign Up — new accounts are always created as regular MEMBER readers.
-      // The owner account can never be (re)registered; the owner signs in
-      // through the login form only. Otherwise anyone knowing the owner's
-      // email could register it and gain full admin control.
-      if (email.toLowerCase() === 'hanona37hh@gmail.com') {
-        setError('هذا البريد الإلكتروني محجوز لمالك المنصة. يرجى استخدام نموذج تسجيل الدخول بدلاً من إنشاء حساب.');
-        return;
-      }
-
+      // Sign Up
       const emailExists = usersDb.some(u => u.email.toLowerCase() === email.toLowerCase());
       if (emailExists) {
         setError('البريد الإلكتروني مسجل بالفعل.');
         return;
       }
 
+      // Check if trying to register owner email
+      const isOwnerEmail = email.toLowerCase() === 'hanona37hh@gmail.com';
+      const role: UserRole = isOwnerEmail ? 'OWNER' : 'MEMBER';
+
       const newUser: User & { password?: string } = {
         id: `user-${Date.now()}`,
         username: username,
         email: email.toLowerCase(),
-        role: 'MEMBER',
-        xp: 0,
-        level: 1,
+        role: role,
+        xp: role === 'OWNER' ? 15400 : 0,
+        level: role === 'OWNER' ? 50 : 1,
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`,
-        bio: 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
+        bio: role === 'OWNER' 
+          ? 'مؤسس وصاحب منصة Berry Mist الفاخرة لروايات الخيال والأكشن المترجمة.' 
+          : 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
         password: password
       };
 
       BerryDatabase.set('users_db', [...usersDb, newUser]);
       BerryDatabase.set('current_user_data', newUser);
-      BerryDatabase.set('current_role', 'MEMBER');
+      BerryDatabase.set('current_role', role);
 
-      setSuccess('تم إنشاء الحساب بنجاح كقارئ! 👤');
+      setSuccess(role === 'OWNER' ? 'تم إنشاء حساب المالك بنجاح! 👑' : 'تم إنشاء الحساب بنجاح كقارئ! 👤');
       setTimeout(() => {
         onLoginSuccess(newUser);
         onClose();
@@ -112,7 +110,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex justify-center items-center p-4">
-      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 relative animate-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 relative overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/10 rounded-full blur-[60px] pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-48 h-48 bg-berry-600/10 rounded-full blur-[60px] pointer-events-none" />
 

@@ -47,9 +47,6 @@ const defaults: any = {
   translator_requests: [],
   chapters: [],
   ads: [],
-  // email(lowercase) -> role, so owner role approvals propagate across devices
-  // without ever syncing account credentials (users_db stays private)
-  role_assignments: {},
   site_name: "BerryMist",
   site_logo: "🍇",
   site_banner: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200",
@@ -80,32 +77,15 @@ if (dbChanged) {
   saveDb(db);
 }
 
-// Per-user/private keys must never be stored in or served from the shared
-// database — users_db in particular contains account credentials.
-const PRIVATE_KEYS = new Set([
-  "users_db",
-  "current_user_data",
-  "current_role",
-  "bookmarks",
-  "reading_history",
-]);
-
 // API Endpoints
 app.get("/api/db", (req, res) => {
-  const db = loadDb();
-  for (const key of PRIVATE_KEYS) {
-    delete db[key];
-  }
-  res.json(db);
+  res.json(loadDb());
 });
 
 app.post("/api/db", (req, res) => {
   const { key, value } = req.body;
-  if (!key || typeof key !== "string") {
+  if (!key) {
     return res.status(400).json({ error: "Missing key" });
-  }
-  if (PRIVATE_KEYS.has(key)) {
-    return res.status(403).json({ error: "This key is private and cannot be synced" });
   }
   const currentDb = loadDb();
   currentDb[key] = value;

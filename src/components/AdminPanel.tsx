@@ -120,13 +120,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     // Load registered users from database or set defaults
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
     // Clear out fake/mock users completely
-    const filteredUsers = usersDb.filter((u: any) =>
-      u.id !== 'member-1' &&
-      u.id !== 'translator-1' &&
-      u.id !== 'writer-1' &&
-      u.id !== 'supervisor-1' &&
-      u.id !== 'guest-user' &&
-      !(u.email || '').endsWith('@berrymist.com')
+    const filteredUsers = usersDb.filter((u: any) => 
+      u.id !== 'member-1' && 
+      u.id !== 'translator-1' && 
+      u.id !== 'writer-1' && 
+      u.id !== 'supervisor-1' && 
+      u.id !== 'guest-user' && 
+      !u.email.endsWith('@berrymist.com')
     );
     BerryDatabase.set('users_db', filteredUsers);
     setUsers(filteredUsers);
@@ -338,13 +338,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
     const targetEmail = allReqs[reqIndex].email.toLowerCase();
 
-    // Publish the role assignment to the shared DB so the translator's own
-    // device picks it up on next sync and gains the work panel.
-    const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
-    assignments[targetEmail] = 'TRANSLATOR';
-    BerryDatabase.set('role_assignments', assignments);
-
-    // Update users_db (local to this device)
+    // Update users_db
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
     const userIndex = usersDb.findIndex(u => u.email.toLowerCase() === targetEmail);
     if (userIndex !== -1) {
@@ -420,11 +414,6 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     usersDb[userIndex].role = newRoleVal;
     BerryDatabase.set('users_db', usersDb);
     setUsers(usersDb);
-
-    // Propagate the role change to the user's own device via the shared DB
-    const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
-    assignments[targetEmail.toLowerCase()] = newRoleVal;
-    BerryDatabase.set('role_assignments', assignments);
 
     // If that user is logged in, update current_user_data
     const currentUserData = BerryDatabase.get<any>('current_user_data', null);
@@ -964,7 +953,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
                 <button 
                   type="submit"
-                  className="w-full py-3.5 mt-4 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+                  className="w-[#100%] py-3.5 mt-4 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
                 >
                   <Check size={16} />
                   <span>حفظ وتطبيق إعدادات الهوية الجديدة</span>
@@ -1105,7 +1094,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
               </div>
 
               <div className="flex flex-col gap-4">
-                {users.filter(u => (u.email || '').toLowerCase() !== 'hanona37hh@gmail.com').map((user) => {
+                {users.filter(u => u.email.toLowerCase() !== 'hanona37hh@gmail.com').map((user) => {
                   const novelsCount = BerryDatabase.get<Novel[]>('novels', [])
                     .filter(n => n.translatorId === user.id && n.status !== 'PENDING').length;
 
@@ -1217,7 +1206,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   );
                 })}
 
-                {users.filter(u => (u.email || '').toLowerCase() !== 'hanona37hh@gmail.com').length === 0 && (
+                {users.filter(u => u.email.toLowerCase() !== 'hanona37hh@gmail.com').length === 0 && (
                   <div className="p-12 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
                     <p className="text-sm">لا يوجد أعضاء آخرون مسجلون في المنصة حالياً لتعديل رتبهم.</p>
                   </div>

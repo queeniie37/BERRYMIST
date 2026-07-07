@@ -44,7 +44,7 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
 
   return (
     <div 
-      className="relative w-full h-[430px] md:h-[550px] rounded-3xl overflow-hidden glass-panel group transition-all duration-500"
+      className="relative w-full h-[400px] md:h-[550px] rounded-3xl overflow-hidden glass-panel group transition-all duration-500"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => {
         setIsPaused(false);
@@ -65,15 +65,14 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
       </div>
 
       {/* Main Content Layout */}
-      <div className="absolute inset-0 z-10 flex flex-col md:flex-row items-center justify-between p-5 pb-12 sm:p-6 md:p-12 gap-8 text-right">
+      <div className="absolute inset-0 z-10 flex flex-col md:flex-row items-center justify-between p-6 md:p-12 gap-8 text-right">
         {/* Right side: Novel Art with Glass Framing */}
         <div className="hidden md:block w-[40%] h-full flex justify-center items-center">
           <div className="relative w-64 h-[360px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group-hover:scale-[1.02] transition-transform duration-500">
-            <img
-              src={currentNovel.cover}
-              alt={currentNovel.titleAr}
+            <img 
+              src={currentNovel.cover} 
+              alt={currentNovel.titleAr} 
               className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
             />
             {/* Ambient shadow reflection */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -86,7 +85,7 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
             ✨ الرواية المميزة للأسبوع
           </span>
 
-          <h1 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-white tracking-tight leading-tight line-clamp-2">
+          <h1 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight leading-tight">
             {currentNovel.titleAr}
           </h1>
           <p className="text-xs md:text-sm text-purple-300 font-medium mt-1 select-none">
@@ -118,12 +117,12 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
           </div>
 
           {/* Description */}
-          <p className="text-sm text-purple-300/90 mt-4 leading-relaxed line-clamp-2 md:line-clamp-3 max-w-xl">
+          <p className="text-sm text-purple-300/90 mt-4 leading-relaxed line-clamp-3 max-w-xl">
             {currentNovel.description}
           </p>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap gap-3 sm:gap-4 mt-5 md:mt-6">
+          <div className="flex gap-4 mt-6">
             <button 
               onClick={() => onStartReading(currentNovel.id)}
               className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-violet-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
@@ -142,7 +141,7 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
       </div>
 
       {/* Pagination Dot Indicators with Progress bar inside the active dot */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 select-none">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-25 flex items-center gap-2 select-none">
         {featuredNovels.map((novel, index) => (
           <button 
             key={novel.id}
