@@ -761,15 +761,24 @@ export default function App() {
     handleNavigate('reader', { novelId, chapterNumber });
   };
 
-  // Reader viewport navigation helper (Previous / Next chapter)
+  // Reader viewport navigation helper (Previous / Next chapter).
+  // Uses the actual neighbouring chapter numbers so navigation works even
+  // when chapter numbers are non-contiguous (e.g. after deletions).
   const handleReaderNavigateChapter = (direction: 'next' | 'prev') => {
     if (currentPage !== 'reader' || !currentParams) return;
     const { novelId, chapterNumber } = currentParams;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const chaptersOfNovel = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
-    
+
     let nextNum = chapterNumber;
-    if (direction === 'next') {
+    const currentIndex = chaptersOfNovel.findIndex(c => c.number === chapterNumber);
+    if (currentIndex !== -1) {
+      if (direction === 'next' && currentIndex < chaptersOfNovel.length - 1) {
+        nextNum = chaptersOfNovel[currentIndex + 1].number;
+      } else if (direction === 'prev' && currentIndex > 0) {
+        nextNum = chaptersOfNovel[currentIndex - 1].number;
+      }
+    } else if (direction === 'next') {
       nextNum = Math.min(chapterNumber + 1, chaptersOfNovel.length);
     } else {
       nextNum = Math.max(chapterNumber - 1, 1);
