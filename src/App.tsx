@@ -24,6 +24,49 @@ import AdsTicker from './components/AdsTicker';
 import AdsPage from './components/AdsPage';
 import TranslatorRequestForm from './components/TranslatorRequestForm';
 
+// Themed placeholders shown when a remote image (cover/avatar/banner) fails to
+// load, so visitors never see a broken-image icon. Inline SVG data URIs can
+// never themselves fail to load.
+const FALLBACK_COVER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A1625"/><stop offset="1" stop-color="#2A2240"/></linearGradient></defs><rect width="300" height="450" fill="url(#g)"/><text x="150" y="215" font-size="90" text-anchor="middle">🍇</text><text x="150" y="270" font-size="20" fill="#8B5CF6" text-anchor="middle" font-family="sans-serif">Berry Mist</text></svg>`
+  );
+const FALLBACK_AVATAR =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="120" height="120" fill="#2A2240"/><text x="60" y="80" font-size="56" text-anchor="middle">🍇</text></svg>`
+  );
+
+// Shown instead of the admin/translator panels for users without the required role
+function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: string; isGuest: boolean; onNavigateHome: () => void }) {
+  return (
+    <div className="w-full text-center mt-12 pb-12 animate-in fade-in duration-300">
+      <div className="max-w-md mx-auto p-8 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col items-center gap-4">
+        <Shield size={40} className="text-berry-400" />
+        <h2 className="text-lg font-extrabold text-white">هذه الصفحة محمية 🔒</h2>
+        <p className="text-xs text-purple-300 leading-relaxed">{message}</p>
+        <div className="flex gap-3 mt-2">
+          {isGuest && (
+            <button
+              onClick={() => window.dispatchEvent(new Event('open-login-modal'))}
+              className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer"
+            >
+              تسجيل الدخول 🍇
+            </button>
+          )}
+          <button
+            onClick={onNavigateHome}
+            className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-purple-300 rounded-xl text-xs font-bold cursor-pointer"
+          >
+            العودة للرئيسية
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
@@ -81,6 +124,18 @@ export default function App() {
   // Initialize data on mount
   useEffect(() => {
     BerryDatabase.initialize();
+
+    // Global fallback for any image that fails to load (dead remote host,
+    // network/adblock). Runs in the capture phase because `error` doesn't
+    // bubble. Guarded so a failing fallback can't loop.
+    const handleImageError = (e: Event) => {
+      const img = e.target as HTMLImageElement;
+      if (!img || img.tagName !== 'IMG' || img.dataset.fallbackApplied) return;
+      img.dataset.fallbackApplied = 'true';
+      const isAvatar = img.classList.contains('rounded-full') || img.width <= 64;
+      img.src = isAvatar ? FALLBACK_AVATAR : FALLBACK_COVER;
+    };
+    document.addEventListener('error', handleImageError, true);
 
     const handleAdsUpdate = () => {
       setRefreshAdsTrigger(prev => prev + 1);
@@ -164,9 +219,28 @@ export default function App() {
     setReadingHistory(BerryDatabase.get<any[]>('reading_history', []));
     setTeams(BerryDatabase.get<Team[]>('teams', []));
 
+    // Apply any role assignment the owner made for this user (e.g. approving a
+    // translator) that arrived via the shared DB, so their panel access updates
+    // without needing to log out and back in. The owner account is never touched.
+    const applyRoleAssignment = () => {
+      const saved = BerryDatabase.get<User | null>('current_user_data', null);
+      if (!saved || !saved.email) return;
+      const email = saved.email.toLowerCase();
+      if (email === 'hanona37hh@gmail.com') return;
+      const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
+      const assigned = assignments[email];
+      if (assigned && assigned !== saved.role) {
+        const updated = { ...saved, role: assigned as UserRole };
+        BerryDatabase.set('current_user_data', updated);
+        BerryDatabase.set('current_role', assigned);
+        setCurrentUser(updated);
+      }
+    };
+
     // Async server synchronization immediately on mount
     const syncDb = async () => {
       await BerryDatabase.syncWithServer();
+      applyRoleAssignment();
       // Refresh React states with the newly synced server data
       const syncedNovels = BerryDatabase.get<Novel[]>('novels', []);
       let syncedNeedsSave = false;
@@ -205,6 +279,7 @@ export default function App() {
     return () => {
       clearInterval(schedulerInterval);
       clearInterval(syncInterval);
+      document.removeEventListener('error', handleImageError, true);
       window.removeEventListener('ads-updated', handleAdsUpdate);
       window.removeEventListener('notifications-updated', handleNotificationsUpdate);
       window.removeEventListener('user-updated', handleUserUpdate);
@@ -269,8 +344,17 @@ export default function App() {
     document.title = title;
   }, [currentPage, currentParams, novels, siteName]);
 
+  // Guest browsers must stay read-only on shared data: never let an anonymous
+  // visitor's automated housekeeping write to the shared server collections
+  // (this is what used to wipe novels for everyone).
+  const isAuthenticatedClient = () => {
+    const u = BerryDatabase.get<User | null>('current_user_data', null);
+    return !!u && u.role !== 'GUEST';
+  };
+
   // Auto-check and publish scheduled chapters when their Gregorian date is reached
   const checkScheduledChapters = () => {
+    if (!isAuthenticatedClient()) return;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const allNovels = BerryDatabase.get<any[]>('novels', []);
     const allNotifs = BerryDatabase.get<any[]>('notifications', []);
@@ -318,6 +402,7 @@ export default function App() {
 
   // Auto check and expire inactive reservations past 30 days
   const checkReservationsExpiration = (currentNovelsList?: Novel[], currentSugsList?: Suggestion[]) => {
+    if (!isAuthenticatedClient()) return;
     const allReservations = BerryDatabase.get<Reservation[]>('reservations', []);
     const allNovels = currentNovelsList || BerryDatabase.get<Novel[]>('novels', []);
     const allSuggestions = currentSugsList || BerryDatabase.get<Suggestion[]>('suggestions', []);
@@ -591,7 +676,8 @@ export default function App() {
   // Toggle Novel Bookmarks (Mofaddala)
   const handleBookmarkToggle = (novelId: string) => {
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك صلاحية إضافة الروايات للمفضلة. غير رتبتك من الأعلى لعضو أولاً!');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من إضافة الروايات إلى مفضلتك. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
 
@@ -645,7 +731,8 @@ export default function App() {
   // Vote on specific suggestion
   const handleVoteSuggestion = (sugId: string) => {
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك حق التصويت. غير رتبتك إلى عضو أو مترجم من شريط التحكم.');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من التصويت على الاقتراحات. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
 
@@ -674,13 +761,15 @@ export default function App() {
     handleNavigate('reader', { novelId, chapterNumber });
   };
 
-  // Reader viewport navigation helper (Previous / Next chapter)
+  // Reader viewport navigation helper (Previous / Next chapter).
+  // Uses the actual neighbouring chapter numbers so navigation works even
+  // when chapter numbers are non-contiguous (e.g. after deletions).
   const handleReaderNavigateChapter = (direction: 'next' | 'prev') => {
     if (currentPage !== 'reader' || !currentParams) return;
     const { novelId, chapterNumber } = currentParams;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const chaptersOfNovel = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
-    
+
     let nextNum = chapterNumber;
     const currentIndex = chaptersOfNovel.findIndex(c => c.number === chapterNumber);
     if (currentIndex !== -1) {
@@ -689,22 +778,18 @@ export default function App() {
       } else if (direction === 'prev' && currentIndex > 0) {
         nextNum = chaptersOfNovel[currentIndex - 1].number;
       }
+    } else if (direction === 'next') {
+      nextNum = Math.min(chapterNumber + 1, chaptersOfNovel.length);
     } else {
-      // Fallback
-      if (direction === 'next') {
-        nextNum = Math.min(chapterNumber + 1, chaptersOfNovel.length);
-      } else {
-        nextNum = Math.max(chapterNumber - 1, 1);
-      }
+      nextNum = Math.max(chapterNumber - 1, 1);
     }
 
     handleNavigate('reader', { novelId, chapterNumber: nextNum });
   };
 
-  // Filter novels list based on status (Awaiting approved drafts only for main view, unless published by the owner)
-  const activeNovels = useMemo(() => {
-    return novels.filter(n => n.status !== 'CANCELLED');
-  }, [novels]);
+  // All uploaded novels are publicly visible to every visitor (guests included),
+  // except cancelled ones. Interaction (bookmarks, comments, votes) still requires signing in.
+  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'CANCELLED'), [novels]);
 
   // Filter trending list (sorted by views / popular)
   const trendingNovels = useMemo(() => [...activeNovels]
@@ -793,44 +878,10 @@ export default function App() {
                 <div className="absolute bottom-0 right-0 w-64 h-64 bg-berry-600/10 rounded-full blur-[80px]" />
                 
                 <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">🍇</span>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة بيري ميست (Berry Mist) الفاخرة!</h2>
-                <p className="text-purple-300 text-sm md:text-base leading-relaxed mb-6 max-w-3xl">
-                  لقد قمنا بحذف جميع البيانات والمسودات التجريبية الوهمية بنجاح بناءً على طلبك لتوفير بيئة عمل نظيفة وجاهزة تماماً للاستخدام الفعلي. يمكنك الآن إنشاء أعمالك الفخمة والترجمات الحقيقية والمحتوى الروائي مباشرة!
+                <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {siteName} الفاخرة!</h2>
+                <p className="text-purple-300 text-sm md:text-base leading-relaxed max-w-3xl">
+                  لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية! ✨
                 </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-                  {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
-                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-violet-500/20 transition-all">
-                      <span className="text-lg font-bold text-violet-300 block mb-2">🛡️ لوحة المالك والإدارة</span>
-                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                        بصفتك المالك، يمكنك إدارة الروايات بالكامل، مراجعة طلبات الترجمة، تخصيص وتعديل الأخبار، تفعيل الإعلانات، وتنسيق الأقسام.
-                      </p>
-                      <button 
-                        onClick={() => handleNavigate('admin')}
-                        className="px-4 py-2 bg-violet-600/20 hover:bg-violet-600 text-violet-200 hover:text-white rounded-xl text-xs font-bold border border-violet-500/30 transition-all cursor-pointer"
-                      >
-                        الدخول للوحة المالك ←
-                      </button>
-                    </div>
-                  )}
-
-                  {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER' || currentUser.role === 'WRITER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
-                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-berry-500/20 transition-all">
-                      <span className="text-lg font-bold text-berry-300 block mb-2">✍️ لوحة المترجمين والكتّاب</span>
-                      <p className="text-xs text-purple-400 leading-relaxed mb-4">
-                        قم بإنشاء وتأليف الروايات الخاصة بك، إضافة الفصول والمقاطع، وحجز الأعمال المقترحة من قبل الأعضاء لبدء الترجمة والنشر.
-                      </p>
-                      <button 
-                        onClick={() => handleNavigate('translator-panel')}
-                        className="px-4 py-2 bg-berry-600/20 hover:bg-berry-600 text-berry-200 hover:text-white rounded-xl text-xs font-bold border border-berry-500/30 transition-all cursor-pointer"
-                      >
-                        الدخول للوحة العمل ←
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-
               </div>
             ) : (
               <>
@@ -857,7 +908,7 @@ export default function App() {
                     </h2>
                     <span className="text-xs text-purple-400">تحديث فوري</span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                     {trendingNovels.map((novel, idx) => (
                       <NovelCard 
                         key={novel.id}
@@ -991,7 +1042,7 @@ export default function App() {
         {/* ==================== SCREEN 5: TRANSLATORS CLAIMS / SUGGESTIONS LIST ==================== */}
         {currentPage === 'suggestions' && (
           <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
-            <div className="p-6 bg-[#1A1625] rounded-3xl mb-8 flex items-center justify-between">
+            <div className="p-6 bg-[#1A1625] rounded-3xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
                   <Compass size={24} className="text-berry-400 animate-pulse" />
@@ -1002,12 +1053,13 @@ export default function App() {
               <button 
                 onClick={() => {
                   if (currentUser.role === 'GUEST') {
-                    alert('عذراً، يجب عليك تسجيل الدخول أو اختيار رتبة "عضو" على الأقل لتقديم المقترحات.');
+                    alert('يجب تسجيل الدخول أولاً لتتمكن من تقديم اقتراحات الروايات. 🍇');
+                    window.dispatchEvent(new Event('open-login-modal'));
                     return;
                   }
                   setShowSuggestDialog(true);
                 }}
-                className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg"
+                className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg self-start sm:self-auto shrink-0 cursor-pointer"
               >
                 تقديم اقتراح جديد +
               </button>
@@ -1888,12 +1940,28 @@ export default function App() {
 
         {/* ==================== SCREEN 8: TRANSLATOR CONTROL DESK ==================== */}
         {currentPage === 'translator-panel' && (
-          <TranslatorPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          ['TRANSLATOR', 'WRITER', 'OWNER'].includes(currentUser.role) ? (
+            <TranslatorPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          ) : (
+            <AccessDeniedPanel
+              message="لوحة عمل المترجمين والكتّاب متاحة فقط للأعضاء الحاصلين على رتبة مترجم أو كاتب معتمد."
+              isGuest={currentUser.role === 'GUEST'}
+              onNavigateHome={() => handleNavigate('home')}
+            />
+          )
         )}
 
         {/* ==================== SCREEN 9: ADMIN PANEL ==================== */}
         {currentPage === 'admin' && (
-          <AdminPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          currentUser.role === 'OWNER' ? (
+            <AdminPanel currentUser={currentUser} onNavigate={handleNavigate} />
+          ) : (
+            <AccessDeniedPanel
+              message="لوحة الإدارة والتحكم مخصصة حصرياً لمالك المنصة."
+              isGuest={currentUser.role === 'GUEST'}
+              onNavigateHome={() => handleNavigate('home')}
+            />
+          )
         )}
 
         {/* ==================== SCREEN 10: ADS AND ANNOUNCEMENTS PANEL ==================== */}
@@ -2119,8 +2187,8 @@ export default function App() {
 
         {/* Sub-footer Copyright */}
         <div className="max-w-7xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-purple-400 gap-4">
-          <span>حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
-          <div className="flex gap-4">
+          <span className="text-center sm:text-right">حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
+          <div className="flex flex-wrap justify-center gap-4">
             <span className="hover:text-white cursor-pointer">شروط الخدمة والاستخدام</span>
             <span className="hover:text-white cursor-pointer">سياسة الخصوصية وحماية البيانات</span>
             <span className="hover:text-white cursor-pointer">DMCA وحقوق الملكية</span>

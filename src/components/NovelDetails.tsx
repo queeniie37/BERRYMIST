@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown } from 'lucide-react';
 import { Novel, Chapter, Comment, Review, User, UserRole } from '../types';
 import { BerryDatabase } from '../data';
 
@@ -18,6 +18,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  // Chapter list ordering: true = ascending (1 → N), false = descending (N → 1)
+  const [chaptersAscending, setChaptersAscending] = useState(true);
   
   // Claim state variables
   const [timeRemaining, setTimeRemaining] = useState('');
@@ -34,15 +36,13 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [newChapterContent, setNewChapterContent] = useState('');
   const [newChapterImages, setNewChapterImages] = useState('');
   const [newChapterPublishAt, setNewChapterPublishAt] = useState('');
-  const [newChapterNumber, setNewChapterNumber] = useState<number>(1);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const downloadFullNovelAndChapters = () => {
     if (!novel) return;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const novelChapters = allChapters
       .filter(c => c.novelId === novel.id)
-      .sort((a, b) => a.chapterNumber - b.chapterNumber);
+      .sort((a, b) => a.number - b.number);
 
     let fileContent = `==================================================\r\n`;
     fileContent += `رواية: ${novel.titleAr}\r\n`;
@@ -58,7 +58,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     } else {
       novelChapters.forEach((ch) => {
         fileContent += `--------------------------------------------------\r\n`;
-        fileContent += `الفصل ${ch.chapterNumber}: ${ch.title}\r\n`;
+        fileContent += `الفصل ${ch.number}: ${ch.title.split(':').slice(1).join(':').trim() || ch.title}\r\n`;
         fileContent += `تاريخ النشر: ${ch.publishAt || 'فوري'}\r\n`;
         fileContent += `--------------------------------------------------\r\n\r\n`;
         fileContent += `${ch.content}\r\n\r\n`;
@@ -70,7 +70,34 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${novel.titleAr}.txt`;
+    link.download = `${novel.titleAr} (كامل - ${novelChapters.length} فصل).txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download a single chapter as a text file whose name includes the chapter number
+  const downloadSingleChapter = (chapter: Chapter) => {
+    if (!novel) return;
+    const cleanTitle = chapter.title.split(':').slice(1).join(':').trim() || chapter.title;
+
+    let fileContent = `==================================================\r\n`;
+    fileContent += `رواية: ${novel.titleAr} (${novel.titleEn})\r\n`;
+    fileContent += `الفصل رقم: ${chapter.number}\r\n`;
+    fileContent += `عنوان الفصل: ${cleanTitle}\r\n`;
+    fileContent += `المترجم: ${novel.translatorName}\r\n`;
+    fileContent += `تاريخ النشر: ${new Date(chapter.createdAt).toLocaleDateString('ar-EG')}\r\n`;
+    fileContent += `==================================================\r\n\r\n`;
+    fileContent += `${chapter.content}\r\n`;
+
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, fileContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    // Chapter number is included in the file name as requested
+    link.download = `${novel.titleAr} - الفصل ${chapter.number}.txt`;
+    link.href = url;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -106,7 +133,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
     setChapters(foundChapters);
-    setNewChapterNumber(foundChapters.length + 1);
 
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const foundComments = allComments.filter(c => c.refId === novelId || foundChapters.some(ch => ch.id === c.refId));
@@ -123,14 +149,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       setShowAddChapterForm(true);
     }
   }, [autoOpenAddChapter]);
-
-  const sortedChapters = useMemo(() => {
-    return [...chapters].sort((a, b) => {
-      const numA = a.number ?? 0;
-      const numB = b.number ?? 0;
-      return sortOrder === 'asc' ? numA - numB : numB - numA;
-    });
-  }, [chapters, sortOrder]);
 
   // Reservation Live Countdown Timer (Updates every second!)
   useEffect(() => {
@@ -174,7 +192,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // Claim/Reservation action handler
   const handleClaimNovel = () => {
     if (currentUser.role === 'GUEST') {
-      alert('عذراً، يجب عليك اختيار رتبة "مترجم" أو "عضو" لتتمكن من حجز الرواية للترجمة.');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من حجز الرواية للترجمة. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
 
@@ -232,11 +251,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // Add Comment Handler
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (commentText.trim() === '') return;
     if (currentUser.role === 'GUEST') {
-      alert('الزائر لا يملك صلاحية كتابة التعليقات. قم بالتبديل لرتبة "عضو" من الأعلى!');
+      alert('يجب تسجيل الدخول أولاً لتتمكن من كتابة التعليقات. 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
       return;
     }
+    if (commentText.trim() === '') return;
 
     const newComment: Comment = {
       id: `comm-${Date.now()}`,
@@ -261,7 +281,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   // Like comment handler
   const handleLikeComment = (commentId: string) => {
-    if (currentUser.role === 'GUEST') return;
+    if (currentUser.role === 'GUEST') {
+      window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const updated = allComments.map(c => {
       if (c.id === commentId) {
@@ -355,7 +378,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     e.preventDefault();
     if (!newChapterTitle || !newChapterContent) return;
 
-    const newChapterNum = Number(newChapterNumber) || chapters.length + 1;
+    const newChapterNum = chapters.length + 1;
     const imgUrls = newChapterImages.split(',')
       .map(url => url.trim())
       .filter(url => url.length > 0);
@@ -366,7 +389,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       id: `${novel.id}-chap-${newChapterNum}-${Date.now()}`,
       novelId: novel.id,
       number: newChapterNum,
-      chapterNumber: newChapterNum,
       title: `الفصل ${newChapterNum}: ${newChapterTitle}`,
       content: newChapterContent,
       views: 0,
@@ -380,9 +402,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     const updatedChaps = [...allChapters, newChap];
     BerryDatabase.set('chapters', updatedChaps);
-    const novelChaps = updatedChaps.filter(c => c.novelId === novel.id).sort((a, b) => a.number - b.number);
-    setChapters(novelChaps);
-    setNewChapterNumber(novelChaps.length + 1);
+    setChapters(updatedChaps.filter(c => c.novelId === novel.id).sort((a, b) => a.number - b.number));
 
     // If this novel was in a reserved state and this is Chapter 1, promote status to TRANSLATING
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
@@ -476,7 +496,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         {/* Cover image wrapper */}
         <div className="flex flex-col gap-3 shrink-0">
           <div className="relative w-48 h-72 rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-            <img src={novel.cover} alt={novel.titleAr} className="w-full h-full object-cover" />
+            <img src={novel.cover} alt={novel.titleAr} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           </div>
           {isTranslatorOrOwner && (
             <button 
@@ -521,7 +541,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         </div>
 
         {/* Right Info pane */}
-        <div className="flex-1 flex flex-col justify-between h-full">
+        <div className="flex-1 w-full min-w-0 flex flex-col justify-between h-full">
           <div>
             <div className="flex flex-wrap gap-2 items-center mb-3">
               <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-violet-600/10 border border-violet-600/30 text-violet-300">
@@ -603,8 +623,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               <span>{isBookmarked ? 'في المفضلة' : 'أضف للمفضلة'}</span>
             </button>
 
-            {currentUser.role === 'OWNER' || (currentUser.role === 'TRANSLATOR' && novel.translatorId === currentUser.id) ? (
-              <button 
+            {/* Owner downloads anything; the assigned translator can download only
+                after the owner has approved the novel (status is no longer PENDING). */}
+            {(currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING')) ? (
+              <button
                 onClick={downloadFullNovelAndChapters}
                 className="px-5 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 border border-violet-500/20 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-violet-500/10 transition-all duration-300"
                 title="تنزيل الرواية وفصولها بالكامل كملف نصي"
@@ -613,9 +635,15 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 <span>تحميل الرواية وفصولها 📥</span>
               </button>
             ) : (
-              <button disabled className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2" title="التحميل متاح فقط للمترجم المعين والمالك للحماية">
+              <button
+                disabled
+                className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2"
+                title={novel.translatorId === currentUser.id && novel.status === 'PENDING'
+                  ? 'التحميل متاح بعد موافقة المالك على نشر الرواية'
+                  : 'التحميل متاح للمالك والمترجم المعيّن فقط لحماية حقوق الترجمة'}
+              >
                 <Download size={14} className="opacity-50" />
-                <span>التحميل محمي 🔒</span>
+                <span>{novel.translatorId === currentUser.id && novel.status === 'PENDING' ? 'التحميل بعد الموافقة 🔒' : 'التحميل محمي 🔒'}</span>
               </button>
             )}
 
@@ -660,7 +688,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       {/* Main Tab Area */}
       <div className="w-full mt-8">
         {/* Navigation Tabs Bar */}
-        <div className="flex border-b border-white/5 mb-6 text-sm font-semibold text-purple-300/80">
+        <div className="flex border-b border-white/5 mb-6 text-sm font-semibold text-purple-300/80 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('chapters')}
             className={`pb-3 px-6 relative transition-colors ${activeTab === 'chapters' ? 'text-white' : 'hover:text-white'}`}
@@ -684,69 +712,50 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {activeTab === 'chapters' && (
             <div className="flex flex-col gap-4">
               {/* Toolbar */}
-              <div className="flex flex-col sm:flex-row justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5 gap-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-                  <span className="text-xs text-purple-300 font-semibold">إجمالي الفصول المنشورة: {chapters.length} فصلاً</span>
-                  
-                  {/* Sorting Order Field / Dropdown */}
-                  <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-xl border border-white/5 w-full sm:w-auto">
-                    <span className="text-[11px] text-purple-400">ترتيب الفصول:</span>
-                    <select
-                      value={sortOrder}
-                      onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                      className="bg-transparent text-white text-[11px] font-bold outline-none cursor-pointer text-right border-none"
+              <div className="flex flex-wrap justify-between items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+                <span className="text-xs text-purple-300 font-semibold">إجمالي الفصول المنشورة: {chapters.length} فصلاً</span>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Ascending / descending chapter order toggle */}
+                  {chapters.length > 0 && (
+                    <button
+                      onClick={() => setChaptersAscending(prev => !prev)}
+                      className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-purple-200 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+                      title="تبديل ترتيب عرض الفصول"
                     >
-                      <option value="asc" className="bg-[#1A1625] text-white">تصاعدي (من الأقدم للأحدث)</option>
-                      <option value="desc" className="bg-[#1A1625] text-white">تنازلي (من الأحدث للأقدم)</option>
-                    </select>
-                  </div>
+                      {chaptersAscending
+                        ? <><ArrowUp size={14} className="text-violet-300" /><span>تصاعدي (الأقدم أولاً)</span></>
+                        : <><ArrowDown size={14} className="text-violet-300" /><span>تنازلي (الأحدث أولاً)</span></>}
+                    </button>
+                  )}
+
+                  {/* Show Add Chapter trigger for OWNER, TRANSLATOR, or WRITER */}
+                  {(currentUser.role === 'OWNER' || currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER') && (
+                    <button
+                      onClick={() => setShowAddChapterForm(!showAddChapterForm)}
+                      className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-violet-500/10"
+                    >
+                      <Plus size={14} />
+                      <span>إضافة فصل جديد للرواية</span>
+                    </button>
+                  )}
                 </div>
-                
-                {/* Show Add Chapter trigger for OWNER, TRANSLATOR, or WRITER */}
-                {(currentUser.role === 'OWNER' || currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER') && (
-                  <button 
-                    onClick={() => {
-                      setShowAddChapterForm(!showAddChapterForm);
-                      setNewChapterNumber(chapters.length + 1);
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-violet-500/10 w-full sm:w-auto justify-center"
-                  >
-                    <Plus size={14} />
-                    <span>إضافة فصل جديد للرواية</span>
-                  </button>
-                )}
               </div>
 
               {/* Add Chapter Simulator Form inside Tab */}
               {showAddChapterForm && (
                 <form onSubmit={handleCreateChapter} className="p-5 rounded-2xl bg-violet-950/10 border border-violet-500/20 text-right flex flex-col gap-4 animate-in slide-in-from-top-2 duration-300">
                   <h4 className="font-bold text-xs text-violet-300">محرر ترجمة الفصول السريع لـ {novel.titleAr}</h4>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5 md:col-span-1">
-                      <label className="text-xs font-semibold text-purple-200">رقم الفصل</label>
-                      <input 
-                        type="number" 
-                        required
-                        min="1"
-                        step="1"
-                        placeholder="مثال: 1"
-                        value={newChapterNumber}
-                        onChange={(e) => setNewChapterNumber(Number(e.target.value))}
-                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5 md:col-span-2">
-                      <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
-                        value={newChapterTitle}
-                        onChange={(e) => setNewChapterTitle(e.target.value)}
-                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
-                      />
-                    </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
+                      value={newChapterTitle}
+                      onChange={(e) => setNewChapterTitle(e.target.value)}
+                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
+                    />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center mb-1">
@@ -899,28 +908,42 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 </form>
               )}
 
-              {/* Grid of Chapters */}
+              {/* Grid of Chapters (ordered by the ascending/descending toggle) */}
               {chapters.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {sortedChapters.map((chapter) => (
-                    <div 
-                      key={chapter.id}
-                      onClick={() => onReadChapter(novel.id, chapter.number)}
-                      className="group p-4 bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex items-center justify-between cursor-pointer transition-all hover:bg-violet-950/5 text-right"
-                    >
-                      <div>
-                        <h4 className="font-bold text-xs text-purple-100 group-hover:text-violet-400 transition-colors">
-                          الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
-                        </h4>
-                        <span className="text-[10px] text-purple-400 mt-1 block">
-                          تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG')}
-                        </span>
+                  {[...chapters].sort((a, b) => chaptersAscending ? a.number - b.number : b.number - a.number).map((chapter) => {
+                    const canDownloadChapter = currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING');
+                    return (
+                      <div
+                        key={chapter.id}
+                        onClick={() => onReadChapter(novel.id, chapter.number)}
+                        className="group p-4 bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex items-center justify-between gap-2 cursor-pointer transition-all hover:bg-violet-950/5 text-right"
+                      >
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-xs text-purple-100 group-hover:text-violet-400 transition-colors truncate">
+                            الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+                          </h4>
+                          <span className="text-[10px] text-purple-400 mt-1 block">
+                            تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {canDownloadChapter && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); downloadSingleChapter(chapter); }}
+                              className="p-2 bg-white/5 hover:bg-violet-600 text-purple-300 hover:text-white rounded-xl transition-all cursor-pointer"
+                              title={`تنزيل الفصل ${chapter.number} كملف نصي`}
+                            >
+                              <Download size={13} />
+                            </button>
+                          )}
+                          <span className="px-3 py-1.5 bg-white/5 text-purple-300 rounded-xl text-[11px] font-bold group-hover:bg-violet-600 group-hover:text-white transition-all">
+                            قراءة الفصل ←
+                          </span>
+                        </div>
                       </div>
-                      <span className="px-3 py-1.5 bg-white/5 text-purple-300 rounded-xl text-[11px] font-bold group-hover:bg-violet-600 group-hover:text-white transition-all">
-                        قراءة الفصل ←
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="glass-panel p-12 text-center rounded-2xl border border-white/5 text-purple-400">
@@ -947,18 +970,20 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
               {/* Form to submit comment */}
               <form onSubmit={handleAddComment} className="flex gap-3">
-                <input 
-                  type="text" 
-                  placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول أو غير رتبتك من الأعلى لكتابة تعليق...' : 'اكتب تعليقك هنا حول الرواية...'}
-                  disabled={currentUser.role === 'GUEST'}
+                <input
+                  type="text"
+                  placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول لكتابة تعليق حول الرواية... 🍇' : 'اكتب تعليقك هنا حول الرواية...'}
+                  readOnly={currentUser.role === 'GUEST'}
+                  onClick={() => {
+                    if (currentUser.role === 'GUEST') window.dispatchEvent(new Event('open-login-modal'));
+                  }}
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  className="flex-1 bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3.5 text-white placeholder-purple-300/40 text-xs text-right transition-all"
+                  className="flex-1 min-w-0 bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3.5 text-white placeholder-purple-300/40 text-xs text-right transition-all"
                 />
-                <button 
+                <button
                   type="submit"
-                  disabled={currentUser.role === 'GUEST'}
-                  className="px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all cursor-pointer shrink-0"
                 >
                   إرسال
                 </button>
@@ -995,9 +1020,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                         >
                           <span>إعجاب ({comment.likes})</span>
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
-                            if (currentUser.role === 'GUEST') return;
+                            if (currentUser.role === 'GUEST') {
+                              window.dispatchEvent(new Event('open-login-modal'));
+                              return;
+                            }
                             setActiveReplyId(activeReplyId === comment.id ? null : comment.id);
                           }}
                           className="hover:text-white transition-colors cursor-pointer"
