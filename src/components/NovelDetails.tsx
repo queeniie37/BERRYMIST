@@ -36,6 +36,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [newChapterContent, setNewChapterContent] = useState('');
   const [newChapterImages, setNewChapterImages] = useState('');
   const [newChapterPublishAt, setNewChapterPublishAt] = useState('');
+  const [newChapterNumber, setNewChapterNumber] = useState<number>(1);
 
   const downloadFullNovelAndChapters = () => {
     if (!novel) return;
@@ -133,6 +134,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
     setChapters(foundChapters);
+    setNewChapterNumber(foundChapters.length + 1);
 
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const foundComments = allComments.filter(c => c.refId === novelId || foundChapters.some(ch => ch.id === c.refId));
@@ -378,7 +380,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     e.preventDefault();
     if (!newChapterTitle || !newChapterContent) return;
 
-    const newChapterNum = chapters.length + 1;
+    const newChapterNum = Number(newChapterNumber) || chapters.length + 1;
     const imgUrls = newChapterImages.split(',')
       .map(url => url.trim())
       .filter(url => url.length > 0);
@@ -389,6 +391,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       id: `${novel.id}-chap-${newChapterNum}-${Date.now()}`,
       novelId: novel.id,
       number: newChapterNum,
+      chapterNumber: newChapterNum,
       title: `الفصل ${newChapterNum}: ${newChapterTitle}`,
       content: newChapterContent,
       views: 0,
@@ -402,7 +405,9 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     const updatedChaps = [...allChapters, newChap];
     BerryDatabase.set('chapters', updatedChaps);
-    setChapters(updatedChaps.filter(c => c.novelId === novel.id).sort((a, b) => a.number - b.number));
+    const novelChaps = updatedChaps.filter(c => c.novelId === novel.id).sort((a, b) => a.number - b.number);
+    setChapters(novelChaps);
+    setNewChapterNumber(novelChaps.length + 1);
 
     // If this novel was in a reserved state and this is Chapter 1, promote status to TRANSLATING
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
@@ -732,7 +737,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                   {/* Show Add Chapter trigger for OWNER, TRANSLATOR, or WRITER */}
                   {(currentUser.role === 'OWNER' || currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER') && (
                     <button
-                      onClick={() => setShowAddChapterForm(!showAddChapterForm)}
+                      onClick={() => {
+                        setShowAddChapterForm(!showAddChapterForm);
+                        setNewChapterNumber(chapters.length + 1);
+                      }}
                       className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-violet-500/10"
                     >
                       <Plus size={14} />
@@ -746,16 +754,31 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               {showAddChapterForm && (
                 <form onSubmit={handleCreateChapter} className="p-5 rounded-2xl bg-violet-950/10 border border-violet-500/20 text-right flex flex-col gap-4 animate-in slide-in-from-top-2 duration-300">
                   <h4 className="font-bold text-xs text-violet-300">محرر ترجمة الفصول السريع لـ {novel.titleAr}</h4>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
-                      value={newChapterTitle}
-                      onChange={(e) => setNewChapterTitle(e.target.value)}
-                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1.5 md:col-span-1">
+                      <label className="text-xs font-semibold text-purple-200">رقم الفصل</label>
+                      <input 
+                        type="number" 
+                        required
+                        min="1"
+                        step="1"
+                        placeholder="مثال: 1"
+                        value={newChapterNumber}
+                        onChange={(e) => setNewChapterNumber(Number(e.target.value))}
+                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5 md:col-span-2">
+                      <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
+                        value={newChapterTitle}
+                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
+                      />
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center mb-1">
