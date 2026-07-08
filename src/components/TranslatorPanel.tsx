@@ -186,11 +186,12 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
     // Recalculate chapters count for novel
     if (n) {
+      const actualCount = remainingChapters.filter(c => c.novelId === n.id).length;
       const updatedNovels = allNovels.map(novel => {
         if (novel.id === n.id) {
           return {
             ...novel,
-            chaptersCount: Math.max(0, novel.chaptersCount - 1)
+            chaptersCount: actualCount
           };
         }
         return novel;
@@ -199,6 +200,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     }
 
     loadChaptersAndDeleted();
+    window.dispatchEvent(new Event('novels-updated'));
     alert('تم حذف الفصل ونقله إلى الأرشيف بنجاح! 🗑️');
   };
 
@@ -221,11 +223,12 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
     // Recalculate chapters count for novel
     const allNovels = BerryDatabase.get<any[]>('novels', []);
+    const actualCount = [...allChapters, originalChapter].filter(c => c.novelId === originalChapter.novelId).length;
     const updatedNovels = allNovels.map(novel => {
       if (novel.id === originalChapter.novelId) {
         return {
           ...novel,
-          chaptersCount: novel.chaptersCount + 1
+          chaptersCount: actualCount
         };
       }
       return novel;
@@ -233,6 +236,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     BerryDatabase.set('novels', updatedNovels);
 
     loadChaptersAndDeleted();
+    window.dispatchEvent(new Event('novels-updated'));
     alert('تم استعادة الفصل ونشره مجدداً بنجاح! ↩️');
   };
 
@@ -736,8 +740,8 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                         </div>
                         
                         <div className="text-[10px] text-purple-400 flex flex-col gap-1 mt-2.5">
-                          <div>تاريخ البدء: <span className="text-white font-mono">{new Date(res.startAt).toLocaleDateString('ar-EG')}</span></div>
-                          <div>تاريخ الانتهاء: <span className="text-white font-mono">{new Date(res.endAt).toLocaleDateString('ar-EG')}</span></div>
+                          <div>تاريخ البدء: <span className="text-white font-mono">{new Date(res.startAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span></div>
+                          <div>تاريخ الانتهاء: <span className="text-white font-mono">{new Date(res.endAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span></div>
                         </div>
 
                         <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between text-xs">
@@ -1050,7 +1054,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                         </div>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] text-purple-400">
                           <span>المشاهدات: {chap.views || 0} 👀</span>
-                          <span>تاريخ الإنشاء: {new Date(chap.createdAt).toLocaleDateString('ar-EG')} ⏱️</span>
+                          <span>تاريخ الإنشاء: {new Date(chap.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })} ⏱️</span>
                           {chap.images && <span>مرفق به {chap.images.length} صورة 🖼️</span>}
                         </div>
                       </div>
@@ -1058,7 +1062,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                       <div className="flex flex-wrap items-center gap-3 shrink-0">
                         {isScheduled ? (
                           <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-xl font-bold font-mono">
-                            📅 مجدول للنشر: {new Date(chap.publishAt).toLocaleString('ar-EG')}
+                            📅 مجدول للنشر: {new Date(chap.publishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}
                           </span>
                         ) : (
                           <span className="text-[9px] bg-green-500/15 text-green-400 border border-green-500/20 px-2.5 py-1 rounded-xl font-bold">
@@ -1159,7 +1163,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                       </div>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] text-purple-400">
                         <span>حذفها: {chap.deletedBy} 👤</span>
-                        <span>تاريخ الحذف: {new Date(chap.deletedAt).toLocaleString('ar-EG')} 📅</span>
+                        <span>تاريخ الحذف: {new Date(chap.deletedAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })} 📅</span>
                       </div>
                     </div>
 

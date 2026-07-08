@@ -97,7 +97,7 @@ export default function HeroSlider({ featuredNovels, onStartReading, onViewDetai
           <div className="flex flex-wrap gap-4 items-center mt-3 text-purple-200/80 text-xs">
             <div className="flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
               <Eye size={12} className="text-violet-400" />
-              <span>{currentNovel.views.toLocaleString('ar-EG')} قراءة</span>
+              <span>{currentNovel.views.toLocaleString('ar-EG', { numberingSystem: 'latn' })} قراءة</span>
             </div>
             <div className="flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
               <Layers size={12} className="text-berry-400" />

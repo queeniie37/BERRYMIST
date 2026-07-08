@@ -1278,7 +1278,7 @@ export default function App() {
                       <span className="text-3xl p-2 bg-white/5 rounded-2xl border border-white/5">{team.logo}</span>
                       <div>
                         <h3 className="font-extrabold text-sm text-white hover:text-violet-300 transition-colors">{team.name}</h3>
-                        <span className="text-[10px] text-purple-400">تاريخ التأسيس: {new Date(team.createdAt).toLocaleDateString('ar-EG')}</span>
+                        <span className="text-[10px] text-purple-400">تاريخ التأسيس: {new Date(team.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                       </div>
                     </div>
 
@@ -1877,8 +1877,8 @@ export default function App() {
                                   </span>
                                 </div>
                                 <div className="text-[8px] text-purple-400 mt-2 flex justify-between items-center font-mono">
-                                  <span>تاريخ الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG')}</span>
-                                  <span>الانتهاء: {new Date(res.endAt).toLocaleDateString('ar-EG')}</span>
+                                  <span>تاريخ الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
+                                  <span>الانتهاء: {new Date(res.endAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                                 </div>
                               </div>
                             );
@@ -2011,7 +2011,7 @@ export default function App() {
                   <h3 className="text-lg md:text-xl font-extrabold text-white">
                     <span>{selectedTeam.name}</span>
                   </h3>
-                  <p className="text-xs text-purple-300 mt-1">تاريخ التأسيس: {new Date(selectedTeam.createdAt).toLocaleDateString('ar-EG')}</p>
+                  <p className="text-xs text-purple-300 mt-1">تاريخ التأسيس: {new Date(selectedTeam.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</p>
                 </div>
               </div>
             </div>

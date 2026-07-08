@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown } from 'lucide-react';
+import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown, FileText, ChevronLeft, Undo2, Redo2, BookOpen, Info } from 'lucide-react';
 import { Novel, Chapter, Comment, Review, User, UserRole } from '../types';
 import { BerryDatabase } from '../data';
 
@@ -37,6 +37,9 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [newChapterImages, setNewChapterImages] = useState('');
   const [newChapterPublishAt, setNewChapterPublishAt] = useState('');
   const [newChapterNumber, setNewChapterNumber] = useState<number>(1);
+  const [publishTimeType, setPublishTimeType] = useState<'now' | 'schedule'>('now');
+  const [contentHistory, setContentHistory] = useState<string[]>(['']);
+  const [historyIdx, setHistoryIdx] = useState(0);
 
   const downloadFullNovelAndChapters = () => {
     if (!novel) return;
@@ -88,7 +91,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     fileContent += `الفصل رقم: ${chapter.number}\r\n`;
     fileContent += `عنوان الفصل: ${cleanTitle}\r\n`;
     fileContent += `المترجم: ${novel.translatorName}\r\n`;
-    fileContent += `تاريخ النشر: ${new Date(chapter.createdAt).toLocaleDateString('ar-EG')}\r\n`;
+    fileContent += `تاريخ النشر: ${new Date(chapter.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}\r\n`;
     fileContent += `==================================================\r\n\r\n`;
     fileContent += `${chapter.content}\r\n`;
 
@@ -338,12 +341,45 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const text = textarea.value;
     const selected = text.substring(start, end);
     const replacement = `<${tag}>${selected || 'نص التنسيق'}</${tag}>`;
-    setNewChapterContent(text.substring(0, start) + replacement + text.substring(end));
+    const updatedContent = text.substring(0, start) + replacement + text.substring(end);
+    setNewChapterContent(updatedContent);
+    
+    // Add to history
+    const nextHistory = contentHistory.slice(0, historyIdx + 1);
+    nextHistory.push(updatedContent);
+    setContentHistory(nextHistory);
+    setHistoryIdx(nextHistory.length - 1);
     
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + (selected || 'نص التنسيق').length);
     }, 0);
+  };
+
+  const handleContentChange = (val: string) => {
+    setNewChapterContent(val);
+    if (val !== contentHistory[historyIdx]) {
+      const nextHistory = contentHistory.slice(0, historyIdx + 1);
+      nextHistory.push(val);
+      setContentHistory(nextHistory);
+      setHistoryIdx(nextHistory.length - 1);
+    }
+  };
+
+  const handleUndo = () => {
+    if (historyIdx > 0) {
+      const prevIdx = historyIdx - 1;
+      setHistoryIdx(prevIdx);
+      setNewChapterContent(contentHistory[prevIdx]);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIdx < contentHistory.length - 1) {
+      const nextIdx = historyIdx + 1;
+      setHistoryIdx(nextIdx);
+      setNewChapterContent(contentHistory[nextIdx]);
+    }
   };
 
   // Convert uploaded PNG/images to Base64 data urls
@@ -535,20 +571,317 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     // Reduce chaptersCount of the novel
     if (novel) {
       const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+      const actualCount = remainingChapters.filter(c => c.novelId === novel.id).length;
       const updatedNovels = allNovels.map(n => {
         if (n.id === novel.id) {
-          const newCount = Math.max(0, n.chaptersCount - 1);
-          return { ...n, chaptersCount: newCount };
+          return { ...n, chaptersCount: actualCount };
         }
         return n;
       });
       BerryDatabase.set('novels', updatedNovels);
-      setNovel(prev => prev ? { ...prev, chaptersCount: Math.max(0, prev.chaptersCount - 1) } : null);
+      setNovel(prev => prev ? { ...prev, chaptersCount: actualCount } : null);
     }
 
     alert(`تم حذف الفصل رقم ${chapterNumber} بنجاح مع كافة تعليقاته نهائياً! 🗑️`);
     window.dispatchEvent(new Event('novels-updated'));
   };
+
+  if (showAddChapterForm && novel) {
+    return (
+      <form onSubmit={handleCreateChapter} className="w-full text-right pb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        
+        {/* Blue System/Notification Alert Banner */}
+        <div className="bg-[#0c192c]/60 border border-blue-500/20 text-blue-300 p-4 rounded-xl flex items-center justify-between text-right text-xs gap-3 mb-6 select-none animate-in fade-in duration-300">
+          <div className="flex items-center gap-2">
+            {/* Left side blank */}
+          </div>
+          <div className="flex items-center gap-2 text-right">
+            <span>تم تفعيل نظام التعليقات الجديد على الموقع، ونعمل على إضافته لتطبيق الهاتف قريبًا.</span>
+            <Info size={16} className="text-blue-400 shrink-0" />
+          </div>
+        </div>
+
+        {/* Section Title with File Icon and Cancel Button */}
+        <div className="flex items-center justify-between mb-8">
+          <button 
+            type="button"
+            onClick={() => setShowAddChapterForm(false)}
+            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-purple-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <span>✕ إلغاء والعودة للرواية</span>
+          </button>
+          <div className="flex items-center gap-3 justify-end">
+            <h2 className="text-xl font-extrabold text-white text-right">إضافة فصل جديد</h2>
+            <div className="p-2.5 bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-xl">
+              <FileText size={20} />
+            </div>
+          </div>
+        </div>
+
+        {/* 1. Novel selector/display */}
+        <div className="flex flex-col gap-1.5 text-right w-full mb-4">
+          <div className="relative w-full">
+            <div className="w-full bg-[#13101E] border border-white/5 hover:border-white/10 rounded-xl px-4 py-3.5 text-xs text-purple-300 text-right flex justify-between items-center select-none cursor-default">
+              <ChevronDown size={14} className="text-purple-400" />
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white">{novel.titleAr}</span>
+                <span className="text-purple-400">الرواية</span>
+                <BookOpen size={14} className="text-purple-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Chapter Number */}
+        <div className="flex flex-col gap-1 w-full mb-4 text-right">
+          <input 
+            type="number"
+            required
+            min="1"
+            placeholder="رقم الفصل"
+            value={newChapterNumber}
+            onChange={(e) => setNewChapterNumber(Number(e.target.value))}
+            className="w-full bg-[#13101E] border border-white/5 hover:border-white/10 rounded-xl px-4 py-3.5 text-xs text-white text-right outline-none focus:border-violet-500 font-sans placeholder-purple-300/40 font-mono"
+          />
+        </div>
+
+        {/* 3. Chapter Title */}
+        <div className="flex flex-col gap-1 w-full mb-4 relative text-right">
+          <div className="flex justify-between items-center mb-1 text-[11px] text-purple-400">
+            <span>100 / {newChapterTitle.length}</span>
+            <span>عنوان الفصل</span>
+          </div>
+          <input 
+            type="text"
+            required
+            maxLength={100}
+            placeholder="عنوان الفصل"
+            value={newChapterTitle}
+            onChange={(e) => setNewChapterTitle(e.target.value)}
+            className="w-full bg-[#13101E] border border-white/5 hover:border-white/10 rounded-xl px-4 py-3.5 text-xs text-white text-right outline-none focus:border-violet-500 font-sans placeholder-purple-300/40"
+          />
+        </div>
+
+        {/* 4. Rich Chapter Content Editor */}
+        <div className="flex flex-col border border-white/5 hover:border-white/10 bg-[#13101E] rounded-xl overflow-hidden mb-3">
+          {/* Editor Toolbar */}
+          <div className="flex justify-between items-center px-4 py-3 bg-[#171324] border-b border-white/5 select-none">
+            {/* Left toolbar options: Undo/Redo */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleUndo}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-purple-400 hover:text-white transition-all cursor-pointer"
+                title="تراجع"
+              >
+                <Undo2 size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-purple-400 hover:text-white transition-all cursor-pointer"
+                title="إعادة"
+              >
+                <Redo2 size={16} />
+              </button>
+            </div>
+
+            {/* Right toolbar options: Bold, Italic, Underline, Image */}
+            <div className="flex gap-3 items-center font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  document.getElementById('png-uploader')?.click();
+                }}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-purple-400 hover:text-white transition-all cursor-pointer"
+                title="إدراج صور ورسومات"
+              >
+                <Image size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormat('u')}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-purple-400 hover:text-white font-bold transition-all cursor-pointer"
+                title="خط تحت النص (Underline)"
+              >
+                <u>U</u>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormat('i')}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-purple-400 hover:text-white italic font-bold transition-all cursor-pointer"
+                title="نص مائل (Italic)"
+              >
+                <i>I</i>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormat('b')}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-purple-400 hover:text-white font-bold transition-all cursor-pointer"
+                title="نص عريض (Bold)"
+              >
+                <b>B</b>
+              </button>
+            </div>
+          </div>
+
+          {/* Content Area */}
+          <textarea 
+            id="chapter-content-textarea"
+            required
+            placeholder="محتوى الفصل"
+            value={newChapterContent}
+            onChange={(e) => handleContentChange(e.target.value)}
+            className="w-full bg-[#13101E] px-4 py-4 text-xs text-white text-right outline-none font-sans min-h-[50vh] resize-y placeholder-purple-300/40"
+          />
+        </div>
+
+        {/* 5. Content Area Troubleshoot button */}
+        <div className="flex justify-end mb-6 text-xs text-right">
+          <button
+            type="button"
+            onClick={() => {
+              alert('تمت إعادة تهيئة صندوق المحرر وتحديث الاستجابة بنجاح! يمكنكم المتابعة الآن بشكل طبيعي.');
+              document.getElementById('chapter-content-textarea')?.focus();
+            }}
+            className="text-[#1384e0] hover:underline font-semibold cursor-pointer"
+          >
+            خانة محتوى الفصل لا تظهر؟ اضغط هنا
+          </button>
+        </div>
+
+        {/* 6. Chapter Images and PNG Upload panel */}
+        <div className="mb-6 p-4 rounded-xl bg-[#13101E]/60 border border-white/5 text-right">
+          <div className="flex justify-between items-center mb-3">
+            <button
+              type="button"
+              onClick={() => {
+                const demoUrls = [
+                  'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600',
+                  'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
+                  'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600'
+                ];
+                const randomUrl = demoUrls[Math.floor(Math.random() * demoUrls.length)];
+                setNewChapterImages(prev => prev ? `${prev}, ${randomUrl}` : randomUrl);
+              }}
+              className="text-[10px] bg-violet-600/10 hover:bg-violet-600/30 text-violet-300 border border-violet-500/10 px-2.5 py-1 rounded-xl cursor-pointer transition-all"
+            >
+              ⚡ توليد صورة عشوائية للمحاكاة
+            </button>
+            <label className="text-xs font-bold text-purple-300 flex items-center gap-2 justify-end">
+              <span>إرفاق صور ورسومات الفصل (PNG, JPG)</span>
+              <Image size={14} className="text-violet-400" />
+            </label>
+          </div>
+
+          <div className="flex flex-col items-center justify-center border border-dashed border-violet-500/20 hover:border-violet-500/50 bg-[#1A1625]/40 p-4 rounded-xl text-center transition-colors">
+            <input 
+              type="file" 
+              id="png-uploader"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <label 
+              htmlFor="png-uploader"
+              className="cursor-pointer flex flex-col items-center gap-1 w-full py-2"
+            >
+              <Upload size={20} className="text-violet-400 mb-1" />
+              <span className="text-xs font-bold text-white">اضغط هنا لرفع صور PNG أو سحبها وإفلاتها مباشرة 📂</span>
+              <span className="text-[9px] text-purple-400">يدعم صيغ PNG, JPG, WebP وGIF</span>
+            </label>
+          </div>
+
+          {newChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).length > 0 && (
+            <div className="flex flex-wrap gap-2.5 mt-3 p-2 bg-black/20 rounded-xl border border-white/5">
+              {newChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).map((url, idx) => (
+                <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-white/10 shrink-0 shadow-md">
+                  <img src={url} alt="Chapter attach" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeAttachedImage(idx)}
+                    className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer text-[10px] font-bold"
+                  >
+                    حذف ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Text field backup */}
+          <div className="flex flex-col gap-1 mt-3">
+            <span className="text-[10px] font-bold text-purple-300">روابط الصور المرفقة يدوياً (مفصولة بفاصلة):</span>
+            <input 
+              type="text" 
+              placeholder="رابط الصورة 1, رابط الصورة 2..."
+              value={newChapterImages}
+              onChange={(e) => setNewChapterImages(e.target.value)}
+              className="bg-[#1A1625] border border-white/5 rounded-xl px-4 py-2 text-xs outline-none focus:border-violet-500 text-white"
+            />
+          </div>
+        </div>
+
+        {/* 7. Publishing Date selectors */}
+        <div className="flex flex-col gap-2.5 text-right mb-8">
+          <label className="text-xs font-bold text-purple-200">تاريخ النشر</label>
+          <div className="flex gap-6 justify-end items-center">
+            {/* Option 2: Schedule */}
+            <label className="flex items-center gap-2 cursor-pointer group select-none">
+              <span className="text-xs text-purple-300 group-hover:text-white transition-colors">تحديد موعد</span>
+              <input 
+                type="radio"
+                name="publishing-time"
+                checked={publishTimeType === 'schedule'}
+                onChange={() => setPublishTimeType('schedule')}
+                className="w-4 h-4 accent-blue-500 cursor-pointer"
+              />
+            </label>
+
+            {/* Option 1: Now */}
+            <label className="flex items-center gap-2 cursor-pointer group select-none">
+              <span className="text-xs text-purple-300 group-hover:text-white transition-colors">الآن</span>
+              <input 
+                type="radio"
+                name="publishing-time"
+                checked={publishTimeType === 'now'}
+                onChange={() => {
+                  setPublishTimeType('now');
+                  setNewChapterPublishAt('');
+                }}
+                className="w-4 h-4 accent-blue-500 cursor-pointer"
+              />
+            </label>
+          </div>
+
+          {/* Conditional Date-time Input with smooth collapse/fade */}
+          {publishTimeType === 'schedule' && (
+            <div className="mt-2.5 p-4 rounded-xl bg-[#13101E] border border-white/5 animate-in slide-in-from-top-2 duration-200 text-right">
+              <input 
+                type="datetime-local"
+                value={newChapterPublishAt}
+                onChange={(e) => setNewChapterPublishAt(e.target.value)}
+                className="w-full bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono text-right"
+              />
+              <span className="text-[10px] text-purple-400/80 mt-1.5 block">اختر التاريخ والوقت لتسجيل وقت النشر التلقائي للفصل. سيظل الفصل مجدولاً وغير متاح للقراءة قبل هذا الوقت.</span>
+            </div>
+          )}
+        </div>
+
+        {/* 8. Large blue Add/Submit Button */}
+        <div className="w-full">
+          <button 
+            type="submit"
+            className="w-full py-4 bg-[#1384e0] hover:bg-[#1176ca] active:bg-[#0f68b1] text-white text-sm font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2"
+          >
+            <span>إضافة</span>
+          </button>
+        </div>
+
+      </form>
+    );
+  }
 
   return (
     <div className="w-full text-right mt-4 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -660,7 +993,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           <div className="grid grid-cols-3 gap-3 mt-6">
             <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-center">
               <span className="text-xs text-purple-400 block mb-1">المشاهدات</span>
-              <span className="font-bold text-white text-base">{(novel.views).toLocaleString('ar-EG')}</span>
+              <span className="font-bold text-white text-base">{(novel.views).toLocaleString('ar-EG', { numberingSystem: 'latn' })}</span>
             </div>
             <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-center">
               <span className="text-xs text-purple-400 block mb-1">الفصول</span>
@@ -668,7 +1001,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             </div>
             <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-center">
               <span className="text-xs text-purple-400 block mb-1">المفضلة</span>
-              <span className="font-bold text-white text-base">{(novel.bookmarksCount).toLocaleString('ar-EG')}</span>
+              <span className="font-bold text-white text-base">{(novel.bookmarksCount).toLocaleString('ar-EG', { numberingSystem: 'latn' })}</span>
             </div>
           </div>
 
@@ -820,187 +1153,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 </div>
               </div>
 
-              {/* Add Chapter Simulator Form inside Tab */}
-              {showAddChapterForm && (
-                <form onSubmit={handleCreateChapter} className="p-5 rounded-2xl bg-violet-950/10 border border-violet-500/20 text-right flex flex-col gap-4 animate-in slide-in-from-top-2 duration-300">
-                  <h4 className="font-bold text-xs text-violet-300">محرر ترجمة الفصول السريع لـ {novel.titleAr}</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5 md:col-span-1">
-                      <label className="text-xs font-semibold text-purple-200">رقم الفصل</label>
-                      <input 
-                        type="number" 
-                        required
-                        min="1"
-                        step="1"
-                        placeholder="مثال: 1"
-                        value={newChapterNumber}
-                        onChange={(e) => setNewChapterNumber(Number(e.target.value))}
-                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5 md:col-span-2">
-                      <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
-                        value={newChapterTitle}
-                        onChange={(e) => setNewChapterTitle(e.target.value)}
-                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-semibold text-purple-200">متن وترجمة الفصل (كامل النص)</label>
-                      
-                      {/* Rich Text controls */}
-                      <div className="flex gap-1">
-                        <button 
-                          type="button" 
-                          onClick={() => applyFormat('b')} 
-                          className="px-2.5 py-1 bg-white/5 hover:bg-white/15 text-white border border-white/5 rounded-lg text-[10px] font-bold cursor-pointer"
-                          title="نص كثيف (Bold)"
-                        >
-                          <b>B</b>
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => applyFormat('i')} 
-                          className="px-2.5 py-1 bg-white/5 hover:bg-white/15 text-white border border-white/5 rounded-lg text-[10px] italic font-bold cursor-pointer"
-                          title="نص مائل (Italic)"
-                        >
-                          <i>I</i>
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => applyFormat('u')} 
-                          className="px-2.5 py-1 bg-white/5 hover:bg-white/15 text-white border border-white/5 rounded-lg text-[10px] underline font-bold cursor-pointer"
-                          title="خط تحت النص (Underline)"
-                        >
-                          <u>U</u>
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <textarea 
-                      id="chapter-content-textarea"
-                      required
-                      rows={16}
-                      placeholder="اكتب أو الصق نص الفصل المترجم هنا بالكامل... يمكنك تحديد نص والنقر على أزرار التنسيق في الأعلى لجعله كثيفاً، مائلاً، أو تحته خط."
-                      value={newChapterContent}
-                      onChange={(e) => setNewChapterContent(e.target.value)}
-                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-sans min-h-[45vh] resize-y"
-                    />
-                  </div>
-
-                  {/* Chapter Images Attachment with easy PNG Upload */}
-                  <div className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 text-right">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-extrabold text-purple-200 flex items-center gap-1">
-                        <Image size={14} className="text-violet-400" />
-                        <span>إرفاق صور ورسومات الفصل (مثال: PNG, JPG)</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const demoUrls = [
-                            'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600', // anime character
-                            'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600', // fantasy sword
-                            'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600'  // magic gateway
-                          ];
-                          const randomUrl = demoUrls[Math.floor(Math.random() * demoUrls.length)];
-                          setNewChapterImages(prev => prev ? `${prev}, ${randomUrl}` : randomUrl);
-                        }}
-                        className="text-[9px] bg-violet-600/10 hover:bg-violet-600/30 text-violet-300 border border-violet-500/10 px-2.5 py-1 rounded-xl cursor-pointer transition-all"
-                      >
-                        ⚡ توليد صورة عشوائية للمحاكاة
-                      </button>
-                    </div>
-
-                    <p className="text-[10px] text-purple-300/70">تستطيع الآن رفع صور PNG مباشرة من جهازك لتضمينها بلمسة واحدة، أو إدخال روابط الصور يدوياً أدناه.</p>
-
-                    {/* Drag and Drop / Choose File button */}
-                    <div className="flex flex-col items-center justify-center border border-dashed border-violet-500/20 hover:border-violet-500/50 bg-[#1A1625]/80 p-4 rounded-xl text-center transition-colors">
-                      <input 
-                        type="file" 
-                        id="png-uploader"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                      <label 
-                        htmlFor="png-uploader"
-                        className="cursor-pointer flex flex-col items-center gap-1 w-full py-2"
-                      >
-                        <Upload size={24} className="text-violet-400 animate-bounce" />
-                        <span className="text-xs font-bold text-white">اضغط هنا لرفع صور PNG أو سحبها وإفلاتها مباشرة 📂</span>
-                        <span className="text-[9px] text-purple-400">يدعم صيغ PNG, JPG, WebP وGIF</span>
-                      </label>
-                    </div>
-
-                    {/* Live Image Thumbnails Preview */}
-                    {newChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).length > 0 && (
-                      <div className="flex flex-wrap gap-2.5 mt-2 p-2 bg-black/20 rounded-xl border border-white/5">
-                        {newChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).map((url, idx) => (
-                          <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-white/10 shrink-0 shadow-md">
-                            <img src={url} alt="Chapter attach" className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeAttachedImage(idx)}
-                              className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer text-[10px] font-bold"
-                              title="حذف الصورة"
-                            >
-                              حذف ❌
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Text field backup */}
-                    <div className="flex flex-col gap-1 mt-2">
-                      <span className="text-[10px] font-bold text-purple-300">روابط الصور المرفقة يدوياً (مفصولة بفاصلة):</span>
-                      <input 
-                        type="text" 
-                        placeholder="رابط الصورة 1, رابط الصورة 2..."
-                        value={newChapterImages}
-                        onChange={(e) => setNewChapterImages(e.target.value)}
-                        className="bg-[#1A1625] border border-white/5 rounded-xl px-4 py-2 text-xs outline-none focus:border-violet-500 text-white"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Chapter Publishing Scheduler */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-purple-200">📅 جدولة وقت النشر التلقائي بالتاريخ الميلادي</label>
-                    <input 
-                      type="datetime-local" 
-                      value={newChapterPublishAt}
-                      onChange={(e) => setNewChapterPublishAt(e.target.value)}
-                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono"
-                    />
-                    <span className="text-[9px] text-purple-400">اختر التاريخ والوقت الميلادي الذي ترغب في نشر الفصل فيه تلقائياً. سيظل الفصل مخفياً عن القراء حتى يحين ذلك الموعد بالضبط.</span>
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                    <button 
-                      type="button" 
-                      onClick={() => setShowAddChapterForm(false)}
-                      className="px-4 py-2 bg-white/5 rounded-xl text-purple-300 text-xs font-bold"
-                    >
-                      إلغاء
-                    </button>
-                    <button 
-                      type="submit" 
-                      className="px-5 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-md"
-                    >
-                      نشر الفصل فوراً للقراء
-                    </button>
-                  </div>
-                </form>
-              )}
-
               {/* Grid of Chapters (ordered by the ascending/descending toggle) */}
               {chapters.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1017,7 +1169,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                             الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
                           </h4>
                           <span className="text-[10px] text-purple-400 mt-1 block">
-                            تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG')}
+                            تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -1110,7 +1262,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                               {comment.authorRole === 'OWNER' ? 'المالك 👑' : comment.authorRole === 'TRANSLATOR' ? 'مترجم ✍️' : 'عضو قارئ 👤'}
                             </span>
                           </div>
-                          <span className="text-[10px] text-purple-400 mt-0.5 block">{new Date(comment.createdAt).toLocaleDateString('ar-EG')}</span>
+                          <span className="text-[10px] text-purple-400 mt-0.5 block">{new Date(comment.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                         </div>
                       </div>
 

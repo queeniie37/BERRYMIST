@@ -131,7 +131,7 @@ export default function TranslatorRequestForm({ currentUser, onRequestSubmitted 
                 }`}
               >
                 <div className="flex flex-col gap-1 text-right">
-                  <span className="font-bold">طلب انضمام بتاريخ: {new Date(req.createdAt).toLocaleDateString('ar-EG')}</span>
+                  <span className="font-bold">طلب انضمام بتاريخ: {new Date(req.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                   <span className="text-[10px] text-purple-400">اللغات: {req.languages.join('، ')}</span>
                 </div>
                 <div className="flex items-center gap-2">

@@ -623,7 +623,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                           </span>
                         )}
                         <span className="px-2 py-1 bg-violet-500/10 text-violet-300 border border-violet-500/20 rounded-lg">
-                          التاريخ: {new Date(req.createdAt).toLocaleDateString('ar-EG')}
+                          التاريخ: {new Date(req.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}
                         </span>
                       </div>
                     </div>
@@ -801,8 +801,8 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                       <p className="text-[10px] text-purple-400 mt-0.5">المترجم الحاجز: <span className="font-bold text-white">{res.translatorName}</span></p>
                       
                       <div className="flex flex-col gap-1 mt-3 text-[10px] text-purple-300">
-                        <span>تاريخ بدء الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG')}</span>
-                        <span>تاريخ انتهاء الصلاحية: {new Date(res.endAt).toLocaleDateString('ar-EG')}</span>
+                        <span>تاريخ بدء الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
+                        <span>تاريخ انتهاء الصلاحية: {new Date(res.endAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                       </div>
 
                       {res.extensionRequested && (

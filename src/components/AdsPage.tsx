@@ -350,7 +350,7 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
 
                       <p className="text-[10px] text-purple-400 mt-1 flex items-center gap-1.5">
                         <Calendar size={11} />
-                        <span>نُشر في: {new Date(ad.createdAt).toLocaleDateString('ar-EG')}</span>
+                        <span>نُشر في: {new Date(ad.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                         {ad.showInTicker && (
                           <span className="text-[8px] bg-fuchsia-500/10 text-fuchsia-300 px-1.5 py-0.5 rounded border border-fuchsia-500/10 font-bold">
                             يظهر في الشريط ⚡
@@ -387,7 +387,7 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
                 <img src={selectedAd.image} alt={selectedAd.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-[9px] text-purple-200 flex items-center gap-1">
                   <Calendar size={10} />
-                  <span>{new Date(selectedAd.createdAt).toLocaleDateString('ar-EG')}</span>
+                  <span>{new Date(selectedAd.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                 </div>
                 <button 
                   onClick={() => setSelectedAd(null)}
