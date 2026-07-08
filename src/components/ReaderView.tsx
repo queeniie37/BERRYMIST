@@ -31,6 +31,8 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
   const [lineHeight, setLineHeight] = useState<number>(1.8);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [hasPrevChapter, setHasPrevChapter] = useState(false);
+  const [hasNextChapter, setHasNextChapter] = useState(false);
   
   // Chapter Comments System state
   const [comments, setComments] = useState<Comment[]>([]);
@@ -47,7 +49,21 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     if (foundNovel) setNovel(foundNovel);
 
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
-    const foundChapter = allChapters.find(c => c.novelId === novelId && c.number === chapterNumber);
+    let novelChapters = allChapters.filter(c => c.novelId === novelId);
+
+    // Filter out scheduled chapters for non-author / non-owner users
+    if (currentUser.role !== 'OWNER' && foundNovel?.translatorId !== currentUser.id) {
+      novelChapters = novelChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
+    }
+
+    // Sort chapters by number ascending
+    novelChapters.sort((a, b) => a.number - b.number);
+
+    const currentIndex = novelChapters.findIndex(c => c.number === chapterNumber);
+    setHasPrevChapter(currentIndex > 0);
+    setHasNextChapter(currentIndex !== -1 && currentIndex < novelChapters.length - 1);
+
+    const foundChapter = novelChapters.find(c => c.number === chapterNumber);
     if (foundChapter) {
       setChapter(foundChapter);
       
@@ -71,7 +87,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       const updatedNovels = allNovels.map(n => n.id === novelId ? { ...n, views: n.views + 1 } : n);
       BerryDatabase.set('novels', updatedNovels);
     }
-  }, [novelId, chapterNumber]);
+  }, [novelId, chapterNumber, currentUser]);
 
   // Track scrolling progress
   useEffect(() => {
@@ -415,8 +431,9 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
         {/* Navigation bottom buttons (with correctly inverted arrow icons) */}
         <div className="flex flex-wrap justify-between items-center gap-2 border-t border-white/5 pt-8 mt-12 select-none">
           <button
-            onClick={() => onNavigateChapter('prev')}
-            className="px-3 sm:px-5 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer transition-all border border-white/5 hover:border-white/10"
+            onClick={() => hasPrevChapter && onNavigateChapter('prev')}
+            disabled={!hasPrevChapter}
+            className="px-3 sm:px-5 py-3 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 disabled:cursor-not-allowed rounded-xl text-xs font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer transition-all border border-white/5 hover:border-white/10"
           >
             <ChevronRight size={14} className="text-purple-400" />
             <span>الفصل السابق</span>
@@ -430,8 +447,9 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
           </button>
 
           <button
-            onClick={() => onNavigateChapter('next')}
-            className="px-3 sm:px-5 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-md shadow-violet-500/10"
+            onClick={() => hasNextChapter && onNavigateChapter('next')}
+            disabled={!hasNextChapter}
+            className="px-3 sm:px-5 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:from-[#1A1625] disabled:to-[#1A1625] disabled:border-white/5 disabled:text-purple-300/30 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-md shadow-violet-500/10"
           >
             <span>الفصل التالي</span>
             <ChevronLeft size={14} className="text-white" />

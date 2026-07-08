@@ -468,6 +468,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     BerryDatabase.set('novels', updatedNovels);
 
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const deletedChaptersList = allChapters.filter(c => c.novelId === novel.id);
+    const deletedChapterIds = deletedChaptersList.map(c => c.id);
     const updatedChapters = allChapters.filter(c => c.novelId !== novel.id);
     BerryDatabase.set('chapters', updatedChapters);
 
@@ -475,9 +477,77 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const updatedReservations = allReservations.filter(r => r.novelId !== novel.id);
     BerryDatabase.set('reservations', updatedReservations);
 
+    // Delete comments associated with novel or its chapters
+    const allComments = BerryDatabase.get<any[]>('comments', []);
+    const updatedComments = allComments.filter(c => c.refId !== novel.id && !deletedChapterIds.includes(c.refId));
+    BerryDatabase.set('comments', updatedComments);
+
+    // Delete reviews
+    const allReviews = BerryDatabase.get<any[]>('reviews', []);
+    const updatedReviews = allReviews.filter(r => r.novelId !== novel.id);
+    BerryDatabase.set('reviews', updatedReviews);
+
+    // Delete bookmarks
+    const allBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+    const updatedBookmarks = allBookmarks.filter(id => id !== novel.id);
+    BerryDatabase.set('bookmarks', updatedBookmarks);
+
+    // Delete reading history
+    const allHistory = BerryDatabase.get<any[]>('reading_history', []);
+    const updatedHistory = allHistory.filter(h => h.novelId !== novel.id);
+    BerryDatabase.set('reading_history', updatedHistory);
+
+    // Delete from deleted_chapters
+    const allDeletedChapters = BerryDatabase.get<any[]>('deleted_chapters', []);
+    const updatedDeletedChapters = allDeletedChapters.filter(c => c.novelId !== novel.id);
+    BerryDatabase.set('deleted_chapters', updatedDeletedChapters);
+
     window.dispatchEvent(new Event('novels-updated'));
     alert(`تم حذف الرواية "${novel.titleAr}" بنجاح مع كافة فصولها وبياناتها!`);
     onBack();
+  };
+
+  const handleDeleteChapterByOwner = (chapterId: string, chapterNumber: number) => {
+    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
+      alert('عذراً، هذه الصلاحية مخصصة لمالك الموقع فقط!');
+      return;
+    }
+
+    const isConfirmed1 = window.confirm(`هل أنت متأكد من رغبتك في حذف الفصل رقم ${chapterNumber}؟`);
+    if (!isConfirmed1) return;
+
+    const isConfirmed2 = window.confirm(`تأكيد أخير: هل أنت متأكد تماماً من حذف الفصل رقم ${chapterNumber} وكافة تعليقاته نهائياً؟ هذا الإجراء لا يمكن التراجع عنه!`);
+    if (!isConfirmed2) return;
+
+    // Delete from active chapters
+    const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const remainingChapters = allChapters.filter(c => c.id !== chapterId);
+    BerryDatabase.set('chapters', remainingChapters);
+
+    // Filter local state
+    setChapters(prev => prev.filter(c => c.id !== chapterId));
+
+    // Delete comments associated with this chapter
+    const allComments = BerryDatabase.get<any[]>('comments', []);
+    const remainingComments = allComments.filter(c => c.refId !== chapterId);
+    BerryDatabase.set('comments', remainingComments);
+
+    // Reduce chaptersCount of the novel
+    if (novel) {
+      const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+      const updatedNovels = allNovels.map(n => {
+        if (n.id === novel.id) {
+          const newCount = Math.max(0, n.chaptersCount - 1);
+          return { ...n, chaptersCount: newCount };
+        }
+        return n;
+      });
+      BerryDatabase.set('novels', updatedNovels);
+      setNovel(prev => prev ? { ...prev, chaptersCount: Math.max(0, prev.chaptersCount - 1) } : null);
+    }
+
+    alert(`تم حذف الفصل رقم ${chapterNumber} بنجاح مع كافة تعليقاته نهائياً! 🗑️`);
+    window.dispatchEvent(new Event('novels-updated'));
   };
 
   return (
@@ -958,6 +1028,18 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                               title={`تنزيل الفصل ${chapter.number} كملف نصي`}
                             >
                               <Download size={13} />
+                            </button>
+                          )}
+                          {currentUser.role === 'OWNER' && (
+                            <button
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                handleDeleteChapterByOwner(chapter.id, chapter.number); 
+                              }}
+                              className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                              title={`حذف الفصل ${chapter.number} نهائياً`}
+                            >
+                              <Trash2 size={13} />
                             </button>
                           )}
                           <span className="px-3 py-1.5 bg-white/5 text-purple-300 rounded-xl text-[11px] font-bold group-hover:bg-violet-600 group-hover:text-white transition-all">

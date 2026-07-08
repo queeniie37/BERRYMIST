@@ -147,12 +147,39 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
     // Also delete chapters & reservations
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const deletedChaptersList = allChapters.filter(c => c.novelId === novelId);
+    const deletedChapterIds = deletedChaptersList.map(c => c.id);
     const updatedChapters = allChapters.filter(c => c.novelId !== novelId);
     BerryDatabase.set('chapters', updatedChapters);
 
     const allReservations = BerryDatabase.get<any[]>('reservations', []);
     const updatedReservations = allReservations.filter(r => r.novelId !== novelId);
     BerryDatabase.set('reservations', updatedReservations);
+
+    // Delete comments associated with novel or its chapters
+    const allComments = BerryDatabase.get<any[]>('comments', []);
+    const updatedComments = allComments.filter(c => c.refId !== novelId && !deletedChapterIds.includes(c.refId));
+    BerryDatabase.set('comments', updatedComments);
+
+    // Delete reviews
+    const allReviews = BerryDatabase.get<any[]>('reviews', []);
+    const updatedReviews = allReviews.filter(r => r.novelId !== novelId);
+    BerryDatabase.set('reviews', updatedReviews);
+
+    // Delete bookmarks
+    const allBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+    const updatedBookmarks = allBookmarks.filter(id => id !== novelId);
+    BerryDatabase.set('bookmarks', updatedBookmarks);
+
+    // Delete reading history
+    const allHistory = BerryDatabase.get<any[]>('reading_history', []);
+    const updatedHistory = allHistory.filter(h => h.novelId !== novelId);
+    BerryDatabase.set('reading_history', updatedHistory);
+
+    // Delete from deleted_chapters
+    const allDeletedChapters = BerryDatabase.get<any[]>('deleted_chapters', []);
+    const updatedDeletedChapters = allDeletedChapters.filter(c => c.novelId !== novelId);
+    BerryDatabase.set('deleted_chapters', updatedDeletedChapters);
 
     window.dispatchEvent(new Event('novels-updated'));
     alert(`تم حذف الرواية "${target.titleAr}" بنجاح مع كافة فصولها وبياناتها!`);

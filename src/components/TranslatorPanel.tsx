@@ -74,6 +74,10 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     if (currentUser.role === 'OWNER') {
       return { allowed: true, reason: 'مالك الموقع لديه صلاحية كاملة دائماً', daysLeft: 15 };
     }
+    const isScheduled = chapter.publishAt && new Date(chapter.publishAt) > new Date();
+    if (isScheduled) {
+      return { allowed: true, reason: 'الفصول المجدولة قابلة للتعديل دائماً', daysLeft: 15 };
+    }
     const createdDate = new Date(chapter.createdAt);
     const now = new Date();
     const diffTime = now.getTime() - createdDate.getTime();
@@ -155,8 +159,11 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       return;
     }
 
-    const isConfirmed = window.confirm('هل أنت متأكد تماماً من حذف هذا الفصل؟ سيتم نقله إلى أرشيف الفصول المحذوفة ويمكنك استعادته أو حذفه نهائياً من هناك.');
-    if (!isConfirmed) return;
+    const isConfirmed1 = window.confirm('هل أنت متأكد تماماً من حذف هذا الفصل؟ سيتم نقله إلى أرشيف الفصول المحذوفة ويمكنك استعادته أو حذفه نهائياً من هناك.');
+    if (!isConfirmed1) return;
+
+    const isConfirmed2 = window.confirm('تأكيد أخير (الخطوة الثانية والأخيرة): هل أنت متأكد تماماً وبشكل قاطع من حذف هذا الفصل؟');
+    if (!isConfirmed2) return;
 
     // Remove from active chapters
     const remainingChapters = allChapters.filter(c => c.id !== chapterId);
