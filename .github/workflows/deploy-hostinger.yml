@@ -42,9 +42,11 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           # Local build output that gets uploaded:
           local-dir: ./dist/
-          # Hostinger web root. For the main domain this is usually /public_html/
-          # For a subdomain/addon domain, point it at that domain's folder instead.
-          server-dir: /public_html/
+          # Hostinger web root. Defaults to /public_html/ (main domain).
+          # For a subdomain (e.g. berrymist.elarisagency.com) add an optional
+          # FTP_SERVER_DIR secret with that subdomain's folder, e.g.
+          # /public_html/berrymist/ or /domains/berrymist.elarisagency.com/public_html/
+          server-dir: ${{ secrets.FTP_SERVER_DIR || '/public_html/' }}
           # Keep the shared database file on the server between deploys so
           # published novels are never wiped by a redeploy.
           exclude: |
