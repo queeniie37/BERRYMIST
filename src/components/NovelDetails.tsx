@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown, FileText, ChevronLeft, Undo2, Redo2, BookOpen, Info } from 'lucide-react';
 import { Novel, Chapter, Comment, Review, User, UserRole, Report } from '../types';
 import { BerryDatabase } from '../data';
@@ -87,6 +87,24 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [publishTimeType, setPublishTimeType] = useState<'now' | 'schedule'>('now');
   const [contentHistory, setContentHistory] = useState<string[]>(['']);
   const [historyIdx, setHistoryIdx] = useState(0);
+
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastHtmlRef = useRef('');
+
+  useEffect(() => {
+    if (showAddChapterForm) {
+      if (editorRef.current && newChapterContent !== lastHtmlRef.current) {
+        editorRef.current.innerHTML = newChapterContent;
+        lastHtmlRef.current = newChapterContent;
+      }
+    }
+  }, [showAddChapterForm, newChapterContent]);
+
+  const handleEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    lastHtmlRef.current = html;
+    handleContentChange(html);
+  };
 
   const downloadFullNovelAndChapters = () => {
     if (!novel) return;
@@ -480,26 +498,14 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   // Helper to apply HTML tags for rich text
   const applyFormat = (tag: string) => {
-    const textarea = document.getElementById('chapter-content-textarea') as HTMLTextAreaElement;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selected = text.substring(start, end);
-    const replacement = `<${tag}>${selected || 'نص التنسيق'}</${tag}>`;
-    const updatedContent = text.substring(0, start) + replacement + text.substring(end);
-    setNewChapterContent(updatedContent);
-    
-    // Add to history
-    const nextHistory = contentHistory.slice(0, historyIdx + 1);
-    nextHistory.push(updatedContent);
-    setContentHistory(nextHistory);
-    setHistoryIdx(nextHistory.length - 1);
-    
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + (selected || 'نص التنسيق').length);
-    }, 0);
+    if (editorRef.current) {
+      editorRef.current.focus();
+      const command = tag === 'b' ? 'bold' : tag === 'i' ? 'italic' : tag === 'u' ? 'underline' : tag;
+      document.execCommand(command, false);
+      const html = editorRef.current.innerHTML;
+      lastHtmlRef.current = html;
+      handleContentChange(html);
+    }
   };
 
   const handleContentChange = (val: string) => {
@@ -529,27 +535,13 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   };
 
   const insertTextAtCursor = (textToInsert: string) => {
-    const textarea = document.getElementById('chapter-content-textarea') as HTMLTextAreaElement;
-    if (!textarea) {
-      setNewChapterContent(prev => prev + textToInsert);
-      return;
+    if (editorRef.current) {
+      editorRef.current.focus();
+      document.execCommand('insertHTML', false, textToInsert);
+      const html = editorRef.current.innerHTML;
+      lastHtmlRef.current = html;
+      handleContentChange(html);
     }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const updatedContent = text.substring(0, start) + textToInsert + text.substring(end);
-    setNewChapterContent(updatedContent);
-    
-    // Add to history
-    const nextHistory = contentHistory.slice(0, historyIdx + 1);
-    nextHistory.push(updatedContent);
-    setContentHistory(nextHistory);
-    setHistoryIdx(nextHistory.length - 1);
-    
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
-    }, 0);
   };
 
   // Convert uploaded PNG/images to Base64 data urls and insert them immediately in the text content at cursor
@@ -566,19 +558,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        const imgTag = `\n(PNG, JPG: ${base64String})\n`;
+        // Insert clean standard <img> tag at cursor
+        const imgTag = `<img src="${base64String}" />`;
         insertTextAtCursor(imgTag);
       };
       reader.readAsDataURL(file);
     });
-  };
-
-  const removeAttachedImage = (indexToRemove: number) => {
-    const list = newChapterImages.split(',')
-      .map(url => url.trim())
-      .filter(url => url.length > 0);
-    const updated = list.filter((_, idx) => idx !== indexToRemove);
-    setNewChapterImages(updated.join(', '));
   };
 
   // Translator: Create Chapter handler
@@ -894,13 +879,13 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           </div>
 
           {/* Content Area */}
-          <textarea 
+          <div 
+            ref={editorRef}
             id="chapter-content-textarea"
-            required
+            contentEditable
+            onInput={handleEditorInput}
             placeholder="محتوى الفصل"
-            value={newChapterContent}
-            onChange={(e) => handleContentChange(e.target.value)}
-            className="w-full bg-[#13101E] px-4 py-4 text-xs text-white text-right outline-none font-sans min-h-[50vh] resize-y placeholder-purple-300/40"
+            className="w-full bg-[#13101E] px-4 py-4 text-xs text-white text-right outline-none font-sans min-h-[50vh] overflow-y-auto placeholder-purple-300/40 border border-white/5 rounded-xl empty:before:content-[attr(placeholder)] empty:before:text-purple-300/40 empty:before:pointer-events-none focus:border-violet-500 transition-all [&_img]:max-h-[300px] [&_img]:w-auto [&_img]:max-w-full [&_img]:my-4 [&_img]:mx-auto [&_img]:rounded-xl [&_img]:shadow-lg [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain"
           />
         </div>
 
@@ -910,7 +895,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             type="button"
             onClick={() => {
               alert('تمت إعادة تهيئة صندوق المحرر وتحديث الاستجابة بنجاح! يمكنكم المتابعة الآن بشكل طبيعي.');
-              document.getElementById('chapter-content-textarea')?.focus();
+              editorRef.current?.focus();
             }}
             className="text-[#1384e0] hover:underline font-semibold cursor-pointer"
           >
@@ -926,41 +911,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           onChange={handleImageUpload}
           className="hidden"
         />
-
-        {/* 6. Live Chapter Content Preview */}
-        <div className="mb-6 p-6 rounded-2xl bg-[#171324] border border-white/5 text-right relative overflow-hidden shadow-xl">
-          <div className="absolute top-0 left-0 w-32 h-32 bg-violet-600/5 rounded-full blur-[40px] pointer-events-none" />
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-fuchsia-600/5 rounded-full blur-[40px] pointer-events-none" />
-          
-          <div className="flex items-center gap-2 justify-end border-b border-white/5 pb-3 mb-4 select-none">
-            <div>
-              <h4 className="text-xs font-extrabold text-white">معاينة حية وتفاعلية لمحتوى الفصل 👁️✨</h4>
-              <p className="text-[10px] text-purple-400 mt-0.5">هنا يمكنك رؤية كيف سيظهر النص والصور المرفقة للقارئ فورا وبشكل حي.</p>
-            </div>
-            <div className="p-1.5 bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-lg shrink-0">
-              <Eye size={14} />
-            </div>
-          </div>
-
-          <div className="min-h-[150px] bg-[#0E0C16] rounded-xl p-5 border border-white/5 font-sans text-xs text-purple-100 leading-relaxed overflow-y-auto max-h-[60vh] text-right">
-            {newChapterContent ? (
-              <div className="space-y-4">
-                {newChapterContent.split('\n\n').map((para, idx) => (
-                  <p 
-                    key={idx} 
-                    className="whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: sanitizeChapterHtml(para) }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-purple-400/50 select-none">
-                <BookOpen size={24} className="mb-2 opacity-40 animate-pulse" />
-                <p className="text-[11px]">اكتب شيئاً أو أدرج صورة في المحرر لتظهر معاينتها الحية هنا...</p>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* 7. Publishing Date selectors */}
         <div className="flex flex-col gap-2.5 text-right mb-8">
