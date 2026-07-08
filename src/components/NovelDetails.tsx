@@ -1,7 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown, FileText, ChevronLeft, Undo2, Redo2, BookOpen, Info } from 'lucide-react';
-import { Novel, Chapter, Comment, Review, User, UserRole } from '../types';
+import { Novel, Chapter, Comment, Review, User, UserRole, Report } from '../types';
 import { BerryDatabase } from '../data';
+
+function sanitizeChapterHtml(raw: string): string {
+  const escaped = raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Restore simple formatting tags
+  let restored = escaped.replace(/&lt;(\/?)(b|i|u)&gt;/gi, '<$1$2>');
+  
+  // Restore img tags
+  restored = restored.replace(/&lt;img\s+src="([^"]+)"\s*(?:\/)?&gt;/gi, (match, src) => {
+    return `<img src="${src}" class="max-h-[300px] sm:max-h-[500px] w-auto max-w-full my-4 mx-auto rounded-xl shadow-lg border border-white/10 block object-contain" />`;
+  });
+  
+  return restored;
+}
+
+function extractImagesFromContent(text: string): string[] {
+  const urls: string[] = [];
+  const regex = /<img\s+src="([^"]+)"\s*(?:\/)?\s*>/gi;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    urls.push(match[1]);
+  }
+  return urls;
+}
 
 interface NovelDetailsProps {
   novelId: string;
@@ -18,6 +45,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [readChapters, setReadChapters] = useState<any[]>([]);
   // Chapter list ordering: true = ascending (1 → N), false = descending (N → 1)
   const [chaptersAscending, setChaptersAscending] = useState(true);
   
@@ -29,6 +57,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [commentText, setCommentText] = useState('');
   const [replyTexts, setReplyTexts] = useState<{ [commentId: string]: string }>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [reportingComment, setReportingComment] = useState<Comment | null>(null);
+  const [reportReason, setReportReason] = useState('محتوى مسيء / غير لائق');
+  const [reportDetails, setReportDetails] = useState('');
+  const [isSpoilerComment, setIsSpoilerComment] = useState(false);
+  const [revealedSpoilers, setRevealedSpoilers] = useState<string[]>([]);
 
   // Add chapter simulator state
   const [showAddChapterForm, setShowAddChapterForm] = useState(false);
@@ -142,6 +175,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const foundComments = allComments.filter(c => c.refId === novelId || foundChapters.some(ch => ch.id === c.refId));
     setComments(foundComments);
+
+    const allRead = BerryDatabase.get<any[]>('read_chapters', []);
+    const myRead = allRead.filter(rc => rc.userId === (currentUser?.id || 'guest'));
+    setReadChapters(myRead);
 
     const allReservations = BerryDatabase.get<any[]>('reservations', []);
     const activeRes = allReservations.find(r => r.novelId === novelId && r.status === 'ACTIVE');
@@ -274,7 +311,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       likes: 0,
       likedBy: [],
       replies: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      isSpoiler: isSpoilerComment
     };
 
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
@@ -282,6 +320,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     BerryDatabase.set('comments', updated);
     setComments(updated.filter(c => c.refId === novel.id || chapters.some(ch => ch.id === c.refId)));
     setCommentText('');
+    setIsSpoilerComment(false);
   };
 
   // Like comment handler
@@ -330,6 +369,99 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setComments(updated.filter(c => c.refId === novel.id || chapters.some(ch => ch.id === c.refId)));
     setReplyTexts({ ...replyTexts, [commentId]: '' });
     setActiveReplyId(null);
+  };
+
+  // Report offensive comment handler
+  const handleReportComment = (comment: Comment) => {
+    setReportingComment(comment);
+    setReportReason('محتوى مسيء / غير لائق');
+    setReportDetails('');
+  };
+
+  const submitReport = () => {
+    if (!reportingComment) return;
+
+    // Resolve Novel & Chapter names
+    let novelTitle = novel?.titleAr || '';
+    let chapterNumStr = '';
+
+    const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
+    const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+
+    if (reportingComment.refType === 'CHAPTER') {
+      const ch = allChapters.find(c => c.id === reportingComment.refId);
+      if (ch) {
+        chapterNumStr = `الفصل ${ch.number}`;
+        const n = allNovels.find(nv => nv.id === ch.novelId);
+        if (n) {
+          novelTitle = n.titleAr;
+        }
+      }
+    } else {
+      const n = allNovels.find(nv => nv.id === reportingComment.refId);
+      if (n) {
+        novelTitle = n.titleAr;
+      }
+    }
+
+    const newReport: Report = {
+      id: 'report-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+      type: 'COMMENT',
+      targetId: reportingComment.id,
+      targetName: `${reportingComment.authorName}: ${reportingComment.content}`,
+      reason: reportReason,
+      details: `رواية: ${novelTitle}${chapterNumStr ? ` • ${chapterNumStr}` : ''}${reportDetails ? ` - التفاصيل: ${reportDetails}` : ''}`,
+      reportedBy: currentUser.role === 'GUEST' ? 'زائر' : currentUser.username,
+      status: 'PENDING',
+      createdAt: new Date().toISOString()
+    };
+
+    const reports = BerryDatabase.get<Report[]>('reports', []);
+    BerryDatabase.set('reports', [...reports, newReport]);
+
+    // Send a system notification immediately to the Owner
+    const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+    // Find all owner users
+    const owners = usersDb.filter(u => u && (u.role === 'OWNER' || u.email?.toLowerCase() === 'hanona37hh@gmail.com'));
+    const ownerIds = owners.map(u => u.id);
+    if (ownerIds.length === 0) ownerIds.push('berrymist-owner'); // Fallback
+
+    const newOwnerNotifs = ownerIds.map(oId => ({
+      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: oId,
+      title: '🚨 بلاغ جديد عن تعليق مسيء!',
+      message: `قام ${newReport.reportedBy} بالإبلاغ عن تعليق مسيء في ${newReport.details}. محتوى التعليق: "${reportingComment.content}"`,
+      type: 'SYSTEM',
+      isRead: false,
+      createdAt: 'الآن'
+    }));
+
+    BerryDatabase.set('notifications', [...allNotifs, ...newOwnerNotifs]);
+
+    alert('تم إرسال البلاغ لمالك المنصة بنجاح وسيتم اتخاذ الإجراء المناسب فوراً.');
+    setReportingComment(null);
+    setReportDetails('');
+  };
+
+  // Delete comment handler for Owner
+  const handleDeleteComment = (commentId: string) => {
+    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
+      alert('عذراً، هذه الصلاحية مخصصة لمالك الموقع فقط!');
+      return;
+    }
+
+    if (!confirm('هل أنت متأكد من رغبتك في حذف هذا التعليق نهائياً؟')) {
+      return;
+    }
+
+    const allComments = BerryDatabase.get<Comment[]>('comments', []);
+    const updated = allComments.filter(c => c.id !== commentId);
+    BerryDatabase.set('comments', updated);
+    if (novel) {
+      setComments(updated.filter(c => c.refId === novel.id || chapters.some(ch => ch.id === c.refId)));
+    }
+    alert('تم حذف التعليق بنجاح.');
   };
 
   // Helper to apply HTML tags for rich text
@@ -382,13 +514,36 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     }
   };
 
-  // Convert uploaded PNG/images to Base64 data urls
+  const insertTextAtCursor = (textToInsert: string) => {
+    const textarea = document.getElementById('chapter-content-textarea') as HTMLTextAreaElement;
+    if (!textarea) {
+      setNewChapterContent(prev => prev + textToInsert);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const updatedContent = text.substring(0, start) + textToInsert + text.substring(end);
+    setNewChapterContent(updatedContent);
+    
+    // Add to history
+    const nextHistory = contentHistory.slice(0, historyIdx + 1);
+    nextHistory.push(updatedContent);
+    setContentHistory(nextHistory);
+    setHistoryIdx(nextHistory.length - 1);
+    
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
+    }, 0);
+  };
+
+  // Convert uploaded PNG/images to Base64 data urls and insert them immediately in the text content at cursor
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     Array.from(files).forEach((file: any) => {
-      // Validate file size or type if needed, but standard images are perfect
       if (!file.type.startsWith('image/')) {
         alert('يرجى اختيار ملفات صور فقط (PNG, JPG, JPEG, GIF)');
         return;
@@ -397,7 +552,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        setNewChapterImages(prev => prev ? `${prev}, ${base64String}` : base64String);
+        const imgTag = `\n<img src="${base64String}" />\n`;
+        insertTextAtCursor(imgTag);
       };
       reader.readAsDataURL(file);
     });
@@ -417,9 +573,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     if (!newChapterTitle || !newChapterContent) return;
 
     const newChapterNum = Number(newChapterNumber) || chapters.length + 1;
-    const imgUrls = newChapterImages.split(',')
-      .map(url => url.trim())
-      .filter(url => url.length > 0);
+    const imgUrls = extractImagesFromContent(newChapterContent);
 
     const isScheduled = newChapterPublishAt ? new Date(newChapterPublishAt) > new Date() : false;
 
@@ -750,76 +904,47 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           </button>
         </div>
 
-        {/* 6. Chapter Images and PNG Upload panel */}
-        <div className="mb-6 p-4 rounded-xl bg-[#13101E]/60 border border-white/5 text-right">
-          <div className="flex justify-between items-center mb-3">
-            <button
-              type="button"
-              onClick={() => {
-                const demoUrls = [
-                  'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600',
-                  'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
-                  'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600'
-                ];
-                const randomUrl = demoUrls[Math.floor(Math.random() * demoUrls.length)];
-                setNewChapterImages(prev => prev ? `${prev}, ${randomUrl}` : randomUrl);
-              }}
-              className="text-[10px] bg-violet-600/10 hover:bg-violet-600/30 text-violet-300 border border-violet-500/10 px-2.5 py-1 rounded-xl cursor-pointer transition-all"
-            >
-              ⚡ توليد صورة عشوائية للمحاكاة
-            </button>
-            <label className="text-xs font-bold text-purple-300 flex items-center gap-2 justify-end">
-              <span>إرفاق صور ورسومات الفصل (PNG, JPG)</span>
-              <Image size={14} className="text-violet-400" />
-            </label>
-          </div>
+        <input 
+          type="file" 
+          id="png-uploader"
+          accept="image/*"
+          multiple
+          onChange={handleImageUpload}
+          className="hidden"
+        />
 
-          <div className="flex flex-col items-center justify-center border border-dashed border-violet-500/20 hover:border-violet-500/50 bg-[#1A1625]/40 p-4 rounded-xl text-center transition-colors">
-            <input 
-              type="file" 
-              id="png-uploader"
-              accept="image/*"
-              multiple
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-            <label 
-              htmlFor="png-uploader"
-              className="cursor-pointer flex flex-col items-center gap-1 w-full py-2"
-            >
-              <Upload size={20} className="text-violet-400 mb-1" />
-              <span className="text-xs font-bold text-white">اضغط هنا لرفع صور PNG أو سحبها وإفلاتها مباشرة 📂</span>
-              <span className="text-[9px] text-purple-400">يدعم صيغ PNG, JPG, WebP وGIF</span>
-            </label>
-          </div>
-
-          {newChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).length > 0 && (
-            <div className="flex flex-wrap gap-2.5 mt-3 p-2 bg-black/20 rounded-xl border border-white/5">
-              {newChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).map((url, idx) => (
-                <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-white/10 shrink-0 shadow-md">
-                  <img src={url} alt="Chapter attach" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeAttachedImage(idx)}
-                    className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer text-[10px] font-bold"
-                  >
-                    حذف ✕
-                  </button>
-                </div>
-              ))}
+        {/* 6. Live Chapter Content Preview */}
+        <div className="mb-6 p-6 rounded-2xl bg-[#171324] border border-white/5 text-right relative overflow-hidden shadow-xl">
+          <div className="absolute top-0 left-0 w-32 h-32 bg-violet-600/5 rounded-full blur-[40px] pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-32 h-32 bg-fuchsia-600/5 rounded-full blur-[40px] pointer-events-none" />
+          
+          <div className="flex items-center gap-2 justify-end border-b border-white/5 pb-3 mb-4 select-none">
+            <div>
+              <h4 className="text-xs font-extrabold text-white">معاينة حية وتفاعلية لمحتوى الفصل 👁️✨</h4>
+              <p className="text-[10px] text-purple-400 mt-0.5">هنا يمكنك رؤية كيف سيظهر النص والصور المرفقة للقارئ فورا وبشكل حي.</p>
             </div>
-          )}
+            <div className="p-1.5 bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-lg shrink-0">
+              <Eye size={14} />
+            </div>
+          </div>
 
-          {/* Text field backup */}
-          <div className="flex flex-col gap-1 mt-3">
-            <span className="text-[10px] font-bold text-purple-300">روابط الصور المرفقة يدوياً (مفصولة بفاصلة):</span>
-            <input 
-              type="text" 
-              placeholder="رابط الصورة 1, رابط الصورة 2..."
-              value={newChapterImages}
-              onChange={(e) => setNewChapterImages(e.target.value)}
-              className="bg-[#1A1625] border border-white/5 rounded-xl px-4 py-2 text-xs outline-none focus:border-violet-500 text-white"
-            />
+          <div className="min-h-[150px] bg-[#0E0C16] rounded-xl p-5 border border-white/5 font-sans text-xs text-purple-100 leading-relaxed overflow-y-auto max-h-[60vh] text-right">
+            {newChapterContent ? (
+              <div className="space-y-4">
+                {newChapterContent.split('\n\n').map((para, idx) => (
+                  <p 
+                    key={idx} 
+                    className="whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: sanitizeChapterHtml(para) }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-purple-400/50 select-none">
+                <BookOpen size={24} className="mb-2 opacity-40 animate-pulse" />
+                <p className="text-[11px]">اكتب شيئاً أو أدرج صورة في المحرر لتظهر معاينتها الحية هنا...</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -997,7 +1122,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             </div>
             <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-center">
               <span className="text-xs text-purple-400 block mb-1">الفصول</span>
-              <span className="font-bold text-white text-base">{novel.chaptersCount}</span>
+              <span className="font-bold text-white text-base">{chapters.length}</span>
             </div>
             <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-center">
               <span className="text-xs text-purple-400 block mb-1">المفضلة</span>
@@ -1158,17 +1283,27 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[...chapters].sort((a, b) => chaptersAscending ? a.number - b.number : b.number - a.number).map((chapter) => {
                     const canDownloadChapter = currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING');
+                    const isRead = readChapters.some(rc => rc.novelId === novel.id && rc.chapterNumber === chapter.number);
                     return (
                       <div
                         key={chapter.id}
                         onClick={() => onReadChapter(novel.id, chapter.number)}
-                        className="group p-4 bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex items-center justify-between gap-2 cursor-pointer transition-all hover:bg-violet-950/5 text-right"
+                        className={`group p-4 rounded-2xl flex items-center justify-between gap-2 cursor-pointer transition-all text-right border ${
+                          isRead
+                            ? 'bg-violet-900/15 border-violet-500/40 hover:bg-violet-900/25 hover:border-violet-400'
+                            : 'bg-[#1A1625] border-white/5 hover:border-violet-500/20 hover:bg-violet-950/5'
+                        }`}
                       >
                         <div className="min-w-0">
-                          <h4 className="font-bold text-xs text-purple-100 group-hover:text-violet-400 transition-colors truncate">
+                          <h4 className={`font-bold text-xs transition-colors truncate ${isRead ? 'text-violet-300 group-hover:text-violet-200' : 'text-purple-100 group-hover:text-violet-400'}`}>
                             الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+                            {isRead && (
+                              <span className="mr-2 text-[9px] bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-normal">
+                                تمت القراءة ✔️
+                              </span>
+                            )}
                           </h4>
-                          <span className="text-[10px] text-purple-400 mt-1 block">
+                          <span className={`text-[10px] mt-1 block ${isRead ? 'text-violet-400/80' : 'text-purple-400'}`}>
                             تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}
                           </span>
                         </div>
@@ -1194,8 +1329,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                               <Trash2 size={13} />
                             </button>
                           )}
-                          <span className="px-3 py-1.5 bg-white/5 text-purple-300 rounded-xl text-[11px] font-bold group-hover:bg-violet-600 group-hover:text-white transition-all">
-                            قراءة الفصل ←
+                          <span className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
+                            isRead
+                              ? 'bg-violet-500/20 text-violet-300 group-hover:bg-violet-600 group-hover:text-white'
+                              : 'bg-white/5 text-purple-300 group-hover:bg-violet-600 group-hover:text-white'
+                          }`}>
+                            {isRead ? 'قراءة مجدداً ←' : 'قراءة الفصل ←'}
                           </span>
                         </div>
                       </div>
@@ -1226,24 +1365,41 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               </div>
 
               {/* Form to submit comment */}
-              <form onSubmit={handleAddComment} className="flex gap-3">
-                <input
-                  type="text"
-                  placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول لكتابة تعليق حول الرواية... 🍇' : 'اكتب تعليقك هنا حول الرواية...'}
-                  readOnly={currentUser.role === 'GUEST'}
-                  onClick={() => {
-                    if (currentUser.role === 'GUEST') window.dispatchEvent(new Event('open-login-modal'));
-                  }}
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  className="flex-1 min-w-0 bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3.5 text-white placeholder-purple-300/40 text-xs text-right transition-all"
-                />
-                <button
-                  type="submit"
-                  className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all cursor-pointer shrink-0"
-                >
-                  إرسال
-                </button>
+              <form onSubmit={handleAddComment} className="flex flex-col gap-2">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder={currentUser.role === 'GUEST' ? 'سجل الدخول لكتابة تعليق حول الرواية... 🍇' : 'اكتب تعليقك هنا حول الرواية...'}
+                    readOnly={currentUser.role === 'GUEST'}
+                    onClick={() => {
+                      if (currentUser.role === 'GUEST') window.dispatchEvent(new Event('open-login-modal'));
+                    }}
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    className="flex-1 min-w-0 bg-[#1A1625] border border-white/5 focus:border-violet-500 outline-none rounded-2xl px-4 py-3.5 text-white placeholder-purple-300/40 text-xs text-right transition-all"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg transition-all cursor-pointer shrink-0"
+                  >
+                    إرسال
+                  </button>
+                </div>
+                {currentUser.role !== 'GUEST' && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsSpoilerComment(!isSpoilerComment)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                        isSpoilerComment
+                          ? 'bg-red-500/15 text-red-400 border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.15)] font-extrabold'
+                          : 'bg-white/5 text-purple-300 border-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>🔥 يحتوي على حرق للأحداث</span>
+                    </button>
+                  </div>
+                )}
               </form>
 
               {/* List of comments */}
@@ -1267,7 +1423,32 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                       </div>
 
                       {/* Comment Content */}
-                      <p className="text-xs text-purple-200 leading-relaxed pr-12">{comment.content}</p>
+                      {comment.isSpoiler && !revealedSpoilers.includes(comment.id) ? (
+                        <div className="pr-12">
+                          <div
+                            onClick={() => setRevealedSpoilers(prev => [...prev, comment.id])}
+                            className="p-3.5 bg-red-950/35 hover:bg-red-950/50 border border-red-500/30 hover:border-red-500/50 rounded-xl cursor-pointer flex items-center justify-between transition-all duration-300 group select-none"
+                          >
+                            <span className="text-xs font-bold text-red-400 flex items-center gap-2">
+                              🚨 يوجد حرق! (اضغط لقراءة التعليق على مسؤوليتك)
+                            </span>
+                            <span className="text-[10px] bg-red-500/20 text-red-300 hover:bg-red-500/30 px-3 py-1.5 rounded-lg font-extrabold transition-colors">
+                              إظهار 👁️
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pr-12">
+                          {comment.isSpoiler && (
+                            <span className="text-[10px] text-red-400 font-extrabold bg-red-500/10 px-2 py-0.5 rounded-lg inline-flex items-center gap-1 mb-2 select-none">
+                              🔥 تعليق حرق (تم كشفه):
+                            </span>
+                          )}
+                          <p className={`text-xs text-purple-200 leading-relaxed ${comment.isSpoiler ? 'border-r-2 border-red-500/40 pr-3 font-sans' : ''}`}>
+                            {comment.content}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Comment Actions (Like / Reply triggers) */}
                       <div className="flex items-center gap-4 pr-12 text-[10px] text-purple-400">
@@ -1289,6 +1470,24 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                         >
                           <span>رد</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReportComment(comment)}
+                          className="hover:text-red-400 transition-colors cursor-pointer flex items-center gap-0.5 text-purple-400/80"
+                          title="الإبلاغ عن تعليق مسيء"
+                        >
+                          <span>🚩 إبلاغ</span>
+                        </button>
+                        {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="hover:text-red-500 transition-colors cursor-pointer flex items-center gap-0.5 text-red-400"
+                            title="حذف التعليق"
+                          >
+                            <span>🗑️ حذف التعليق</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Comment replies */}
@@ -1339,6 +1538,58 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
         </div>
       </div>
+
+      {reportingComment && (
+        <div className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-md flex justify-center items-center p-4">
+          <div className="w-full max-w-md bg-[#161221] border border-white/10 rounded-3xl p-6 text-right shadow-2xl">
+            <h3 className="text-base font-bold text-white mb-2">🚨 الإبلاغ عن تعليق مسيء</h3>
+            <p className="text-xs text-purple-300 mb-4">
+              أنت بصدد الإبلاغ عن تعليق بواسطة <span className="text-violet-400 font-bold">{reportingComment.authorName}</span>:
+            </p>
+            
+            <div className="p-3 bg-white/5 rounded-xl border border-white/5 text-xs text-purple-200 mb-4 max-h-24 overflow-y-auto italic">
+              "{reportingComment.content}"
+            </div>
+
+            <label className="block text-xs font-bold text-purple-300 mb-1.5">سبب الإبلاغ:</label>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-[#1e192c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white mb-4 outline-none focus:border-violet-500"
+            >
+              <option value="محتوى مسيء / غير لائق">محتوى مسيء / غير لائق / شتائم</option>
+              <option value="حرق للأحداث دون تحذير">حرق للأحداث دون تحذير</option>
+              <option value="سرقة مجهود / سبام">سرقة مجهود / سبام / إعلانات</option>
+              <option value="أخرى">أخرى (يرجى توضيحها أدناه)</option>
+            </select>
+
+            <label className="block text-xs font-bold text-purple-300 mb-1.5">تفاصيل إضافية (اختياري):</label>
+            <textarea
+              placeholder="اكتب أي ملاحظات إضافية تساعد المالك في مراجعة البلاغ..."
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              className="w-full h-20 bg-[#1e192c] border border-white/10 rounded-xl px-3 py-2 text-xs text-white mb-5 outline-none focus:border-violet-500 resize-none"
+            />
+
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={submitReport}
+                className="flex-1 py-2.5 bg-gradient-to-r from-red-600 to-violet-600 hover:from-red-500 hover:to-violet-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                إرسال البلاغ
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportingComment(null)}
+                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-purple-300 hover:text-white border border-white/10 rounded-xl text-xs cursor-pointer transition-all"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

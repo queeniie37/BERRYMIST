@@ -114,6 +114,50 @@ const PRIVATE_LOCAL_KEYS = new Set([
 export class BerryDatabase {
   static get<T>(key: string, defaultValue: T): T {
     try {
+      if (key === 'novels') {
+        const data = localStorage.getItem(`berry_mist_novels`);
+        if (data) {
+          const novelsList = JSON.parse(data) as Novel[];
+          const chapsData = localStorage.getItem(`berry_mist_chapters`);
+          const chapsList = chapsData ? JSON.parse(chapsData) as Chapter[] : [];
+          
+          const userStr = localStorage.getItem('berry_mist_current_user_data');
+          const currentUser = userStr ? JSON.parse(userStr) : null;
+          
+          const usersDbStr = localStorage.getItem('berry_mist_users_db');
+          const parsedUsersDb = usersDbStr ? JSON.parse(usersDbStr) : [];
+          
+          const ownerUserIds = new Set<string>();
+          if (Array.isArray(parsedUsersDb)) {
+            parsedUsersDb
+              .filter((u: any) => u && u.email?.toLowerCase() === 'hanona37hh@gmail.com')
+              .forEach((u: any) => ownerUserIds.add(u.id));
+          }
+          ownerUserIds.add('berrymist-owner');
+
+          const updated = novelsList.map(n => {
+            let nChaps = chapsList.filter(c => c.novelId === n.id);
+            
+            // Check if authorized
+            const isPublishedByOwner = ownerUserIds.has(n.translatorId) || n.translatorName === 'BERRYMIST';
+            const isAuthorized = currentUser && (
+              currentUser.role === 'OWNER' || 
+              currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' || 
+              n.translatorId === currentUser.id || 
+              isPublishedByOwner
+            );
+            
+            if (!isAuthorized) {
+              nChaps = nChaps.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
+            }
+            
+            const actualCount = nChaps.length;
+            return { ...n, chaptersCount: actualCount };
+          });
+          return updated as unknown as T;
+        }
+      }
+
       const data = localStorage.getItem(`berry_mist_${key}`);
       return data ? JSON.parse(data) : defaultValue;
     } catch {

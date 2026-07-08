@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck, Upload } from 'lucide-react';
-import { Novel, Suggestion, Reservation, User, TranslatorRequest } from '../types';
+import { Novel, Suggestion, Reservation, User, TranslatorRequest, Report } from '../types';
 import { BerryDatabase } from '../data';
 
 interface AdminPanelProps {
@@ -14,9 +14,10 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports'>('novels');
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [activeRejectId, setActiveRejectId] = useState<string | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
 
   // Users management states
   const [users, setUsers] = useState<any[]>([]);
@@ -130,7 +131,41 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     );
     BerryDatabase.set('users_db', filteredUsers);
     setUsers(filteredUsers);
+
+    // Load reports
+    const allReports = BerryDatabase.get<Report[]>('reports', []);
+    setReports(allReports);
   }, []);
+
+  const handleResolveReport = (reportId: string, action: 'DELETE' | 'DISMISS') => {
+    const allReports = BerryDatabase.get<Report[]>('reports', []);
+    const targetReport = allReports.find(r => r.id === reportId);
+    if (!targetReport) return;
+
+    if (action === 'DELETE') {
+      if (!window.confirm('هل أنت متأكد من رغبتك في حذف هذا التعليق وتلبية البلاغ؟')) {
+        return;
+      }
+      // Delete the actual comment from comments database
+      const allComments = BerryDatabase.get<any[]>('comments', []);
+      const updatedComments = allComments.filter(c => c.id !== targetReport.targetId);
+      BerryDatabase.set('comments', updatedComments);
+
+      // Also mark report as resolved
+      const updatedReports = allReports.map(r => r.id === reportId ? { ...r, status: 'RESOLVED' as const } : r);
+      BerryDatabase.set('reports', updatedReports);
+      setReports(updatedReports);
+      alert('تم حذف التعليق بنجاح وتحديث حالة البلاغ كمحلول. 🎉');
+    } else {
+      if (!window.confirm('هل أنت متأكد من رغبتك في تجاهل هذا البلاغ وأرشفته؟')) {
+        return;
+      }
+      const updatedReports = allReports.map(r => r.id === reportId ? { ...r, status: 'RESOLVED' as const } : r);
+      BerryDatabase.set('reports', updatedReports);
+      setReports(updatedReports);
+      alert('تم تجاهل البلاغ بنجاح وأرشفته كمكتمل.');
+    }
+  };
 
   const handleDeleteNovelFromAdmin = (novelId: string) => {
     const target = allNovels.find(n => n.id === novelId);
@@ -568,6 +603,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
         >
           <span>إدارة رتب الأعضاء 👤</span>
           {activeTab === 'users' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
+        <button 
+          onClick={() => setActiveTab('reports')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'reports' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>بلاغات التعليقات المسيئة ({reports.filter(r => r.status === 'PENDING').length}) 🚨</span>
+          {activeTab === 'reports' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
       </div>
 
@@ -1247,6 +1289,86 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                 {users.filter(u => (u.email || '').toLowerCase() !== 'hanona37hh@gmail.com').length === 0 && (
                   <div className="p-12 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
                     <p className="text-sm">لا يوجد أعضاء آخرون مسجلون في المنصة حالياً لتعديل رتبهم.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: Offensive Comment Reports */}
+        {activeTab === 'reports' && (
+          <div className="flex flex-col gap-6 text-right animate-in fade-in duration-300">
+            <div className="p-6 bg-[#1A1625] rounded-3xl border border-white/5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-48 h-48 bg-red-600/5 rounded-full blur-[60px]" />
+              <div className="absolute bottom-0 right-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
+                <AlertCircle className="text-red-400" size={20} />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white font-sans">بلاغات التعليقات المسيئة والمخالفة 🚨</h3>
+                  <p className="text-[10px] text-purple-400 mt-0.5">بصفتك المالك، يمكنك هنا مراجعة بلاغات الزوار والأعضاء بخصوص التعليقات، وحذف التعليق المخالف مباشرة أو تجاهل البلاغ.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {reports.slice().reverse().map((report) => (
+                  <div 
+                    key={report.id} 
+                    className={`p-5 rounded-2xl bg-white/[0.02] border transition-all duration-300 flex flex-col gap-3 ${report.status === 'PENDING' ? 'border-red-500/20 shadow-lg shadow-red-500/2' : 'border-white/5 opacity-60'}`}
+                  >
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-bold ${report.status === 'PENDING' ? 'bg-red-500/20 text-red-300 animate-pulse' : 'bg-green-500/20 text-green-300'}`}>
+                          {report.status === 'PENDING' ? 'قيد المراجعة ⏳' : 'محلول / مؤرشف ✔️'}
+                        </span>
+                        <span className="text-[10px] text-purple-400">
+                          بواسطة: <span className="text-white font-bold">{report.reportedBy}</span>
+                        </span>
+                        <span className="text-[10px] text-purple-400 font-mono">
+                          {new Date(report.createdAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3.5 rounded-xl border border-white/5">
+                      <div className="text-[10px] text-purple-400 font-bold mb-1">التعليق المبلَّغ عنه:</div>
+                      <p className="text-xs text-purple-100 font-sans leading-relaxed italic">"{report.targetName}"</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-purple-300">
+                      <div>
+                        <span className="font-bold text-purple-200">السبب المحدد: </span>
+                        <span className="text-red-300 font-bold">{report.reason}</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-purple-200">المكان والسياق: </span>
+                        <span className="text-violet-300 font-bold">{report.details || 'غير محدد'}</span>
+                      </div>
+                    </div>
+
+                    {report.status === 'PENDING' && (
+                      <div className="flex justify-end gap-2 border-t border-white/5 pt-3 mt-1">
+                        <button
+                          onClick={() => handleResolveReport(report.id, 'DELETE')}
+                          className="px-4 py-2 bg-gradient-to-r from-red-600 to-violet-600 hover:from-red-500 hover:to-violet-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <span>🗑️ حذف التعليق وتلبية البلاغ</span>
+                        </button>
+                        <button
+                          onClick={() => handleResolveReport(report.id, 'DISMISS')}
+                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-purple-300 hover:text-white border border-white/10 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        >
+                          تجاهل البلاغ وأرشفته
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {reports.length === 0 && (
+                  <div className="p-12 text-center bg-white/5 rounded-2xl border border-white/5 text-purple-400">
+                    <p className="text-sm">لا توجد بلاغات مسجلة بخصوص أي تعليق في المنصة حالياً. 🎉</p>
                   </div>
                 )}
               </div>

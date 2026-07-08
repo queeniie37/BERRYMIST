@@ -120,6 +120,7 @@ export interface CommentReply {
   authorRole: UserRole;
   content: string;
   createdAt: string;
+  isSpoiler?: boolean;
 }
 
 export interface Comment {
@@ -134,6 +135,7 @@ export interface Comment {
   likedBy: string[]; // User IDs
   replies: CommentReply[];
   createdAt: string;
+  isSpoiler?: boolean;
 }
 
 export interface Review {
