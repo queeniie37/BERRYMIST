@@ -886,11 +886,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                     <textarea 
                       id="chapter-content-textarea"
                       required
-                      rows={6}
+                      rows={16}
                       placeholder="اكتب أو الصق نص الفصل المترجم هنا بالكامل... يمكنك تحديد نص والنقر على أزرار التنسيق في الأعلى لجعله كثيفاً، مائلاً، أو تحته خط."
                       value={newChapterContent}
                       onChange={(e) => setNewChapterContent(e.target.value)}
-                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-sans min-h-[160px]"
+                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-sans min-h-[45vh] resize-y"
                     />
                   </div>
 
