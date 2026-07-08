@@ -1,5 +1,9 @@
 # Berry Mist — Apache / Hostinger configuration
 
+# Serve the Berry Mist app first even if WordPress files (index.php) exist in
+# the same folder — the app takes over the (sub)domain it is uploaded to.
+DirectoryIndex index.html index.php
+
 RewriteEngine On
 
 # Route the shared-database API to the PHP handler so the site works without a
