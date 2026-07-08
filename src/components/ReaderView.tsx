@@ -15,8 +15,13 @@ function sanitizeChapterHtml(raw: string): string {
   // Restore simple formatting tags
   let restored = escaped.replace(/&lt;(\/?)(b|i|u)&gt;/gi, '<$1$2>');
   
-  // Restore img tags
+  // Restore img tags (backwards compatibility)
   restored = restored.replace(/&lt;img\s+src="([^"]+)"\s*(?:\/)?&gt;/gi, (match, src) => {
+    return `<img src="${src}" class="max-h-[300px] sm:max-h-[500px] w-auto max-w-full my-4 mx-auto rounded-xl shadow-lg border border-white/10 block object-contain" />`;
+  });
+  
+  // Restore (PNG, JPG: base64) tags
+  restored = restored.replace(/\(PNG,\s*JPG:\s*([^\s)]+)\)/gi, (match, src) => {
     return `<img src="${src}" class="max-h-[300px] sm:max-h-[500px] w-auto max-w-full my-4 mx-auto rounded-xl shadow-lg border border-white/10 block object-contain" />`;
   });
   
