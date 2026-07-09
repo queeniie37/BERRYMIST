@@ -21,6 +21,8 @@ import ReaderView from './components/ReaderView';
 import TranslatorPanel from './components/TranslatorPanel';
 import AdminPanel from './components/AdminPanel';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
+import ContactUs from './components/ContactUs';
 import AdsTicker from './components/AdsTicker';
 import AdsPage from './components/AdsPage';
 import TranslatorRequestForm from './components/TranslatorRequestForm';
@@ -1982,6 +1984,22 @@ export default function App() {
           />
         )}
 
+        {/* ==================== SCREEN 12: TERMS OF SERVICE PAGE ==================== */}
+        {currentPage === 'terms-of-service' && (
+          <TermsOfService 
+            currentUser={currentUser} 
+            onNavigate={handleNavigate} 
+          />
+        )}
+
+        {/* ==================== SCREEN 13: CONTACT US PAGE ==================== */}
+        {currentPage === 'contact-us' && (
+          <ContactUs 
+            currentUser={currentUser} 
+            onNavigate={handleNavigate} 
+          />
+        )}
+
       </main>
 
       {/* Suggest Novel Modal Form Popup Overlay */}
@@ -2198,14 +2216,24 @@ export default function App() {
         <div className="max-w-7xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-purple-400 gap-4">
           <span className="text-center sm:text-right">حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
           <div className="flex flex-wrap justify-center gap-4">
-            <span className="hover:text-white cursor-pointer">شروط الخدمة والاستخدام</span>
+            <span 
+              onClick={() => handleNavigate('terms-of-service')}
+              className="hover:text-white cursor-pointer transition-colors"
+            >
+              شروط الخدمة والاستخدام
+            </span>
             <span 
               onClick={() => handleNavigate('privacy-policy')}
               className="hover:text-white cursor-pointer transition-colors"
             >
               سياسة الخصوصية وحماية البيانات
             </span>
-            <span className="hover:text-white cursor-pointer">DMCA وحقوق الملكية</span>
+            <span 
+              onClick={() => handleNavigate('contact-us')}
+              className="hover:text-white cursor-pointer transition-colors"
+            >
+              اتصل بنا
+            </span>
           </div>
         </div>
 

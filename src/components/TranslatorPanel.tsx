@@ -3,6 +3,7 @@ import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertC
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
 import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
+import ConfirmModal from './ConfirmModal';
 
 interface TranslatorPanelProps {
   currentUser: User;
@@ -14,6 +15,29 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [activeTab, setActiveTab] = useState<'novels' | 'claims' | 'reservations' | 'add-novel' | 'activity' | 'deleted-chapters' | 'edit-requests' | 'points'>('novels');
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    danger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    danger: true
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, danger = true) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      danger
+    });
+  };
   
   // Create novel form
   const [titleAr, setTitleAr] = useState('');
@@ -248,49 +272,49 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       return;
     }
 
-    const isConfirmed1 = window.confirm('هل أنت متأكد تماماً من حذف هذا الفصل؟ سيتم نقله إلى أرشيف الفصول المحذوفة ويمكنك استعادته أو حذفه نهائياً من هناك.');
-    if (!isConfirmed1) return;
+    showConfirm(
+      'حذف الفصل ونقله للأرشيف',
+      `هل أنت متأكد تماماً من حذف هذا الفصل؟ سيتم نقله إلى أرشيف الفصول المحذوفة ويمكنك استعادته أو حذفه نهائياً من هناك.`,
+      () => {
+        // Remove from active chapters
+        const remainingChapters = allChapters.filter(c => c.id !== chapterId);
+        BerryDatabase.set('chapters', remainingChapters);
 
-    const isConfirmed2 = window.confirm('تأكيد أخير (الخطوة الثانية والأخيرة): هل أنت متأكد تماماً وبشكل قاطع من حذف هذا الفصل؟');
-    if (!isConfirmed2) return;
+        // Get original novel title
+        const allNovels = BerryDatabase.get<any[]>('novels', []);
+        const n = allNovels.find(novel => novel.id === chapterToDelete.novelId);
 
-    // Remove from active chapters
-    const remainingChapters = allChapters.filter(c => c.id !== chapterId);
-    BerryDatabase.set('chapters', remainingChapters);
+        // Add to deleted_chapters archive
+        const allDeleted = BerryDatabase.get<any[]>('deleted_chapters', []);
+        const deletedEntry = {
+          ...chapterToDelete,
+          deletedAt: new Date().toISOString(),
+          deletedBy: currentUser.username,
+          deletedById: currentUser.id,
+          novelTitle: n ? n.titleAr : 'رواية غير معروفة'
+        };
+        BerryDatabase.set('deleted_chapters', [...allDeleted, deletedEntry]);
 
-    // Get original novel title
-    const allNovels = BerryDatabase.get<any[]>('novels', []);
-    const n = allNovels.find(novel => novel.id === chapterToDelete.novelId);
-
-    // Add to deleted_chapters archive
-    const allDeleted = BerryDatabase.get<any[]>('deleted_chapters', []);
-    const deletedEntry = {
-      ...chapterToDelete,
-      deletedAt: new Date().toISOString(),
-      deletedBy: currentUser.username,
-      deletedById: currentUser.id,
-      novelTitle: n ? n.titleAr : 'رواية غير معروفة'
-    };
-    BerryDatabase.set('deleted_chapters', [...allDeleted, deletedEntry]);
-
-    // Recalculate chapters count for novel
-    if (n) {
-      const actualCount = remainingChapters.filter(c => c.novelId === n.id).length;
-      const updatedNovels = allNovels.map(novel => {
-        if (novel.id === n.id) {
-          return {
-            ...novel,
-            chaptersCount: actualCount
-          };
+        // Recalculate chapters count for novel
+        if (n) {
+          const actualCount = remainingChapters.filter(c => c.novelId === n.id).length;
+          const updatedNovels = allNovels.map(novel => {
+            if (novel.id === n.id) {
+              return {
+                ...novel,
+                chaptersCount: actualCount
+              };
+            }
+            return novel;
+          });
+          BerryDatabase.set('novels', updatedNovels);
         }
-        return novel;
-      });
-      BerryDatabase.set('novels', updatedNovels);
-    }
 
-    loadChaptersAndDeleted();
-    window.dispatchEvent(new Event('novels-updated'));
-    alert('تم حذف الفصل ونقله إلى الأرشيف بنجاح! 🗑️');
+        loadChaptersAndDeleted();
+        window.dispatchEvent(new Event('novels-updated'));
+        alert('تم حذف الفصل ونقله إلى الأرشيف بنجاح! 🗑️');
+      }
+    );
   };
 
   // Handle restoring a chapter
@@ -331,15 +355,18 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
   // Handle permanently deleting a chapter
   const handlePermanentlyDelete = (deletedId: string) => {
-    const isConfirmed = window.confirm('تحذير: هل أنت متأكد من حذف هذا الفصل نهائياً؟ هذا الإجراء لا يمكن التراجع عنه وسيمحو الفصل تماماً من قواعد البيانات!');
-    if (!isConfirmed) return;
+    showConfirm(
+      'حذف الفصل نهائياً ⚠️',
+      'تحذير: هل أنت متأكد من حذف هذا الفصل نهائياً؟ هذا الإجراء لا يمكن التراجع عنه وسيمحو الفصل تماماً من قواعد البيانات!',
+      () => {
+        const allDeleted = BerryDatabase.get<any[]>('deleted_chapters', []);
+        const remainingDeleted = allDeleted.filter(d => d.id !== deletedId);
+        BerryDatabase.set('deleted_chapters', remainingDeleted);
 
-    const allDeleted = BerryDatabase.get<any[]>('deleted_chapters', []);
-    const remainingDeleted = allDeleted.filter(d => d.id !== deletedId);
-    BerryDatabase.set('deleted_chapters', remainingDeleted);
-
-    loadChaptersAndDeleted();
-    alert('تم حذف الفصل نهائياً وبشكل دائم. ❌');
+        loadChaptersAndDeleted();
+        alert('تم حذف الفصل نهائياً وبشكل دائم. ❌');
+      }
+    );
   };
 
   // Handle opening edit modal
@@ -1652,6 +1679,17 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={() => {
+          confirmConfig.onConfirm();
+          setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        danger={confirmConfig.danger}
+      />
     </div>
   );
 }
