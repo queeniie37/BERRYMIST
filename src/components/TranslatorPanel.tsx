@@ -12,7 +12,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [novels, setNovels] = useState<Novel[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'claims' | 'reservations' | 'add-novel' | 'activity' | 'deleted-chapters'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'claims' | 'reservations' | 'add-novel' | 'activity' | 'deleted-chapters' | 'edit-requests'>('novels');
   
   // Create novel form
   const [titleAr, setTitleAr] = useState('');
@@ -91,43 +91,101 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     return { allowed: true, reason: `متبقي ${daysLeft} يوم للتعديل/الحذف`, daysLeft };
   };
 
-  const downloadNovelAndChapters = (novel: Novel) => {
-    const allChapters = BerryDatabase.get<any[]>('chapters', []);
-    const novelChapters = allChapters
-      .filter(c => c.novelId === novel.id)
-      .sort((a, b) => a.number - b.number);
+  // Edit Request Form States
+  const [reqNovelName, setReqNovelName] = useState('');
+  const [reqChapterName, setReqChapterName] = useState('');
+  const [reqDetails, setReqDetails] = useState('');
+  const [myEditRequests, setMyEditRequests] = useState<any[]>([]);
 
-    let fileContent = `==================================================\r\n`;
-    fileContent += `رواية: ${novel.titleAr}\r\n`;
-    fileContent += `العنوان الأصلي: ${novel.titleEn}\r\n`;
-    fileContent += `المؤلف: ${novel.author}\r\n`;
-    fileContent += `المترجم: ${novel.translatorName}\r\n`;
-    fileContent += `التصنيفات: ${novel.genres.join('، ')}\r\n`;
-    fileContent += `الوصف:\r\n${novel.description}\r\n`;
-    fileContent += `==================================================\r\n\r\n`;
+  const handleCreateEditRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reqNovelName || !reqChapterName || !reqDetails) return;
 
-    if (novelChapters.length === 0) {
-      fileContent += `(لا توجد فصول منشورة لهذه الرواية بعد)\r\n`;
-    } else {
-      novelChapters.forEach((ch) => {
-        fileContent += `--------------------------------------------------\r\n`;
-        fileContent += `الفصل ${ch.number}: ${ch.title.split(':').slice(1).join(':').trim() || ch.title}\r\n`;
-        fileContent += `تاريخ النشر: ${ch.publishAt || 'فوري'}\r\n`;
-        fileContent += `--------------------------------------------------\r\n\r\n`;
-        fileContent += `${ch.content}\r\n\r\n`;
-      });
+    const newRequest = {
+      id: `edit-req-${Date.now()}`,
+      novelName: reqNovelName,
+      chapterName: reqChapterName,
+      details: reqDetails,
+      translatorId: currentUser.id,
+      translatorName: currentUser.username,
+      status: 'PENDING' as const,
+      createdAt: new Date().toISOString()
+    };
+
+    const allEditReqs = BerryDatabase.get<any[]>('edit_requests', []);
+    const updated = [newRequest, ...allEditReqs];
+    BerryDatabase.set('edit_requests', updated);
+
+    // Send a system notification to the Owner
+    const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+    const newNotif = {
+      id: `notif-editreq-${Date.now()}`,
+      userId: 'berrymist-owner',
+      title: `طلب تعديل فصل جديد من المترجم: ${currentUser.username}`,
+      message: `طلب المترجم "${currentUser.username}" تعديلاً على رواية "${reqNovelName}"، فصل: "${reqChapterName}". التفاصيل: ${reqDetails}`,
+      type: 'SYSTEM',
+      isRead: false,
+      createdAt: new Date().toISOString()
+    };
+    BerryDatabase.set('notifications', [newNotif, ...allNotifs]);
+
+    setMyEditRequests(updated.filter(r => r.translatorId === currentUser.id));
+    setReqNovelName('');
+    setReqChapterName('');
+    setReqDetails('');
+    alert('تم إرسال طلب التعديل لمالك الموقع بنجاح! سيتم مراجعته وتعديل الفصل قريباً.');
+  };
+
+  const handleStatusChange = (novelId: string, newStatus: any) => {
+    let reason = '';
+    const statusNames: Record<string, string> = {
+      ONGOING: 'مستمرة',
+      HIATUS: 'متوقفة مؤقتاً',
+      CANCELLED: 'متوقفة نهائياً',
+      COMPLETED: 'مكتملة'
+    };
+
+    if (newStatus === 'HIATUS' || newStatus === 'CANCELLED') {
+      const promptMsg = newStatus === 'HIATUS' 
+        ? 'يرجى إدخال سبب التوقف المؤقت (سيصل السبب لمالك الموقع):' 
+        : 'يرجى إدخال سبب التوقف النهائي (سيصل السبب لمالك الموقع):';
+      reason = prompt(promptMsg) || '';
+      if (!reason.trim()) {
+        alert('يجب ذكر السبب لتغيير الحالة إلى متوقفة!');
+        return;
+      }
     }
 
-    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const blob = new Blob([bom, fileContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${novel.titleAr}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+    const updated = allNovels.map(n => {
+      if (n.id === novelId) {
+        return {
+          ...n,
+          status: newStatus,
+          statusChangeReason: reason || undefined
+        };
+      }
+      return n;
+    });
+
+    BerryDatabase.set('novels', updated);
+    setNovels(updated.filter(n => n.translatorId === currentUser.id || currentUser.role === 'OWNER'));
+
+    // Send Admin Notification to owner
+    const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+    const newNotif = {
+      id: `notif-status-${Date.now()}`,
+      userId: 'berrymist-owner',
+      title: `تغيير حالة رواية: ${updated.find(n => n.id === novelId)?.titleAr || ''}`,
+      message: `قام المترجم "${currentUser.username}" بتغيير حالة رواية "${updated.find(n => n.id === novelId)?.titleAr || ''}" إلى (${statusNames[newStatus]}). ${reason ? `السبب: ${reason}` : ''}`,
+      type: 'SYSTEM',
+      isRead: false,
+      createdAt: new Date().toISOString()
+    };
+    BerryDatabase.set('notifications', [newNotif, ...allNotifs]);
+
+    alert(`تم تغيير حالة الرواية إلى (${statusNames[newStatus]}) بنجاح وتنبيه المالك.`);
+    window.dispatchEvent(new Event('novels-updated'));
   };
 
   useEffect(() => {
@@ -143,11 +201,20 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     const allReservations = BerryDatabase.get<Reservation[]>('reservations', []);
     setReservations(allReservations.filter(r => r.translatorId === currentUser.id));
 
+    // Load my edit requests
+    const allEditReqs = BerryDatabase.get<any[]>('edit_requests', []);
+    setMyEditRequests(allEditReqs.filter(r => r.translatorId === currentUser.id));
+
     loadChaptersAndDeleted();
   }, [currentUser, activeTab]);
 
   // Handle deleting a chapter (with confirmation & archives it)
   const handleDeleteChapter = (chapterId: string) => {
+    if (currentUser.role !== 'OWNER') {
+      alert('عذراً، المترجمون لا يملكون صلاحية حذف الفصول التي تم نشرها. فقط مالك الموقع يملك هذه الصلاحية.');
+      return;
+    }
+
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const chapterToDelete = allChapters.find(c => c.id === chapterId);
     if (!chapterToDelete) return;
@@ -630,6 +697,13 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
           <span className="flex items-center gap-1">🗑️ الفصول المحذوفة ({deletedChapters.length})</span>
           {activeTab === 'deleted-chapters' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
+        <button 
+          onClick={() => setActiveTab('edit-requests')}
+          className={`pb-3 px-6 relative transition-colors shrink-0 ${activeTab === 'edit-requests' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span className="flex items-center gap-1">🛠️ طلب تعديل فصل</span>
+          {activeTab === 'edit-requests' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
       </div>
 
       {/* Tab Panel Content */}
@@ -656,34 +730,50 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                         <p className="text-[10px] text-purple-400 truncate mt-0.5">{novel.titleEn}</p>
                       </div>
 
-                      <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-white/5 text-[10px] text-purple-300">
-                        <span>{novel.chaptersCount} فصل منشور</span>
-                        <div className="flex gap-2.5 items-center">
-                          {/* Owner downloads anything; translator only after owner approval */}
-                          {(currentUser.role === 'OWNER' || novel.status !== 'PENDING') && (
-                            <button
-                              onClick={() => downloadNovelAndChapters(novel)}
-                              className="px-2.5 py-1.5 bg-[#1F172B] hover:bg-[#2A203C] text-violet-300 hover:text-white border border-violet-500/20 hover:border-violet-500/40 rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
-                              title="تنزيل الرواية وفصولها بالكامل كملف نصي"
+                      <div className="flex flex-col gap-2 mt-3 pt-2.5 border-t border-white/5">
+                        <div className="flex justify-between items-center text-[10px] text-purple-300">
+                          <span>{novel.chaptersCount} فصل منشور</span>
+                          <div className="flex gap-2.5 items-center">
+                            {novel.status !== 'PENDING' && (
+                              <button
+                                onClick={() => onNavigate('novel', { id: novel.id, autoOpenAddChapter: true })}
+                                className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-violet-500 hover:from-purple-500 hover:to-violet-400 text-white rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                              >
+                                <span>إضافة فصل جديد +</span>
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => onNavigate('novel', { id: novel.id })}
+                              className="text-violet-400 font-extrabold hover:text-violet-300 text-[10px]"
                             >
-                              <span>تنزيل 📥</span>
+                              عرض وتعديل ←
                             </button>
-                          )}
-                          {novel.status !== 'PENDING' && (
-                            <button
-                              onClick={() => onNavigate('novel', { id: novel.id, autoOpenAddChapter: true })}
-                              className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-[9px] font-bold cursor-pointer transition-all flex items-center gap-1"
-                            >
-                              <span>إضافة فصل جديد +</span>
-                            </button>
-                          )}
-                          <button 
-                            onClick={() => onNavigate('novel', { id: novel.id })}
-                            className="text-violet-400 font-extrabold hover:text-violet-300"
-                          >
-                            عرض وتعديل ←
-                          </button>
+                          </div>
                         </div>
+
+                        {novel.status !== 'PENDING' && (
+                          <div className="mt-1 flex items-center justify-between gap-2 text-[10px] bg-white/5 p-2 rounded-xl border border-white/5">
+                            <span className="text-purple-300 font-medium">الحالة: <span className="text-violet-300 font-bold">
+                              {novel.status === 'ONGOING' || novel.status === 'TRANSLATING' || novel.status === 'AVAILABLE' ? 'مستمرة' :
+                               novel.status === 'HIATUS' ? 'متوقفة مؤقتاً' :
+                               novel.status === 'CANCELLED' ? 'متوقفة نهائياً' :
+                               novel.status === 'COMPLETED' ? 'مكتملة' : novel.status}
+                            </span></span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] text-purple-400">تغيير الحالة:</span>
+                              <select
+                                value={novel.status === 'TRANSLATING' || novel.status === 'AVAILABLE' ? 'ONGOING' : novel.status}
+                                onChange={(e) => handleStatusChange(novel.id, e.target.value as any)}
+                                className="bg-[#13101E] text-purple-200 border border-white/10 rounded-lg px-2 py-1 cursor-pointer text-[10px] outline-none focus:border-violet-500"
+                              >
+                                <option value="ONGOING">مستمرة</option>
+                                <option value="HIATUS">متوقفة مؤقتاً</option>
+                                <option value="CANCELLED">متوقفة نهائياً</option>
+                                <option value="COMPLETED">مكتملة</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1062,7 +1152,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                       <div className="flex flex-wrap items-center gap-3 shrink-0">
                         {isScheduled ? (
                           <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-xl font-bold font-mono">
-                            📅 مجدول للنشر: {new Date(chap.publishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}
+                            📅 مجدول للنشر: {new Date(chap.publishAt).toLocaleString('en-US', { hour12: true })}
                           </span>
                         ) : (
                           <span className="text-[9px] bg-green-500/15 text-green-400 border border-green-500/20 px-2.5 py-1 rounded-xl font-bold">
@@ -1191,6 +1281,95 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
             )}
           </div>
         )}
+
+        {/* TAB 6: Edit Requests */}
+        {activeTab === 'edit-requests' && (
+          <div className="glass-panel p-6 rounded-2xl border border-white/5 text-right animate-in fade-in duration-300">
+            <h3 className="text-base font-extrabold text-white mb-4 flex items-center gap-2 justify-end">
+              <span>طلب تعديل خطأ في فصل 🛠️</span>
+              <AlertCircle className="text-violet-400" size={18} />
+            </h3>
+            <p className="text-xs text-purple-300 mb-6 leading-relaxed">
+              إذا واجهت أي خطأ في فصل ما أو انتهت مهلة الـ 15 يوماً المتاحة للتعديل، يمكنك تقديم طلب تعديل مباشر لمالك الموقع لتعديله نيابة عنك.
+            </p>
+
+            {/* Submission Form */}
+            <form onSubmit={handleCreateEditRequest} className="flex flex-col gap-5 text-xs font-medium">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-purple-200">اسم الرواية *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={reqNovelName}
+                    onChange={(e) => setReqNovelName(e.target.value)}
+                    placeholder="مثال: بداية ما بعد السد الأكبر"
+                    className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white text-xs transition-all text-right"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-purple-200">الفصل المطلوب تعديله (الرقم أو الاسم) *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={reqChapterName}
+                    onChange={(e) => setReqChapterName(e.target.value)}
+                    placeholder="مثال: الفصل 25"
+                    className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white text-xs transition-all text-right"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-purple-200">التغيير المطلوب والتعديلات المقترحة بالتفصيل *</label>
+                <textarea 
+                  required
+                  rows={4}
+                  value={reqDetails}
+                  onChange={(e) => setReqDetails(e.target.value)}
+                  placeholder="يرجى كتابة التعديل أو التغيير المطلوب بدقة..."
+                  className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white text-xs transition-all text-right resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-violet-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md"
+                >
+                  إرسال طلب التعديل للمالك 🚀
+                </button>
+              </div>
+            </form>
+
+            {/* List of submitted edit requests */}
+            <div className="mt-8 border-t border-white/5 pt-6">
+              <h4 className="text-xs font-bold text-purple-200 mb-4">طلبات التعديل المرسلة الخاصة بك:</h4>
+              {myEditRequests.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {myEditRequests.map((r: any) => (
+                    <div key={r.id} className="p-4 bg-[#1A1625] border border-white/5 rounded-xl flex justify-between items-center text-right text-xs">
+                      <div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${r.status === 'RESOLVED' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                          {r.status === 'RESOLVED' ? 'تم التعديل ✓' : 'قيد المراجعة ⏱️'}
+                        </span>
+                        <div className="text-purple-300 mt-2">
+                          رواية: <span className="text-white font-bold">{r.novelName}</span> | {r.chapterName}
+                        </div>
+                        <p className="text-purple-400 mt-1">{r.details}</p>
+                      </div>
+                      <span className="text-[10px] text-purple-500 font-mono">
+                        {new Date(r.createdAt).toLocaleDateString('en-US')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-purple-400">لم تقم بإرسال أي طلبات تعديل بعد.</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* EDIT CHAPTER MODAL OVERLAY */}
@@ -1280,52 +1459,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                 />
               </div>
 
-              {/* Chapter Images Attachment with easy PNG Upload */}
-              <div className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 text-right">
-                <label className="text-xs font-extrabold text-purple-200 flex items-center gap-1">
-                  <Eye size={14} className="text-violet-400" />
-                  <span>إرفاق أو تعديل صور ورسومات الفصل (PNG حصراً)</span>
-                </label>
-                <p className="text-[10px] text-purple-300/70">ارفع صور PNG جديدة مباشرة من جهازك.</p>
-
-                {/* File picker */}
-                <div className="flex flex-col items-center justify-center border border-dashed border-violet-500/20 hover:border-violet-500/50 bg-[#1A1625]/80 p-4 rounded-xl text-center transition-colors">
-                  <input 
-                    type="file" 
-                    id="edit-png-uploader"
-                    accept=".png"
-                    multiple
-                    onChange={handleEditImageUpload}
-                    className="hidden"
-                  />
-                  <label 
-                    htmlFor="edit-png-uploader"
-                    className="cursor-pointer flex flex-col items-center gap-1 w-full py-2"
-                  >
-                    <RefreshCw size={24} className="text-violet-400 animate-spin-slow" />
-                    <span className="text-xs font-bold text-white">اضغط هنا لرفع صور PNG إضافية من جهازك 📂</span>
-                    <span className="text-[9px] text-purple-400">يدعم صيغ صور PNG الفاخرة فقط</span>
-                  </label>
-                </div>
-
-                {/* Thumbnails preview */}
-                {editChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2 p-2 bg-black/20 rounded-xl border border-white/5">
-                    {editChapterImages.split(',').map(url => url.trim()).filter(url => url.length > 0).map((url, idx) => (
-                      <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-white/10 shrink-0 shadow-md">
-                        <img src={url} alt="Attached" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeEditAttachedImage(idx)}
-                          className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer text-[10px] font-bold"
-                        >
-                          حذف ❌
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* Image attachment fields removed per request to avoid cluttered inputs */}
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-purple-200 font-bold">📅 جدولة وقت النشر التلقائي بالتاريخ الميلادي</label>

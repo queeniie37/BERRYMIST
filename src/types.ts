@@ -214,3 +214,15 @@ export interface Ad {
   createdAt: string;
 }
 
+export interface EditRequest {
+  id: string;
+  novelName: string;
+  chapterName: string;
+  details: string;
+  translatorId: string;
+  translatorName: string;
+  status: 'PENDING' | 'RESOLVED';
+  createdAt: string;
+}
+
+

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown, FileText, ChevronLeft, Undo2, Redo2, BookOpen, Info } from 'lucide-react';
-import { Novel, Chapter, Comment, Review, User, UserRole, Report } from '../types';
+import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } from '../types';
 import { BerryDatabase } from '../data';
 
 function sanitizeChapterHtml(raw: string): string {
@@ -14,12 +14,12 @@ function sanitizeChapterHtml(raw: string): string {
   
   // Restore img tags (backwards compatibility)
   restored = restored.replace(/&lt;img\s+src="([^"]+)"\s*(?:\/)?&gt;/gi, (match, src) => {
-    return `<img src="${src}" class="max-h-[300px] sm:max-h-[500px] w-auto max-w-full my-4 mx-auto rounded-xl shadow-lg border border-white/10 block object-contain" />`;
+    return `<img src="${src}" class="max-h-[750px] w-full max-w-[700px] my-6 mx-auto rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.6)] border border-white/10 block object-contain bg-black/30 p-1.5 transition-all duration-300 hover:border-violet-500/40 hover:scale-[1.01]" />`;
   });
   
   // Restore (PNG, JPG: base64) tags
   restored = restored.replace(/\(PNG,\s*JPG:\s*([^\s)]+)\)/gi, (match, src) => {
-    return `<img src="${src}" class="max-h-[300px] sm:max-h-[500px] w-auto max-w-full my-4 mx-auto rounded-xl shadow-lg border border-white/10 block object-contain" />`;
+    return `<img src="${src}" class="max-h-[750px] w-full max-w-[700px] my-6 mx-auto rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.6)] border border-white/10 block object-contain bg-black/30 p-1.5 transition-all duration-300 hover:border-violet-500/40 hover:scale-[1.01]" />`;
   });
   
   return restored;
@@ -104,73 +104,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const html = e.currentTarget.innerHTML;
     lastHtmlRef.current = html;
     handleContentChange(html);
-  };
-
-  const downloadFullNovelAndChapters = () => {
-    if (!novel) return;
-    const allChapters = BerryDatabase.get<any[]>('chapters', []);
-    const novelChapters = allChapters
-      .filter(c => c.novelId === novel.id)
-      .sort((a, b) => a.number - b.number);
-
-    let fileContent = `==================================================\r\n`;
-    fileContent += `رواية: ${novel.titleAr}\r\n`;
-    fileContent += `العنوان الأصلي: ${novel.titleEn}\r\n`;
-    fileContent += `المؤلف: ${novel.author}\r\n`;
-    fileContent += `المترجم: ${novel.translatorName}\r\n`;
-    fileContent += `التصنيفات: ${novel.genres.join('، ')}\r\n`;
-    fileContent += `الوصف:\r\n${novel.description}\r\n`;
-    fileContent += `==================================================\r\n\r\n`;
-
-    if (novelChapters.length === 0) {
-      fileContent += `(لا توجد فصول منشورة لهذه الرواية بعد)\r\n`;
-    } else {
-      novelChapters.forEach((ch) => {
-        fileContent += `--------------------------------------------------\r\n`;
-        fileContent += `الفصل ${ch.number}: ${ch.title.split(':').slice(1).join(':').trim() || ch.title}\r\n`;
-        fileContent += `تاريخ النشر: ${ch.publishAt || 'فوري'}\r\n`;
-        fileContent += `--------------------------------------------------\r\n\r\n`;
-        fileContent += `${ch.content}\r\n\r\n`;
-      });
-    }
-
-    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const blob = new Blob([bom, fileContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${novel.titleAr} (كامل - ${novelChapters.length} فصل).txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  // Download a single chapter as a text file whose name includes the chapter number
-  const downloadSingleChapter = (chapter: Chapter) => {
-    if (!novel) return;
-    const cleanTitle = chapter.title.split(':').slice(1).join(':').trim() || chapter.title;
-
-    let fileContent = `==================================================\r\n`;
-    fileContent += `رواية: ${novel.titleAr} (${novel.titleEn})\r\n`;
-    fileContent += `الفصل رقم: ${chapter.number}\r\n`;
-    fileContent += `عنوان الفصل: ${cleanTitle}\r\n`;
-    fileContent += `المترجم: ${novel.translatorName}\r\n`;
-    fileContent += `تاريخ النشر: ${new Date(chapter.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}\r\n`;
-    fileContent += `==================================================\r\n\r\n`;
-    fileContent += `${chapter.content}\r\n`;
-
-    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const blob = new Blob([bom, fileContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    // Chapter number is included in the file name as requested
-    link.download = `${novel.titleAr} - الفصل ${chapter.number}.txt`;
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   // Load everything on mount/id change
@@ -263,11 +196,57 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   if (!novel) return null;
 
+  const checkCanReserve = () => {
+    if (currentUser.role === 'OWNER') return { allowed: true };
+
+    const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const novelChapters = allChapters.filter(c => c.novelId === novel.id);
+
+    // If it has chapters, it means it has been uploaded/published
+    if (novelChapters.length > 0) {
+      // It can only be reserved if it has been stopped for 6 months!
+      const sortedChapters = [...novelChapters].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const lastChapter = sortedChapters[0];
+      const lastChapterDate = new Date(lastChapter.createdAt);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - lastChapterDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays >= 180) { // 6 months is approx 180 days
+        return { allowed: true, reason: 'رواية متوقفة لأكثر من 6 أشهر' };
+      } else {
+        return { 
+          allowed: false, 
+          reason: `هذه الرواية نشطة وتم تنزيل فصول لها مؤخراً (منذ ${diffDays} يوم). لا يمكن حجز الروايات التي تم تنزيلها أبداً إلا إذا توقفت تماماً لمدة 6 أشهر.` 
+        };
+      }
+    }
+
+    // If it has 0 chapters, it can be reserved ONLY if it is in the suggestions ("اقتراح رواية") list!
+    const allSuggestions = BerryDatabase.get<Suggestion[]>('suggestions', []);
+    const hasSuggestion = allSuggestions.some(s => s.titleAr === novel.titleAr || s.titleEn === novel.titleEn);
+    
+    if (hasSuggestion) {
+      return { allowed: true, reason: 'رواية مقترحة' };
+    } else {
+      return { 
+        allowed: false, 
+        reason: 'لا يمكن حجز هذه الرواية؛ فقط الروايات في "اقتراح رواية" أو الروايات التي توقفت فصولها لمدة 6 أشهر يمكن حجزها.' 
+      };
+    }
+  };
+
   // Claim/Reservation action handler
   const handleClaimNovel = () => {
     if (currentUser.role === 'GUEST') {
       alert('يجب تسجيل الدخول أولاً لتتمكن من حجز الرواية للترجمة. 🍇');
       window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
+
+    const check = checkCanReserve();
+    if (!check.allowed) {
+      alert(check.reason);
       return;
     }
 
@@ -885,7 +864,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             contentEditable
             onInput={handleEditorInput}
             placeholder="محتوى الفصل"
-            className="w-full bg-[#13101E] px-4 py-4 text-xs text-white text-right outline-none font-sans min-h-[50vh] overflow-y-auto placeholder-purple-300/40 border border-white/5 rounded-xl empty:before:content-[attr(placeholder)] empty:before:text-purple-300/40 empty:before:pointer-events-none focus:border-violet-500 transition-all [&_img]:max-h-[300px] [&_img]:w-auto [&_img]:max-w-full [&_img]:my-4 [&_img]:mx-auto [&_img]:rounded-xl [&_img]:shadow-lg [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain"
+            className="w-full bg-[#13101E] px-4 py-4 text-xs text-white text-right outline-none font-sans min-h-[50vh] overflow-y-auto placeholder-purple-300/40 border border-white/5 rounded-xl empty:before:content-[attr(placeholder)] empty:before:text-purple-300/40 empty:before:pointer-events-none focus:border-violet-500 transition-all [&_img]:max-h-[750px] [&_img]:w-full [&_img]:max-w-[700px] [&_img]:my-6 [&_img]:mx-auto [&_img]:rounded-2xl [&_img]:shadow-[0_10px_35px_rgba(0,0,0,0.6)] [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain [&_img]:bg-black/30 [&_img]:p-1.5 hover:[&_img]:border-violet-500/40 hover:[&_img]:scale-[1.01] [&_img]:transition-all [&_img]:duration-300"
           />
         </div>
 
@@ -897,10 +876,41 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               alert('تمت إعادة تهيئة صندوق المحرر وتحديث الاستجابة بنجاح! يمكنكم المتابعة الآن بشكل طبيعي.');
               editorRef.current?.focus();
             }}
-            className="text-[#1384e0] hover:underline font-semibold cursor-pointer"
+            className="text-violet-400 hover:underline font-semibold cursor-pointer"
           >
             خانة محتوى الفصل لا تظهر؟ اضغط هنا
           </button>
+        </div>
+
+        {/* Live Chapter Content Preview */}
+        <div className="mb-6 p-6 rounded-2xl bg-[#171324]/50 border border-violet-500/10 text-right relative overflow-hidden shadow-xl">
+          <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2.5">
+            <span className="text-[10px] text-purple-400">معاينة فورية لتنسيق النصوص والصور المرفوعة</span>
+            <h3 className="text-xs font-extrabold text-purple-200 flex items-center gap-1.5">
+              <span>معاينة حية للفصل قبل النشر 👁️</span>
+            </h3>
+          </div>
+          {newChapterContent.trim() ? (
+            <div 
+              className="space-y-6 text-right leading-relaxed select-none overflow-y-auto max-h-[450px] p-5 bg-[#0F0C1B] rounded-xl border border-white/5 text-[13px] text-purple-100 font-sans"
+              style={{ fontFamily: '"IBM Plex Sans Arabic", "Tajawal", sans-serif' }}
+            >
+              <div className="mb-6 text-center border-b border-white/5 pb-4">
+                <h4 className="text-base font-extrabold text-white">
+                  الفصل {newChapterNumber || 'الجديد'}: {newChapterTitle || 'عنوان الفصل يظهر هنا'}
+                </h4>
+                <span className="text-[10px] text-purple-400 mt-1 block">حقوق الترجمة والنشر محفوظة لمنصة Berry Mist وللمترجم: {novel.translatorName}</span>
+              </div>
+              <div 
+                className="space-y-4 break-words leading-relaxed [&_img]:max-h-[750px] [&_img]:w-full [&_img]:max-w-[700px] [&_img]:my-6 [&_img]:mx-auto [&_img]:rounded-2xl [&_img]:shadow-[0_10px_35px_rgba(0,0,0,0.6)] [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain [&_img]:bg-black/30 [&_img]:p-1.5 hover:[&_img]:border-violet-500/40 hover:[&_img]:scale-[1.01] [&_img]:transition-all [&_img]:duration-300"
+                dangerouslySetInnerHTML={{ __html: sanitizeChapterHtml(newChapterContent) }}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-purple-400 text-center py-6 bg-black/15 rounded-xl border border-dashed border-white/5">
+              اكتب في المحرر أعلاه لترى معاينة حية للفصل وتنسيق الصور هنا تلقائياً...
+            </p>
+          )}
         </div>
 
         <input 
@@ -924,7 +934,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 name="publishing-time"
                 checked={publishTimeType === 'schedule'}
                 onChange={() => setPublishTimeType('schedule')}
-                className="w-4 h-4 accent-blue-500 cursor-pointer"
+                className="w-4 h-4 accent-violet-500 cursor-pointer"
               />
             </label>
 
@@ -939,7 +949,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                   setPublishTimeType('now');
                   setNewChapterPublishAt('');
                 }}
-                className="w-4 h-4 accent-blue-500 cursor-pointer"
+                className="w-4 h-4 accent-violet-500 cursor-pointer"
               />
             </label>
           </div>
@@ -962,7 +972,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         <div className="w-full">
           <button 
             type="submit"
-            className="w-full py-4 bg-[#1384e0] hover:bg-[#1176ca] active:bg-[#0f68b1] text-white text-sm font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2"
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-violet-500 hover:from-purple-500 hover:to-violet-400 text-white text-sm font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-violet-500/10 flex items-center justify-center gap-2"
           >
             <span>إضافة</span>
           </button>
@@ -1112,6 +1122,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               </button>
             )}
 
+            {/* Bookmark button */}
             <button 
               onClick={() => onBookmarkToggle(novel.id)}
               className={`px-5 py-3 border rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${isBookmarked ? 'bg-berry-600/20 border-berry-500/40 text-berry-300' : 'bg-white/5 border-white/10 text-purple-300 hover:bg-white/10'}`}
@@ -1120,38 +1131,32 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               <span>{isBookmarked ? 'في المفضلة' : 'أضف للمفضلة'}</span>
             </button>
 
-            {/* Owner downloads anything; the assigned translator can download only
-                after the owner has approved the novel (status is no longer PENDING). */}
-            {(currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING')) ? (
-              <button
-                onClick={downloadFullNovelAndChapters}
-                className="px-5 py-3 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 border border-violet-500/20 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-violet-500/10 transition-all duration-300"
-                title="تنزيل الرواية وفصولها بالكامل كملف نصي"
-              >
-                <Download size={14} />
-                <span>تحميل الرواية وفصولها 📥</span>
-              </button>
-            ) : (
-              <button
-                disabled
-                className="px-5 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-2"
-                title={novel.translatorId === currentUser.id && novel.status === 'PENDING'
-                  ? 'التحميل متاح بعد موافقة المالك على نشر الرواية'
-                  : 'التحميل متاح للمالك والمترجم المعيّن فقط لحماية حقوق الترجمة'}
-              >
-                <Download size={14} className="opacity-50" />
-                <span>{novel.translatorId === currentUser.id && novel.status === 'PENDING' ? 'التحميل بعد الموافقة 🔒' : 'التحميل محمي 🔒'}</span>
-              </button>
-            )}
-
             {/* Special Request Claim/Reservation trigger */}
             {novel.status === 'AVAILABLE' && (currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER') && (
-              <button 
-                onClick={handleClaimNovel}
-                className="px-6 py-3 bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-yellow-500 hover:to-amber-400 text-black font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-yellow-500/15 cursor-pointer"
-              >
-                <span>طلب حجز واستلام الرواية 📝</span>
-              </button>
+              (() => {
+                const check = checkCanReserve();
+                if (check.allowed) {
+                  return (
+                    <button 
+                      onClick={handleClaimNovel}
+                      className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-500 hover:from-violet-500 hover:to-purple-400 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-violet-500/15 cursor-pointer"
+                    >
+                      <span>طلب حجز واستلام الرواية 📝</span>
+                    </button>
+                  );
+                } else {
+                  return (
+                    <button 
+                      disabled
+                      title={check.reason}
+                      onClick={() => alert(check.reason)}
+                      className="px-6 py-3 bg-white/5 border border-white/5 text-purple-500 rounded-xl text-xs font-semibold cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      <span>🔒 حجز الرواية مغلق</span>
+                    </button>
+                  );
+                }
+              })()
             )}
 
             {/* Owner Delete button */}
@@ -1168,6 +1173,81 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           </div>
         </div>
       </div>
+
+      {/* Translator & Owner: Edit Novel Status Panel */}
+      {(currentUser.id === novel.translatorId || isOwner) && novel.status !== 'PENDING' && (
+        <div className="w-full mt-4 p-4 rounded-2xl bg-[#1A1625] border border-violet-500/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2 text-right">
+            <Edit2 size={16} className="text-violet-400" />
+            <span className="text-purple-200">صلاحيات الإدارة: تحديث حالة الرواية الحالية:</span>
+            <span className="font-extrabold text-violet-300">
+              {novel.status === 'ONGOING' || novel.status === 'TRANSLATING' || novel.status === 'AVAILABLE' ? 'مستمرة' :
+               novel.status === 'HIATUS' ? 'متوقفة مؤقتاً' :
+               novel.status === 'CANCELLED' ? 'متوقفة نهائياً' :
+               novel.status === 'COMPLETED' ? 'مكتملة' : novel.status}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-purple-400">تغيير إلى:</span>
+            <select
+              value={novel.status === 'TRANSLATING' || novel.status === 'AVAILABLE' ? 'ONGOING' : novel.status}
+              onChange={(e) => {
+                const newStatus = e.target.value;
+                let reason = '';
+                const statusNames: Record<string, string> = {
+                  ONGOING: 'مستمرة',
+                  HIATUS: 'متوقفة مؤقتاً',
+                  CANCELLED: 'متوقفة نهائياً',
+                  COMPLETED: 'مكتملة'
+                };
+
+                if (newStatus === 'HIATUS' || newStatus === 'CANCELLED') {
+                  const promptMsg = newStatus === 'HIATUS' 
+                    ? 'يرجى إدخال سبب التوقف المؤقت (سيصل لمالك الموقع):' 
+                    : 'يرجى إدخال سبب التوقف النهائي (سيصل لمالك الموقع):';
+                  reason = prompt(promptMsg) || '';
+                  if (!reason.trim()) {
+                    alert('يجب ذكر السبب لتغيير الحالة إلى متوقفة!');
+                    return;
+                  }
+                }
+
+                const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+                const updated = allNovels.map(n => {
+                  if (n.id === novel.id) {
+                    return { ...n, status: newStatus as any, statusChangeReason: reason || undefined };
+                  }
+                  return n;
+                });
+                BerryDatabase.set('novels', updated);
+                setNovel({ ...novel, status: newStatus as any });
+
+                // Send Admin Notification to owner
+                const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+                const newNotif = {
+                  id: `notif-status-${Date.now()}`,
+                  userId: 'berrymist-owner',
+                  title: `تغيير حالة رواية: ${novel.titleAr}`,
+                  message: `قام المترجم "${currentUser.username}" بتغيير حالة رواية "${novel.titleAr}" إلى (${statusNames[newStatus]}). ${reason ? `السبب: ${reason}` : ''}`,
+                  type: 'SYSTEM',
+                  isRead: false,
+                  createdAt: new Date().toISOString()
+                };
+                BerryDatabase.set('notifications', [newNotif, ...allNotifs]);
+
+                alert(`تم تغيير حالة الرواية إلى (${statusNames[newStatus]}) بنجاح.`);
+                window.dispatchEvent(new Event('novels-updated'));
+              }}
+              className="bg-[#13101E] text-purple-200 border border-white/10 rounded-lg px-2.5 py-1.5 cursor-pointer text-xs focus:border-violet-500"
+            >
+              <option value="ONGOING">مستمرة</option>
+              <option value="HIATUS">متوقفة مؤقتاً</option>
+              <option value="CANCELLED">متوقفة نهائياً</option>
+              <option value="COMPLETED">مكتملة</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Live Reservation Countdown Banner if reserved */}
       {reservation && (
@@ -1246,7 +1326,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               {chapters.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[...chapters].sort((a, b) => chaptersAscending ? a.number - b.number : b.number - a.number).map((chapter) => {
-                    const canDownloadChapter = currentUser.role === 'OWNER' || (novel.translatorId === currentUser.id && novel.status !== 'PENDING');
                     const isRead = readChapters.some(rc => rc.novelId === novel.id && rc.chapterNumber === chapter.number);
                     return (
                       <div
@@ -1272,15 +1351,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {canDownloadChapter && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); downloadSingleChapter(chapter); }}
-                              className="p-2 bg-white/5 hover:bg-violet-600 text-purple-300 hover:text-white rounded-xl transition-all cursor-pointer"
-                              title={`تنزيل الفصل ${chapter.number} كملف نصي`}
-                            >
-                              <Download size={13} />
-                            </button>
-                          )}
                           {currentUser.role === 'OWNER' && (
                             <button
                               onClick={(e) => { 

@@ -14,7 +14,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports' | 'edit-requests'>('novels');
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [activeRejectId, setActiveRejectId] = useState<string | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -135,7 +135,37 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     // Load reports
     const allReports = BerryDatabase.get<Report[]>('reports', []);
     setReports(allReports);
+
+    // Load edit requests
+    const allEditReqs = BerryDatabase.get<any[]>('edit_requests', []);
+    setEditRequests(allEditReqs);
   }, []);
+
+  const [editRequests, setEditRequests] = useState<any[]>([]);
+
+  const handleResolveEditRequest = (requestId: string) => {
+    const allEditReqs = BerryDatabase.get<any[]>('edit_requests', []);
+    const updated = allEditReqs.map(r => r.id === requestId ? { ...r, status: 'RESOLVED' } : r);
+    BerryDatabase.set('edit_requests', updated);
+    setEditRequests(updated);
+
+    // Send a notification to the translator
+    const targetReq = allEditReqs.find(r => r.id === requestId);
+    if (targetReq) {
+      const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+      const newNotif = {
+        id: `notif-resolved-${Date.now()}`,
+        userId: targetReq.translatorId,
+        title: 'تم تعديل الفصل بنجاح!',
+        message: `لقد قام المالك بتلبية طلب التعديل الخاص بك للرواية "${targetReq.novelName}"، فصل: "${targetReq.chapterName}".`,
+        type: 'SYSTEM' as const,
+        isRead: false,
+        createdAt: 'الآن'
+      };
+      BerryDatabase.set('notifications', [newNotif, ...allNotifs]);
+    }
+    alert('تم وضع علامة "تم التعديل" على الطلب وإشعار المترجم بنجاح!');
+  };
 
   const handleResolveReport = (reportId: string, action: 'DELETE' | 'DISMISS') => {
     const allReports = BerryDatabase.get<Report[]>('reports', []);
@@ -611,6 +641,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
           <span>بلاغات التعليقات المسيئة ({reports.filter(r => r.status === 'PENDING').length}) 🚨</span>
           {activeTab === 'reports' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
+        <button 
+          onClick={() => setActiveTab('edit-requests')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'edit-requests' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>طلبات تعديل الفصول ({editRequests.filter(r => r.status === 'PENDING').length}) 🛠️</span>
+          {activeTab === 'edit-requests' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
       </div>
 
       {/* Panel Tab Content */}
@@ -843,8 +880,8 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                       <p className="text-[10px] text-purple-400 mt-0.5">المترجم الحاجز: <span className="font-bold text-white">{res.translatorName}</span></p>
                       
                       <div className="flex flex-col gap-1 mt-3 text-[10px] text-purple-300">
-                        <span>تاريخ بدء الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
-                        <span>تاريخ انتهاء الصلاحية: {new Date(res.endAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
+                        <span>تاريخ بدء الحجز: {new Date(res.startAt).toLocaleDateString('en-US')}</span>
+                        <span>تاريخ انتهاء الصلاحية: {new Date(res.endAt).toLocaleDateString('en-US')}</span>
                       </div>
 
                       {res.extensionRequested && (
@@ -1373,6 +1410,68 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: Edit Requests */}
+        {activeTab === 'edit-requests' && (
+          <div className="flex flex-col gap-4 text-right">
+            <div className="p-5 bg-gradient-to-r from-violet-950/20 to-purple-950/20 border border-violet-500/10 rounded-2xl mb-2">
+              <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                <AlertCircle size={16} className="text-violet-400 animate-pulse" />
+                <span>طلبات تعديل الفصول المقدمة من المترجمين</span>
+              </h3>
+              <p className="text-[10px] text-purple-400 mt-1">
+                تظهر هنا طلبات المترجمين لتعديل أخطاء بالفصول المنشورة أو بعد فوات مهلة الـ 15 يوماً. يمكنك مراجعتها ومعالجتها مباشرة.
+              </p>
+            </div>
+
+            {editRequests.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {editRequests.map((req) => (
+                  <div 
+                    key={req.id}
+                    className="p-5 bg-[#1A1625] border border-white/5 rounded-2xl flex flex-col gap-3 hover:border-violet-500/10 transition-all text-xs"
+                  >
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-xs">{req.translatorName} 👤</span>
+                        <span className="text-[9px] text-purple-400">({req.translatorName === 'berrymist-owner' ? 'المالك' : 'مترجم'})</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${req.status === 'RESOLVED' ? 'bg-green-500/15 text-green-400 border border-green-500/15' : 'bg-amber-500/15 text-amber-400 border border-amber-500/15'}`}>
+                        {req.status === 'RESOLVED' ? 'تم حل الطلب ✓' : '⏳ قيد الانتظار'}
+                      </span>
+                    </div>
+
+                    <div className="text-purple-200">
+                      اسم الرواية: <span className="text-white font-extrabold">{req.novelName}</span>
+                    </div>
+                    <div className="text-purple-200">
+                      الفصل المطلوب: <span className="text-white font-bold">{req.chapterName}</span>
+                    </div>
+                    <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-purple-300 mt-1 leading-relaxed">
+                      {req.details}
+                    </div>
+
+                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-white/5 text-[9px] text-purple-500">
+                      <span>تاريخ الطلب: {new Date(req.createdAt).toLocaleString('en-US')}</span>
+                      {req.status === 'PENDING' && (
+                        <button
+                          onClick={() => handleResolveEditRequest(req.id)}
+                          className="px-3.5 py-1.5 bg-gradient-to-r from-violet-600 to-purple-500 hover:from-violet-500 hover:to-purple-400 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all"
+                        >
+                          تحديد كـ "تم التعديل" ✓
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-[#1A1625] border border-dashed border-white/5 rounded-3xl text-xs text-purple-400">
+                لا توجد أي طلبات تعديل مقدمة حالياً.
+              </div>
+            )}
           </div>
         )}
       </div>
