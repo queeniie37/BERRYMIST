@@ -83,7 +83,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [newChapterContent, setNewChapterContent] = useState('');
   const [newChapterImages, setNewChapterImages] = useState('');
   const [newChapterPublishAt, setNewChapterPublishAt] = useState('');
-  const [newChapterNumber, setNewChapterNumber] = useState<number>(1);
+  const [newChapterNumber, setNewChapterNumber] = useState<string | number>('');
   const [publishTimeType, setPublishTimeType] = useState<'now' | 'schedule'>('now');
   const [contentHistory, setContentHistory] = useState<string[]>(['']);
   const [historyIdx, setHistoryIdx] = useState(0);
@@ -96,6 +96,16 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const day = String(maxDate.getDate()).padStart(2, '0');
     const hours = String(maxDate.getHours()).padStart(2, '0');
     const minutes = String(maxDate.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const getMinScheduleDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
@@ -146,7 +156,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
     setChapters(foundChapters);
-    setNewChapterNumber(foundChapters.length + 1);
+    setNewChapterNumber('');
 
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const foundComments = allComments.filter(c => c.refId === novelId || foundChapters.some(ch => ch.id === c.refId));
@@ -559,10 +569,36 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // Translator: Create Chapter handler
   const handleCreateChapter = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newChapterTitle || !newChapterContent) return;
+    
+    if (!novel) {
+      alert('عذراً، يجب اختيار الرواية أولاً!');
+      return;
+    }
+    if (newChapterNumber === '') {
+      alert('عذراً، يجب تعبئة رقم الفصل!');
+      return;
+    }
+    const parsedChNum = Number(newChapterNumber);
+    if (isNaN(parsedChNum) || parsedChNum <= 0) {
+      alert('عذراً، يجب أن يكون رقم الفصل عدداً صحيحاً أكبر من 0!');
+      return;
+    }
+    if (!newChapterTitle.trim()) {
+      alert('عذراً، يجب تعبئة عنوان الفصل!');
+      return;
+    }
+    if (!newChapterContent.trim() || newChapterContent.trim() === '<p><br></p>' || newChapterContent.trim() === '<br>') {
+      alert('عذراً، يجب تعبئة محتوى الفصل!');
+      return;
+    }
 
     if (newChapterPublishAt) {
       const publishDate = new Date(newChapterPublishAt);
+      const now = new Date();
+      if (publishDate < now) {
+        alert('عذراً، لا يمكنك جدولة الفصل في وقت سابق للوقت الحالي!');
+        return;
+      }
       const maxDate = new Date();
       maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
       if (publishDate > maxDate) {
@@ -571,7 +607,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       }
     }
 
-    const newChapterNum = Number(newChapterNumber) || chapters.length + 1;
+    const newChapterNum = Number(newChapterNumber);
     const imgUrls = extractImagesFromContent(newChapterContent);
 
     const isScheduled = newChapterPublishAt ? new Date(newChapterPublishAt) > new Date() : false;
@@ -596,7 +632,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     BerryDatabase.set('chapters', updatedChaps);
     const novelChaps = updatedChaps.filter(c => c.novelId === novel.id).sort((a, b) => a.number - b.number);
     setChapters(novelChaps);
-    setNewChapterNumber(novelChaps.length + 1);
+    setNewChapterNumber('');
 
     // If this novel was in a reserved state and this is Chapter 1, promote status to TRANSLATING
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
@@ -641,6 +677,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setNewChapterContent('');
     setNewChapterImages('');
     setNewChapterPublishAt('');
+    setNewChapterNumber('');
   };
 
   const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
@@ -776,13 +813,16 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
         {/* 2. Chapter Number */}
         <div className="flex flex-col gap-1 w-full mb-4 text-right">
+          <div className="flex justify-end items-center mb-1 text-[11px] text-purple-400">
+            <span>رقم الفصل</span>
+          </div>
           <input 
             type="number"
             required
             min="1"
-            placeholder="رقم الفصل"
+            placeholder="مثال: 5"
             value={newChapterNumber}
-            onChange={(e) => setNewChapterNumber(Number(e.target.value))}
+            onChange={(e) => setNewChapterNumber(e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full bg-[#13101E] border border-white/5 hover:border-white/10 rounded-xl px-4 py-3.5 text-xs text-white text-right outline-none focus:border-violet-500 font-sans placeholder-purple-300/40 font-mono"
           />
         </div>
@@ -892,37 +932,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           </button>
         </div>
 
-        {/* Live Chapter Content Preview */}
-        <div className="mb-6 p-6 rounded-2xl bg-[#171324]/50 border border-violet-500/10 text-right relative overflow-hidden shadow-xl">
-          <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2.5">
-            <span className="text-[10px] text-purple-400">معاينة فورية لتنسيق النصوص والصور المرفوعة</span>
-            <h3 className="text-xs font-extrabold text-purple-200 flex items-center gap-1.5">
-              <span>معاينة حية للفصل قبل النشر 👁️</span>
-            </h3>
-          </div>
-          {newChapterContent.trim() ? (
-            <div 
-              className="space-y-6 text-right leading-relaxed select-none overflow-y-auto max-h-[450px] p-5 bg-[#0F0C1B] rounded-xl border border-white/5 text-[13px] text-purple-100 font-sans"
-              style={{ fontFamily: '"IBM Plex Sans Arabic", "Tajawal", sans-serif' }}
-            >
-              <div className="mb-6 text-center border-b border-white/5 pb-4">
-                <h4 className="text-base font-extrabold text-white">
-                  الفصل {newChapterNumber || 'الجديد'}: {newChapterTitle || 'عنوان الفصل يظهر هنا'}
-                </h4>
-                <span className="text-[10px] text-purple-400 mt-1 block">حقوق الترجمة والنشر محفوظة لمنصة Berry Mist وللمترجم: {novel.translatorName}</span>
-              </div>
-              <div 
-                className="space-y-4 break-words leading-relaxed [&_img]:max-h-[750px] [&_img]:w-full [&_img]:max-w-[700px] [&_img]:my-6 [&_img]:mx-auto [&_img]:rounded-2xl [&_img]:shadow-[0_10px_35px_rgba(0,0,0,0.6)] [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain [&_img]:bg-black/30 [&_img]:p-1.5 hover:[&_img]:border-violet-500/40 hover:[&_img]:scale-[1.01] [&_img]:transition-all [&_img]:duration-300"
-                dangerouslySetInnerHTML={{ __html: sanitizeChapterHtml(newChapterContent) }}
-              />
-            </div>
-          ) : (
-            <p className="text-xs text-purple-400 text-center py-6 bg-black/15 rounded-xl border border-dashed border-white/5">
-              اكتب في المحرر أعلاه لترى معاينة حية للفصل وتنسيق الصور هنا تلقائياً...
-            </p>
-          )}
-        </div>
-
         <input 
           type="file" 
           id="png-uploader"
@@ -969,8 +978,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             <div className="mt-2.5 p-4 rounded-xl bg-[#13101E] border border-white/5 animate-in slide-in-from-top-2 duration-200 text-right">
               <input 
                 type="datetime-local"
+                lang="en"
                 value={newChapterPublishAt}
                 onChange={(e) => setNewChapterPublishAt(e.target.value)}
+                min={getMinScheduleDate()}
                 max={getMaxScheduleDate()}
                 className="w-full bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono text-right"
               />
@@ -1322,7 +1333,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                     <button
                       onClick={() => {
                         setShowAddChapterForm(!showAddChapterForm);
-                        setNewChapterNumber(chapters.length + 1);
+                        setNewChapterNumber('');
                       }}
                       className="px-4 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-violet-500/10"
                     >

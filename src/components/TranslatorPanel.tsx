@@ -46,6 +46,16 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  const getMinScheduleDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const genresOptions = ['أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع', 'موسيقى'];
 
   const loadChaptersAndDeleted = () => {
@@ -382,6 +392,11 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
     if (editChapterPublishAt) {
       const publishDate = new Date(editChapterPublishAt);
+      const now = new Date();
+      if (publishDate < now) {
+        alert('عذراً، لا يمكنك جدولة الفصل في وقت سابق للوقت الحالي!');
+        return;
+      }
       const maxDate = new Date();
       maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
       if (publishDate > maxDate) {
@@ -1486,8 +1501,10 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                 <label className="text-purple-200 font-bold">📅 جدولة وقت النشر التلقائي بالتاريخ الميلادي</label>
                 <input 
                   type="datetime-local" 
+                  lang="en"
                   value={editChapterPublishAt}
                   onChange={(e) => setEditChapterPublishAt(e.target.value)}
+                  min={getMinScheduleDate()}
                   max={getMaxScheduleDate()}
                   className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white font-mono"
                 />
