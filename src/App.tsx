@@ -20,6 +20,7 @@ import NovelDetails from './components/NovelDetails';
 import ReaderView from './components/ReaderView';
 import TranslatorPanel from './components/TranslatorPanel';
 import AdminPanel from './components/AdminPanel';
+import PrivacyPolicy from './components/PrivacyPolicy';
 import AdsTicker from './components/AdsTicker';
 import AdsPage from './components/AdsPage';
 import TranslatorRequestForm from './components/TranslatorRequestForm';
@@ -1973,6 +1974,14 @@ export default function App() {
           />
         )}
 
+        {/* ==================== SCREEN 11: PRIVACY POLICY PAGE ==================== */}
+        {currentPage === 'privacy-policy' && (
+          <PrivacyPolicy 
+            currentUser={currentUser} 
+            onNavigate={handleNavigate} 
+          />
+        )}
+
       </main>
 
       {/* Suggest Novel Modal Form Popup Overlay */}
@@ -2190,7 +2199,12 @@ export default function App() {
           <span className="text-center sm:text-right">حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
           <div className="flex flex-wrap justify-center gap-4">
             <span className="hover:text-white cursor-pointer">شروط الخدمة والاستخدام</span>
-            <span className="hover:text-white cursor-pointer">سياسة الخصوصية وحماية البيانات</span>
+            <span 
+              onClick={() => handleNavigate('privacy-policy')}
+              className="hover:text-white cursor-pointer transition-colors"
+            >
+              سياسة الخصوصية وحماية البيانات
+            </span>
             <span className="hover:text-white cursor-pointer">DMCA وحقوق الملكية</span>
           </div>
         </div>

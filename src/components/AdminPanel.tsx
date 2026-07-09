@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck, Upload } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User, TranslatorRequest, Report } from '../types';
 import { BerryDatabase } from '../data';
+import { getAllTranslatorsPoints, crownTranslator, getCrownedTranslatorId, getCurrentMonthKey } from '../utils/points';
 
 interface AdminPanelProps {
   currentUser: User;
@@ -14,7 +15,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports' | 'edit-requests'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports' | 'edit-requests' | 'points'>('novels');
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [activeRejectId, setActiveRejectId] = useState<string | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -647,6 +648,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
         >
           <span>طلبات تعديل الفصول ({editRequests.filter(r => r.status === 'PENDING').length}) 🛠️</span>
           {activeTab === 'edit-requests' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
+        <button 
+          onClick={() => setActiveTab('points')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'points' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>نقاط المترجمين وتتويج مترجم الشهر 🏆</span>
+          {activeTab === 'points' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
       </div>
 
@@ -1474,6 +1482,112 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
             )}
           </div>
         )}
+
+        {/* TAB: Points and Crown translator */}
+        {activeTab === 'points' && (() => {
+          const transPoints = getAllTranslatorsPoints().sort((a, b) => b.pointsThisMonth - a.pointsThisMonth);
+          const crownedId = getCrownedTranslatorId();
+          const currentMonth = new Date().toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
+
+          const handleCrownTranslator = (uid: string, name: string) => {
+            crownTranslator(uid);
+            // Refresh state trigger
+            setAllNovels([...BerryDatabase.get<Novel[]>('novels', [])]); 
+            alert(`تم تتويج المترجم "${name}" كـ "مترجم الشهر" بنجاح! 👑`);
+          };
+
+          return (
+            <div className="flex flex-col gap-5 text-right animate-in fade-in duration-300">
+              <div className="p-5 bg-gradient-to-r from-violet-950/20 to-purple-950/20 border border-violet-500/10 rounded-2xl mb-2">
+                <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                  <span>لوحة نقاط المترجمين وتتويج بطل الشهر 🏆</span>
+                </h3>
+                <p className="text-[10px] text-purple-400 mt-1">
+                  توضح هذه اللوحة إجمالي المشاهدات المعتمدة (التي تجاوزت 30 ثانية لكل زيارة قارئ) والنقاط المكتسبة لكل مترجم لشهر <strong>{currentMonth}</strong>. يمكنك تتويج المترجم الأفضل ليحصل على اللقب والرتبة الفخمة تلقائياً.
+                </p>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl border border-white/5">
+                {transPoints.length > 0 ? (
+                  <div className="flex flex-col gap-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-purple-200 text-right">
+                        <thead>
+                          <tr className="border-b border-white/5 text-purple-400 font-sans">
+                            <th className="pb-3 pt-1 pr-2">المترجم</th>
+                            <th className="pb-3 pt-1">رتبة الموقع</th>
+                            <th className="pb-3 pt-1">المشاهدات المعتمدة ({currentMonth})</th>
+                            <th className="pb-3 pt-1">النقاط المكتسبة ({currentMonth})</th>
+                            <th className="pb-3 pt-1">الحالة واللقب</th>
+                            <th className="pb-3 pt-1 text-left pl-2">إجراء</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {transPoints.map((t, index) => {
+                            const isThisCrowned = crownedId === t.translatorId;
+                            // Find user role
+                            const usersDb = BerryDatabase.get<User[]>('users_db', []);
+                            const matchedUser = usersDb.find(u => u.id === t.translatorId);
+                            const roleLabel = matchedUser?.role === 'OWNER' ? 'المالك 👑' : matchedUser?.role === 'TRANSLATOR' ? 'مترجم ✍️' : matchedUser?.role === 'WRITER' ? 'مؤلف 📝' : 'عضو 👤';
+
+                            return (
+                              <tr key={t.translatorId} className={`hover:bg-white/5 transition-all ${isThisCrowned ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : ''}`}>
+                                <td className="py-3 pr-2 flex items-center gap-2 flex-row-reverse text-right">
+                                  <img 
+                                    src={t.avatar} 
+                                    alt={t.translatorName} 
+                                    className={`w-8 h-8 rounded-full border ${isThisCrowned ? 'border-yellow-400' : 'border-white/10'}`} 
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-white flex items-center gap-1">
+                                      {t.translatorName}
+                                      {index === 0 && t.pointsThisMonth > 0 && <span className="text-[9px] text-yellow-400 bg-yellow-500/10 px-1 rounded-sm">الأعلى 🥇</span>}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 text-purple-300 font-sans">{roleLabel}</td>
+                                <td className="py-3 font-mono font-bold text-white">{t.viewsThisMonth.toLocaleString('ar-EG', { numberingSystem: 'latn' })} مشاهدة</td>
+                                <td className="py-3 font-mono font-extrabold text-violet-400">{t.pointsThisMonth} نقطة</td>
+                                <td className="py-3">
+                                  {isThisCrowned ? (
+                                    <span className="inline-flex items-center gap-1 bg-yellow-500/15 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                      🏆 مترجم الشهر الحالي
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-purple-400">عضو مشارك</span>
+                                  )}
+                                </td>
+                                <td className="py-3 text-left pl-2">
+                                  {isThisCrowned ? (
+                                    <button
+                                      disabled
+                                      className="px-3 py-1.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-lg text-[10px] font-bold cursor-not-allowed"
+                                    >
+                                      بطل متوج 👑
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleCrownTranslator(t.translatorId, t.translatorName)}
+                                      className="px-3 py-1.5 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-md shadow-violet-500/5"
+                                    >
+                                      تتويج باللقب 👑
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-purple-400 text-center py-4">لا يوجد أي مترجمين مسجلين في النظام حالياً.</p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
     </div>

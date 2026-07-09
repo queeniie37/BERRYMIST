@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertCircle, Edit, Trash2, Calendar, BookOpen, Eye, RefreshCw, Upload, Image } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
+import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
 
 interface TranslatorPanelProps {
   currentUser: User;
@@ -12,7 +13,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [novels, setNovels] = useState<Novel[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'claims' | 'reservations' | 'add-novel' | 'activity' | 'deleted-chapters' | 'edit-requests'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'claims' | 'reservations' | 'add-novel' | 'activity' | 'deleted-chapters' | 'edit-requests' | 'points'>('novels');
   
   // Create novel form
   const [titleAr, setTitleAr] = useState('');
@@ -740,6 +741,13 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
           <span className="flex items-center gap-1">🛠️ طلب تعديل فصل</span>
           {activeTab === 'edit-requests' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
+        <button 
+          onClick={() => setActiveTab('points')}
+          className={`pb-3 px-6 relative transition-colors shrink-0 ${activeTab === 'points' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span className="flex items-center gap-1">🌟 نظام النقاط ({getTranslatorPoints(currentUser.id, currentUser.username).pointsThisMonth} ن)</span>
+          {activeTab === 'points' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
       </div>
 
       {/* Tab Panel Content */}
@@ -1406,6 +1414,119 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
             </div>
           </div>
         )}
+
+        {/* TAB 7: Points System */}
+        {activeTab === 'points' && (() => {
+          const pointsInfo = getTranslatorPoints(currentUser.id, currentUser.username);
+          const isCrowned = isUserTranslatorOfTheMonth(currentUser.username);
+          const currentMonth = new Date().toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
+          const nextPointViewsLeft = 10 - (pointsInfo.viewsThisMonth % 10);
+          const progressPercent = ((pointsInfo.viewsThisMonth % 10) / 10) * 100;
+
+          return (
+            <div className="flex flex-col gap-6 text-right animate-in fade-in duration-300">
+              
+              {/* Crowned Greeting */}
+              {isCrowned && (
+                <div className="relative p-6 rounded-3xl bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-amber-500/20 border border-yellow-500/30 text-center flex flex-col items-center justify-center gap-2 overflow-hidden shadow-xl shadow-yellow-500/5">
+                  <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl" />
+                  <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl" />
+                  <div className="text-4xl">🏆</div>
+                  <h3 className="text-lg font-extrabold text-yellow-400">تهانينا الحارة! أنت مترجم الشهر!</h3>
+                  <p className="text-xs text-yellow-100 max-w-md">
+                    لقد تم تتويجك من قِبل الإدارة كـ <strong>مترجم الشهر</strong> نظراً لجهودك الاستثنائية وتفاعلك الرائع. تظهر رتبتك الخاصة الآن بجانب اسمك في جميع الفصول والتعليقات!
+                  </p>
+                </div>
+              )}
+
+              {/* Main Points Card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Views & Points Box */}
+                <div className="glass-panel p-6 rounded-2xl border border-white/5 md:col-span-2 flex flex-col gap-5 justify-between">
+                  <div className="flex justify-between items-center flex-row-reverse">
+                    <span className="text-[10px] bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2.5 py-1 rounded-full font-bold">
+                      {currentMonth}
+                    </span>
+                    <h4 className="text-sm font-extrabold text-white">إحصائيات النقاط والمشاهدات المعتمدة 📈</h4>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div className="bg-[#13101E] p-4 rounded-xl border border-white/5">
+                      <span className="text-[10px] text-purple-400 block mb-1">المشاهدات المعتمدة هذا الشهر</span>
+                      <strong className="text-2xl font-extrabold text-white font-mono">{pointsInfo.viewsThisMonth}</strong>
+                      <span className="text-[9px] text-purple-500 block mt-1">مشاهدة</span>
+                    </div>
+                    <div className="bg-gradient-to-br from-[#1C1430] to-[#120B20] p-4 rounded-xl border border-violet-500/10 shadow-inner">
+                      <span className="text-[10px] text-violet-400 block mb-1">نقاطك الحالية المكتسبة</span>
+                      <strong className="text-2xl font-extrabold text-violet-400 font-mono">{pointsInfo.pointsThisMonth}</strong>
+                      <span className="text-[9px] text-violet-500 block mt-1">نقطة</span>
+                    </div>
+                  </div>
+
+                  {/* Progress to Next Point */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex justify-between text-[11px] text-purple-300">
+                      <span>{pointsInfo.viewsThisMonth % 10} / 10 مشاهدات للقطة التالية</span>
+                      <span>متبقي {nextPointViewsLeft} مشاهدات لنقطة جديدة</span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-2.5 overflow-hidden border border-white/5 p-[2px]">
+                      <div 
+                        className="bg-gradient-to-r from-violet-600 to-berry-500 h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rules & Info */}
+                <div className="glass-panel p-6 rounded-2xl border border-white/5 flex flex-col gap-4 text-xs">
+                  <h4 className="font-extrabold text-white flex items-center gap-1.5 justify-end">
+                    <span>دليل نظام النقاط</span>
+                    <Award className="text-violet-400" size={16} />
+                  </h4>
+                  <ul className="flex flex-col gap-3 text-purple-300 list-disc list-inside">
+                    <li>كل <strong>10 مشاهدات معتمدة</strong> تمنحك <strong>نقطة واحدة</strong>.</li>
+                    <li><strong>حماية المشاهدات:</strong> لا تُحتسب المشاهدة إلا إذا أمضى القارئ <strong>30 ثانية على الأقل</strong> داخل الفصل.</li>
+                    <li>تتجدد النقاط وتصفر تلقائياً مع بداية كل شهر ميلادي لفتح باب المنافسة من جديد.</li>
+                    <li>مترجم الشهر يحصل على رتبة مؤقتة فخمة بجانب اسمه حتى إعلان فائز الشهر التالي.</li>
+                  </ul>
+                </div>
+
+              </div>
+
+              {/* Points History */}
+              <div className="glass-panel p-6 rounded-2xl border border-white/5">
+                <h4 className="text-sm font-extrabold text-white mb-4">سجل النقاط للأشهر السابقة 📜</h4>
+                {pointsInfo.viewsHistory.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-purple-300 text-right">
+                      <thead>
+                        <tr className="border-b border-white/5 text-purple-400">
+                          <th className="pb-3 pt-1">الشهر الميلادي</th>
+                          <th className="pb-3 pt-1">المشاهدات المنجزة</th>
+                          <th className="pb-3 pt-1 text-left">النقاط المكتسبة</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 font-mono">
+                        {pointsInfo.viewsHistory.map((h, i) => (
+                          <tr key={i} className="hover:bg-white/5 transition-colors">
+                            <td className="py-3 font-sans">{h.month}</td>
+                            <td className="py-3">{h.views} مشاهدة</td>
+                            <td className="py-3 text-left text-violet-400 font-bold">{h.points} نقطة</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-purple-400 text-center py-4">لا توجد بيانات تاريخية للأشهر السابقة حتى الآن.</p>
+                )}
+              </div>
+
+            </div>
+          );
+        })()}
       </div>
 
       {/* EDIT CHAPTER MODAL OVERLAY */}

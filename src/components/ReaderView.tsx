@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronLeft, Settings, Type, BookOpen, HelpCircle, Heart, Check, Share2, Clipboard, MessageSquare } from 'lucide-react';
 import { Chapter, Novel, User, Comment, CommentReply, Report } from '../types';
 import { BerryDatabase } from '../data';
+import { isUserTranslatorOfTheMonth } from '../utils/points';
 
 // Chapter text is author-provided. Escape all HTML, then re-allow only the
 // simple formatting tags the chapter editor can produce (<b>, <i>, <u>, <img>) so a
@@ -114,12 +115,31 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
         });
         BerryDatabase.set('read_chapters', readChapters);
       }
-
-      // Increment view count of novel
-      const updatedNovels = allNovels.map(n => n.id === novelId ? { ...n, views: n.views + 1 } : n);
-      BerryDatabase.set('novels', updatedNovels);
     }
   }, [novelId, chapterNumber, currentUser]);
+
+  // Views are only counted if reader spends > 30 seconds
+  useEffect(() => {
+    if (!novelId || !chapterNumber) return;
+
+    const timer = setTimeout(() => {
+      const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+      const updatedNovels = allNovels.map(n => n.id === novelId ? { ...n, views: n.views + 1 } : n);
+      BerryDatabase.set('novels', updatedNovels);
+      setNovel(prev => prev && prev.id === novelId ? { ...prev, views: prev.views + 1 } : prev);
+
+      const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
+      const updatedChapters = allChapters.map(c => 
+        (c.novelId === novelId && c.number === chapterNumber) 
+          ? { ...c, views: (c.views || 0) + 1 } 
+          : c
+      );
+      BerryDatabase.set('chapters', updatedChapters);
+      setChapter(prev => prev && prev.novelId === novelId && prev.number === chapterNumber ? { ...prev, views: (prev.views || 0) + 1 } : prev);
+    }, 30000); // 30 seconds
+
+    return () => clearTimeout(timer);
+  }, [novelId, chapterNumber]);
 
   // Track scrolling progress
   useEffect(() => {
@@ -619,6 +639,11 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold">
                             {comment.authorRole === 'OWNER' ? 'المالك 👑' : comment.authorRole === 'TRANSLATOR' ? 'مترجم ✍️' : 'عضو قارئ 👤'}
                           </span>
+                          {isUserTranslatorOfTheMonth(comment.authorName) && (
+                            <span className="text-[8.5px] px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 font-bold flex items-center gap-0.5">
+                              🏆 مترجم الشهر
+                            </span>
+                          )}
                         </div>
                         <span className="text-[9px] text-purple-400 mt-0.5 block">{new Date(comment.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                       </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown, FileText, ChevronLeft, Undo2, Redo2, BookOpen, Info } from 'lucide-react';
 import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } from '../types';
 import { BerryDatabase } from '../data';
+import { isUserTranslatorOfTheMonth } from '../utils/points';
 
 function sanitizeChapterHtml(raw: string): string {
   const escaped = raw
@@ -1090,8 +1091,17 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               {novel.titleEn} {novel.titleOriginal ? `| ${novel.titleOriginal}` : ''}
             </h3>
 
-            <p className="text-xs text-purple-400 mt-2">
-              الكاتب الأصلي: <span className="text-purple-200 font-bold">{novel.author}</span> | المترجم الحالي: <span className="text-berry-300 font-bold">{novel.translatorName || 'لا يوجد'}</span>
+            <p className="text-xs text-purple-400 mt-2 flex items-center gap-1.5 flex-wrap justify-end md:justify-start">
+              <span>الكاتب الأصلي: <strong className="text-purple-200 font-bold">{novel.author}</strong></span>
+              <span>|</span>
+              <span className="flex items-center gap-1.5">
+                المترجم الحالي: <strong className="text-berry-300 font-bold">{novel.translatorName || 'لا يوجد'}</strong>
+                {novel.translatorName && isUserTranslatorOfTheMonth(novel.translatorName) && (
+                  <span className="inline-flex items-center gap-0.5 bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                    🏆 مترجم الشهر
+                  </span>
+                )}
+              </span>
             </p>
 
             {/* Genres list */}
@@ -1473,6 +1483,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold">
                               {comment.authorRole === 'OWNER' ? 'المالك 👑' : comment.authorRole === 'TRANSLATOR' ? 'مترجم ✍️' : 'عضو قارئ 👤'}
                             </span>
+                            {isUserTranslatorOfTheMonth(comment.authorName) && (
+                              <span className="text-[8.5px] px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 font-bold flex items-center gap-0.5">
+                                🏆 مترجم الشهر
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-purple-400 mt-0.5 block">{new Date(comment.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
                         </div>
