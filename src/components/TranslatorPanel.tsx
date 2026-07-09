@@ -35,6 +35,17 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [editChapterPublishAt, setEditChapterPublishAt] = useState('');
   const [editChapterImages, setEditChapterImages] = useState('');
 
+  const getMaxScheduleDate = () => {
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
+    const year = maxDate.getFullYear();
+    const month = String(maxDate.getMonth() + 1).padStart(2, '0');
+    const day = String(maxDate.getDate()).padStart(2, '0');
+    const hours = String(maxDate.getHours()).padStart(2, '0');
+    const minutes = String(maxDate.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const genresOptions = ['أكشن', 'فانتزيا', 'مغامرات', 'إثارة', 'نظام', 'إسيكاي', 'موريم', 'دراما', 'غموض', 'رومانسية', 'كوميديا', 'تراجع', 'موسيقى'];
 
   const loadChaptersAndDeleted = () => {
@@ -368,6 +379,16 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const handleSaveEditChapter = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingChapter) return;
+
+    if (editChapterPublishAt) {
+      const publishDate = new Date(editChapterPublishAt);
+      const maxDate = new Date();
+      maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
+      if (publishDate > maxDate) {
+        alert('عذراً، لا يمكنك جدولة الفصل لأكثر من شهرين (60 يوماً) مستقبلاً!');
+        return;
+      }
+    }
 
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     
@@ -1467,6 +1488,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   type="datetime-local" 
                   value={editChapterPublishAt}
                   onChange={(e) => setEditChapterPublishAt(e.target.value)}
+                  max={getMaxScheduleDate()}
                   className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white font-mono"
                 />
                 <span className="text-[9px] text-purple-400">اختر التاريخ والوقت الميلادي الذي ترغب في إعادة جدولة الفصل فيه تلقائياً. اتركه فارغاً للنشر الفوري.</span>

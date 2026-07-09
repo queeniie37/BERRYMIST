@@ -88,6 +88,17 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [contentHistory, setContentHistory] = useState<string[]>(['']);
   const [historyIdx, setHistoryIdx] = useState(0);
 
+  const getMaxScheduleDate = () => {
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
+    const year = maxDate.getFullYear();
+    const month = String(maxDate.getMonth() + 1).padStart(2, '0');
+    const day = String(maxDate.getDate()).padStart(2, '0');
+    const hours = String(maxDate.getHours()).padStart(2, '0');
+    const minutes = String(maxDate.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const editorRef = useRef<HTMLDivElement>(null);
   const lastHtmlRef = useRef('');
 
@@ -550,6 +561,16 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     e.preventDefault();
     if (!newChapterTitle || !newChapterContent) return;
 
+    if (newChapterPublishAt) {
+      const publishDate = new Date(newChapterPublishAt);
+      const maxDate = new Date();
+      maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
+      if (publishDate > maxDate) {
+        alert('عذراً، لا يمكنك جدولة الفصل لأكثر من شهرين (60 يوماً) مستقبلاً!');
+        return;
+      }
+    }
+
     const newChapterNum = Number(newChapterNumber) || chapters.length + 1;
     const imgUrls = extractImagesFromContent(newChapterContent);
 
@@ -722,17 +743,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     return (
       <form onSubmit={handleCreateChapter} className="w-full text-right pb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
         
-        {/* Blue System/Notification Alert Banner */}
-        <div className="bg-[#0c192c]/60 border border-blue-500/20 text-blue-300 p-4 rounded-xl flex items-center justify-between text-right text-xs gap-3 mb-6 select-none animate-in fade-in duration-300">
-          <div className="flex items-center gap-2">
-            {/* Left side blank */}
-          </div>
-          <div className="flex items-center gap-2 text-right">
-            <span>تم تفعيل نظام التعليقات الجديد على الموقع، ونعمل على إضافته لتطبيق الهاتف قريبًا.</span>
-            <Info size={16} className="text-blue-400 shrink-0" />
-          </div>
-        </div>
-
         {/* Section Title with File Icon and Cancel Button */}
         <div className="flex items-center justify-between mb-8">
           <button 
@@ -961,6 +971,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                 type="datetime-local"
                 value={newChapterPublishAt}
                 onChange={(e) => setNewChapterPublishAt(e.target.value)}
+                max={getMaxScheduleDate()}
                 className="w-full bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono text-right"
               />
               <span className="text-[10px] text-purple-400/80 mt-1.5 block">اختر التاريخ والوقت لتسجيل وقت النشر التلقائي للفصل. سيظل الفصل مجدولاً وغير متاح للقراءة قبل هذا الوقت.</span>
