@@ -242,36 +242,46 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     if (!target) return;
 
     showConfirm(
-      'نقل الرواية لسلة المحذوفات',
-      `هل أنت متأكد من رغبتك في نقل رواية "${target.titleAr}" إلى سلة المحذوفات؟ سيتم إخفاء الرواية وجميع فصولها وتعليقاتها عن الزوار، ولكن يمكنك استعادتها بكامل فصولها وبياناتها أو حذفها نهائياً لاحقاً.`,
+      'نقل الرواية لسلة المحذوفات (تأكيد 1/2)',
+      `هل أنت متأكد من رغبتك في نقل رواية "${target.titleAr}" إلى سلة المحذوفات؟ سيتم إخفاء الرواية وجميع فصولها وتعليقاتها عن الزوار.`,
       () => {
-        const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
-        const updated = loadedNovels.filter(n => n.id !== novelId);
-        BerryDatabase.set('novels', updated);
-        setAllNovels(updated);
-        setPendingNovels(updated.filter(n => n.status === 'PENDING'));
+        setTimeout(() => {
+          showConfirm(
+            'نقل الرواية لسلة المحذوفات (تأكيد نهائي 2/2) ⚠️',
+            `تأكيد أخير ومؤكد: هل أنت متأكد تماماً من رغبتك في إخفاء رواية "${target.titleAr}" ونقلها لسلة المحذوفات؟ يمكنك التراجع عنها لاحقاً.`,
+            () => {
+              const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
+              const updated = loadedNovels.filter(n => n.id !== novelId);
+              BerryDatabase.set('novels', updated);
+              setAllNovels(updated);
+              setPendingNovels(updated.filter(n => n.status === 'PENDING'));
 
-        // Archive chapters inside the deleted novel object
-        const allChapters = BerryDatabase.get<any[]>('chapters', []);
-        const novelChapters = allChapters.filter(c => c.novelId === novelId);
-        const remainingChapters = allChapters.filter(c => c.novelId !== novelId);
-        BerryDatabase.set('chapters', remainingChapters);
+              // Archive chapters inside the deleted novel object
+              const allChapters = BerryDatabase.get<any[]>('chapters', []);
+              const novelChapters = allChapters.filter(c => c.novelId === novelId);
+              const remainingChapters = allChapters.filter(c => c.novelId !== novelId);
+              BerryDatabase.set('chapters', remainingChapters);
 
-        // Move novel to deleted_novels in DB
-        const allDeletedNovels = BerryDatabase.get<any[]>('deleted_novels', []);
-        const deletedNovelEntry = {
-          ...target,
-          deletedAt: new Date().toISOString(),
-          deletedBy: currentUser.username,
-          chapters: novelChapters
-        };
-        const updatedDeletedNovels = [deletedNovelEntry, ...allDeletedNovels];
-        BerryDatabase.set('deleted_novels', updatedDeletedNovels);
-        setDeletedNovels(updatedDeletedNovels);
+              // Move novel to deleted_novels in DB
+              const allDeletedNovels = BerryDatabase.get<any[]>('deleted_novels', []);
+              const deletedNovelEntry = {
+                ...target,
+                deletedAt: new Date().toISOString(),
+                deletedBy: currentUser.username,
+                chapters: novelChapters
+              };
+              const updatedDeletedNovels = [deletedNovelEntry, ...allDeletedNovels];
+              BerryDatabase.set('deleted_novels', updatedDeletedNovels);
+              setDeletedNovels(updatedDeletedNovels);
 
-        window.dispatchEvent(new Event('novels-updated'));
-        alert(`تم نقل الرواية "${target.titleAr}" إلى سلة المحذوفات بنجاح! 🗑️`);
-      }
+              window.dispatchEvent(new Event('novels-updated'));
+              alert(`تم نقل الرواية "${target.titleAr}" إلى سلة المحذوفات بنجاح! 🗑️`);
+            },
+            true
+          );
+        }, 100);
+      },
+      true
     );
   };
 
@@ -304,32 +314,42 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     if (!target) return;
 
     showConfirm(
-      'حذف الرواية نهائياً ⚠️',
+      'حذف الرواية نهائياً ⚠️ (تأكيد 1/2)',
       `تحذير هام للغاية: هل أنت متأكد من حذف رواية "${target.titleAr}" نهائياً وبشكل قاطع؟ هذا الإجراء سيمحو الرواية وكافة فصولها وتعليقاتها من خوادم وقواعد بيانات الموقع بالكامل ولا يمكن التراجع عنه أبداً!`,
       () => {
-        const remainingDeleted = allDeleted.filter(n => n.id !== novelId);
-        BerryDatabase.set('deleted_novels', remainingDeleted);
-        setDeletedNovels(remainingDeleted);
+        setTimeout(() => {
+          showConfirm(
+            'حذف الرواية نهائياً ⚠️ (تأكيد نهائي 2/2)',
+            `تنبيه أخير ومطلق: هل أنت متأكد تماماً وقاطعاً من رغبتك في محو رواية "${target.titleAr}" وكافة فصولها وبياناتها للأبد؟ هذا الإجراء لا رجعة فيه إطلاقاً!`,
+            () => {
+              const remainingDeleted = allDeleted.filter(n => n.id !== novelId);
+              BerryDatabase.set('deleted_novels', remainingDeleted);
+              setDeletedNovels(remainingDeleted);
 
-        const deletedChapterIds = (target.chapters || []).map((c: any) => c.id);
+              const deletedChapterIds = (target.chapters || []).map((c: any) => c.id);
 
-        const allReservations = BerryDatabase.get<any[]>('reservations', []);
-        BerryDatabase.set('reservations', allReservations.filter(r => r.novelId !== novelId));
+              const allReservations = BerryDatabase.get<any[]>('reservations', []);
+              BerryDatabase.set('reservations', allReservations.filter(r => r.novelId !== novelId));
 
-        const allComments = BerryDatabase.get<any[]>('comments', []);
-        BerryDatabase.set('comments', allComments.filter(c => c.refId !== novelId && !deletedChapterIds.includes(c.refId)));
+              const allComments = BerryDatabase.get<any[]>('comments', []);
+              BerryDatabase.set('comments', allComments.filter(c => c.refId !== novelId && !deletedChapterIds.includes(c.refId)));
 
-        const allReviews = BerryDatabase.get<any[]>('reviews', []);
-        BerryDatabase.set('reviews', allReviews.filter(r => r.novelId !== novelId));
+              const allReviews = BerryDatabase.get<any[]>('reviews', []);
+              BerryDatabase.set('reviews', allReviews.filter(r => r.novelId !== novelId));
 
-        const allBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
-        BerryDatabase.set('bookmarks', allBookmarks.filter(id => id !== novelId));
+              const allBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+              BerryDatabase.set('bookmarks', allBookmarks.filter(id => id !== novelId));
 
-        const allHistory = BerryDatabase.get<any[]>('reading_history', []);
-        BerryDatabase.set('reading_history', allHistory.filter(h => h.novelId !== novelId));
+              const allHistory = BerryDatabase.get<any[]>('reading_history', []);
+              BerryDatabase.set('reading_history', allHistory.filter(h => h.novelId !== novelId));
 
-        alert(`تم حذف الرواية "${target.titleAr}" نهائياً من قواعد البيانات بنجاح.`);
-      }
+              alert(`تم حذف الرواية "${target.titleAr}" نهائياً من قواعد البيانات بنجاح.`);
+            },
+            true
+          );
+        }, 100);
+      },
+      true
     );
   };
 
@@ -370,18 +390,28 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     if (!target) return;
 
     showConfirm(
-      'حذف الفصل نهائياً ⚠️',
-      `هل أنت متأكد تماماً وبشكل قاطع من حذف الفصل "${target.title}" للرواية "${target.novelTitle}" نهائياً؟ هذا الإجراء سيمحوه تماماً من خوادم وقواعد بيانات الموقع ولا يمكن التراجع عنه أبداً!`,
+      'حذف الفصل نهائياً ⚠️ (تأكيد 1/2)',
+      `هل أنت متأكد تماماً وبشكل قاطع من حذف الفصل "${target.title}" للرواية "${target.novelTitle}" نهائياً؟`,
       () => {
-        const remainingDeleted = allDeleted.filter(d => d.id !== chapterId);
-        BerryDatabase.set('deleted_chapters', remainingDeleted);
-        setDeletedChapters(remainingDeleted);
+        setTimeout(() => {
+          showConfirm(
+            'حذف الفصل نهائياً ⚠️ (تأكيد نهائي 2/2)',
+            `تنبيه أخير وقاطع: هل أنت متأكد تماماً من رغبتك في مسح هذا الفصل نهائياً وبشكل دائم ومحوه للأبد؟ لا يمكن استعادة الفصل بعد هذا الإجراء!`,
+            () => {
+              const remainingDeleted = allDeleted.filter(d => d.id !== chapterId);
+              BerryDatabase.set('deleted_chapters', remainingDeleted);
+              setDeletedChapters(remainingDeleted);
 
-        const allComments = BerryDatabase.get<any[]>('comments', []);
-        BerryDatabase.set('comments', allComments.filter(c => c.refId !== chapterId));
+              const allComments = BerryDatabase.get<any[]>('comments', []);
+              BerryDatabase.set('comments', allComments.filter(c => c.refId !== chapterId));
 
-        alert('تم حذف الفصل نهائياً وبشكل دائم. ❌');
-      }
+              alert('تم حذف الفصل نهائياً وبشكل دائم. ❌');
+            },
+            true
+          );
+        }, 100);
+      },
+      true
     );
   };
 
@@ -1832,16 +1862,15 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                           <div className="flex gap-1.5">
                             <button
                               onClick={() => handleRestoreChapter(chap.id)}
-                              className="text-green-400 hover:text-green-300 font-bold cursor-pointer"
+                              className="px-2 py-1 bg-green-500/10 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/20 rounded-xl text-[9px] font-bold transition-all cursor-pointer"
                             >
-                              استعادة
+                              استعادة ↩️
                             </button>
-                            <span className="text-white/10">|</span>
                             <button
                               onClick={() => handlePermanentlyDeleteChapter(chap.id)}
-                              className="text-red-400 hover:text-red-300 font-bold cursor-pointer"
+                              className="px-2 py-1 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 rounded-xl text-[9px] font-bold transition-all cursor-pointer"
                             >
-                              حذف نهائي
+                              حذف نهائي ❌
                             </button>
                           </div>
                         </div>

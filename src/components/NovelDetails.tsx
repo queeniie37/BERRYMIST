@@ -3,6 +3,7 @@ import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, Chev
 import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } from '../types';
 import { BerryDatabase } from '../data';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
+import ConfirmModal from './ConfirmModal';
 
 function sanitizeChapterHtml(raw: string): string {
   const escaped = raw
@@ -77,6 +78,31 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [reportDetails, setReportDetails] = useState('');
   const [isSpoilerComment, setIsSpoilerComment] = useState(false);
   const [revealedSpoilers, setRevealedSpoilers] = useState<string[]>([]);
+
+  // Deletion double confirmation modal state
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    danger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    danger: true
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, danger = true) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      danger
+    });
+  };
 
   // Add chapter simulator state
   const [showAddChapterForm, setShowAddChapterForm] = useState(false);
@@ -686,52 +712,65 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   const handleDeleteNovel = () => {
     if (!novel) return;
-    if (!window.confirm(`هل أنت متأكد من رغبتك في حذف رواية "${novel.titleAr}" نهائياً من الموقع بالكامل مع جميع الفصول والتعليقات الخاصة بها؟ هذا الإجراء لا يمكن التراجع عنه!`)) {
-      return;
-    }
 
-    const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-    const updatedNovels = allNovels.filter(n => n.id !== novel.id);
-    BerryDatabase.set('novels', updatedNovels);
+    showConfirm(
+      'حذف الرواية نهائياً ⚠️ (تأكيد 1/2)',
+      `هل أنت متأكد تماماً وبشكل قاطع من رغبتك في حذف رواية "${novel.titleAr}" نهائياً من الموقع بالكامل مع جميع الفصول والتعليقات الخاصة بها؟`,
+      () => {
+        setTimeout(() => {
+          showConfirm(
+            'حذف الرواية نهائياً ⚠️ (تأكيد نهائي 2/2)',
+            `تأكيد أخير ومؤكد: هل أنت متأكد تماماً من حذف رواية "${novel.titleAr}" وكافة فصولها وتعليقاتها وبياناتها للأبد؟ لا يمكن التراجع عن هذا الإجراء تحت أي ظرف!`,
+            () => {
+              const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+              const updatedNovels = allNovels.filter(n => n.id !== novel.id);
+              BerryDatabase.set('novels', updatedNovels);
 
-    const allChapters = BerryDatabase.get<any[]>('chapters', []);
-    const deletedChaptersList = allChapters.filter(c => c.novelId === novel.id);
-    const deletedChapterIds = deletedChaptersList.map(c => c.id);
-    const updatedChapters = allChapters.filter(c => c.novelId !== novel.id);
-    BerryDatabase.set('chapters', updatedChapters);
+              const allChapters = BerryDatabase.get<any[]>('chapters', []);
+              const deletedChaptersList = allChapters.filter(c => c.novelId === novel.id);
+              const deletedChapterIds = deletedChaptersList.map(c => c.id);
+              const updatedChapters = allChapters.filter(c => c.novelId !== novel.id);
+              BerryDatabase.set('chapters', updatedChapters);
 
-    const allReservations = BerryDatabase.get<any[]>('reservations', []);
-    const updatedReservations = allReservations.filter(r => r.novelId !== novel.id);
-    BerryDatabase.set('reservations', updatedReservations);
+              const allReservations = BerryDatabase.get<any[]>('reservations', []);
+              const updatedReservations = allReservations.filter(r => r.novelId !== novel.id);
+              BerryDatabase.set('reservations', updatedReservations);
 
-    // Delete comments associated with novel or its chapters
-    const allComments = BerryDatabase.get<any[]>('comments', []);
-    const updatedComments = allComments.filter(c => c.refId !== novel.id && !deletedChapterIds.includes(c.refId));
-    BerryDatabase.set('comments', updatedComments);
+              // Delete comments associated with novel or its chapters
+              const allComments = BerryDatabase.get<any[]>('comments', []);
+              const updatedComments = allComments.filter(c => c.refId !== novel.id && !deletedChapterIds.includes(c.refId));
+              BerryDatabase.set('comments', updatedComments);
 
-    // Delete reviews
-    const allReviews = BerryDatabase.get<any[]>('reviews', []);
-    const updatedReviews = allReviews.filter(r => r.novelId !== novel.id);
-    BerryDatabase.set('reviews', updatedReviews);
+              // Delete reviews
+              const allReviews = BerryDatabase.get<any[]>('reviews', []);
+              const updatedReviews = allReviews.filter(r => r.novelId !== novel.id);
+              BerryDatabase.set('reviews', updatedReviews);
 
-    // Delete bookmarks
-    const allBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
-    const updatedBookmarks = allBookmarks.filter(id => id !== novel.id);
-    BerryDatabase.set('bookmarks', updatedBookmarks);
+              // Delete bookmarks
+              const allBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+              const updatedBookmarks = allBookmarks.filter(id => id !== novel.id);
+              BerryDatabase.set('bookmarks', updatedBookmarks);
 
-    // Delete reading history
-    const allHistory = BerryDatabase.get<any[]>('reading_history', []);
-    const updatedHistory = allHistory.filter(h => h.novelId !== novel.id);
-    BerryDatabase.set('reading_history', updatedHistory);
+              // Delete reading history
+              const allHistory = BerryDatabase.get<any[]>('reading_history', []);
+              const updatedHistory = allHistory.filter(h => h.novelId !== novel.id);
+              BerryDatabase.set('reading_history', updatedHistory);
 
-    // Delete from deleted_chapters
-    const allDeletedChapters = BerryDatabase.get<any[]>('deleted_chapters', []);
-    const updatedDeletedChapters = allDeletedChapters.filter(c => c.novelId !== novel.id);
-    BerryDatabase.set('deleted_chapters', updatedDeletedChapters);
+              // Delete from deleted_chapters
+              const allDeletedChapters = BerryDatabase.get<any[]>('deleted_chapters', []);
+              const updatedDeletedChapters = allDeletedChapters.filter(c => c.novelId !== novel.id);
+              BerryDatabase.set('deleted_chapters', updatedDeletedChapters);
 
-    window.dispatchEvent(new Event('novels-updated'));
-    alert(`تم حذف الرواية "${novel.titleAr}" بنجاح مع كافة فصولها وبياناتها!`);
-    onBack();
+              window.dispatchEvent(new Event('novels-updated'));
+              alert(`تم حذف الرواية "${novel.titleAr}" بنجاح مع كافة فصولها وبياناتها!`);
+              onBack();
+            },
+            true
+          );
+        }, 100);
+      },
+      true
+    );
   };
 
   const handleDeleteChapterByOwner = (chapterId: string, chapterNumber: number) => {
@@ -740,41 +779,51 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       return;
     }
 
-    const isConfirmed1 = window.confirm(`هل أنت متأكد من رغبتك في حذف الفصل رقم ${chapterNumber}؟`);
-    if (!isConfirmed1) return;
+    showConfirm(
+      'حذف الفصل نهائياً ⚠️ (تأكيد 1/2)',
+      `هل أنت متأكد من رغبتك في حذف الفصل رقم ${chapterNumber}؟ سيتم حذفه بالكامل مع كافة تعليقاته.`,
+      () => {
+        setTimeout(() => {
+          showConfirm(
+            'حذف الفصل نهائياً ⚠️ (تأكيد نهائي 2/2)',
+            `تأكيد أخير ومؤكد: هل أنت متأكد تماماً وبشكل قاطع من حذف الفصل رقم ${chapterNumber} وكافة تعليقاته نهائياً؟ هذا الإجراء لا يمكن التراجع عنه مطلقاً!`,
+            () => {
+              // Delete from active chapters
+              const allChapters = BerryDatabase.get<any[]>('chapters', []);
+              const remainingChapters = allChapters.filter(c => c.id !== chapterId);
+              BerryDatabase.set('chapters', remainingChapters);
 
-    const isConfirmed2 = window.confirm(`تأكيد أخير: هل أنت متأكد تماماً من حذف الفصل رقم ${chapterNumber} وكافة تعليقاته نهائياً؟ هذا الإجراء لا يمكن التراجع عنه!`);
-    if (!isConfirmed2) return;
+              // Filter local state
+              setChapters(prev => prev.filter(c => c.id !== chapterId));
 
-    // Delete from active chapters
-    const allChapters = BerryDatabase.get<any[]>('chapters', []);
-    const remainingChapters = allChapters.filter(c => c.id !== chapterId);
-    BerryDatabase.set('chapters', remainingChapters);
+              // Delete comments associated with this chapter
+              const allComments = BerryDatabase.get<any[]>('comments', []);
+              const remainingComments = allComments.filter(c => c.refId !== chapterId);
+              BerryDatabase.set('comments', remainingComments);
 
-    // Filter local state
-    setChapters(prev => prev.filter(c => c.id !== chapterId));
+              // Reduce chaptersCount of the novel
+              if (novel) {
+                const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+                const actualCount = remainingChapters.filter(c => c.novelId === novel.id).length;
+                const updatedNovels = allNovels.map(n => {
+                  if (n.id === novel.id) {
+                    return { ...n, chaptersCount: actualCount };
+                  }
+                  return n;
+                });
+                BerryDatabase.set('novels', updatedNovels);
+                setNovel(prev => prev ? { ...prev, chaptersCount: actualCount } : null);
+              }
 
-    // Delete comments associated with this chapter
-    const allComments = BerryDatabase.get<any[]>('comments', []);
-    const remainingComments = allComments.filter(c => c.refId !== chapterId);
-    BerryDatabase.set('comments', remainingComments);
-
-    // Reduce chaptersCount of the novel
-    if (novel) {
-      const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-      const actualCount = remainingChapters.filter(c => c.novelId === novel.id).length;
-      const updatedNovels = allNovels.map(n => {
-        if (n.id === novel.id) {
-          return { ...n, chaptersCount: actualCount };
-        }
-        return n;
-      });
-      BerryDatabase.set('novels', updatedNovels);
-      setNovel(prev => prev ? { ...prev, chaptersCount: actualCount } : null);
-    }
-
-    alert(`تم حذف الفصل رقم ${chapterNumber} بنجاح مع كافة تعليقاته نهائياً! 🗑️`);
-    window.dispatchEvent(new Event('novels-updated'));
+              alert(`تم حذف الفصل رقم ${chapterNumber} بنجاح مع كافة تعليقاته نهائياً! 🗑️`);
+              window.dispatchEvent(new Event('novels-updated'));
+            },
+            true
+          );
+        }, 100);
+      },
+      true
+    );
   };
 
   if (showAddChapterForm && novel) {
@@ -1661,6 +1710,18 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={() => {
+          confirmConfig.onConfirm();
+          setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        danger={confirmConfig.danger}
+      />
 
     </div>
   );
