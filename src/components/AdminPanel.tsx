@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck, Upload, Trash2 } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User, TranslatorRequest, Report } from '../types';
 import { BerryDatabase } from '../data';
+import { isImageSource, safeEmojiOrFallback, compressImageFile } from '../utils/media';
 import { getAllTranslatorsPoints, crownTranslator, getCrownedTranslatorId, getCurrentMonthKey } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -133,6 +134,14 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
       if (!isImageFormat(siteBannerInput)) {
         alert('تنبيه: نوصي برابط صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG) لغلاف المنصة لضمان جودة العرض!');
       }
+    }
+
+    // Hard guard: never store values big enough to break the ~5MB
+    // localStorage quota or bloat the shared berry_db.json for visitors.
+    const MAX_STORED_LENGTH = 1.5 * 1024 * 1024;
+    if (siteLogoInput.length > MAX_STORED_LENGTH || siteBannerInput.length > MAX_STORED_LENGTH) {
+      alert('حجم الصورة كبير جداً للتخزين! الرجاء رفع الصورة من زر الرفع ليتم ضغطها تلقائياً، أو استخدام رابط صورة خارجي.');
+      return;
     }
 
     BerryDatabase.set('site_name', siteNameInput.trim());
@@ -1198,11 +1207,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                               alert('خطأ: يجب اختيار صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG)!');
                               return;
                             }
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setSiteLogoInput(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                            compressImageFile(file, 256)
+                              .then((dataUrl) => setSiteLogoInput(dataUrl))
+                              .catch(() => alert('تعذر معالجة صورة الشعار. جرب صورة أصغر حجماً (يفضل أقل من 2MB).'));
                           }}
                           className="absolute inset-0 opacity-0 cursor-pointer"
                         />
@@ -1227,11 +1234,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                           alert('خطأ: يجب اختيار صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG)!');
                           return;
                         }
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setSiteBannerInput(reader.result as string);
-                        };
-                        reader.readAsDataURL(file);
+                        compressImageFile(file, 1600)
+                          .then((dataUrl) => setSiteBannerInput(dataUrl))
+                          .catch(() => alert('تعذر معالجة صورة البانر. جرب صورة أصغر حجماً (يفضل أقل من 4MB).'));
                       }}
                       className="absolute inset-0 opacity-0 cursor-pointer"
                     />
@@ -1256,10 +1261,10 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   <div>
                     <span className="text-xs font-bold text-violet-300 block mb-1">معاينة الهوية المقترحة:</span>
                     <div className="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 w-fit">
-                      {siteLogoInput.startsWith('http') || siteLogoInput.startsWith('/') || siteLogoInput.includes('.') ? (
+                      {isImageSource(siteLogoInput) ? (
                         <img src={siteLogoInput} alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-lg">{siteLogoInput}</span>
+                        <span className="text-lg">{safeEmojiOrFallback(siteLogoInput)}</span>
                       )}
                       <span className="text-xs font-extrabold text-white">{siteNameInput}</span>
                     </div>
