@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { User, UserRole, Novel, Suggestion, Reservation, News, Team, TranslatorRequest } from './types';
 import { DEFAULT_USERS, BerryDatabase } from './data';
+import { isImageSource, safeEmojiOrFallback } from './utils/media';
 
 // Component imports
 import Header from './components/Header';
@@ -863,10 +864,10 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-l from-[#0F0B14] via-[#0F0B14]/40 to-transparent" />
               <div className="relative z-10 flex flex-col gap-2 max-w-2xl">
                 <h1 className="text-2xl md:text-4xl font-extrabold text-white flex items-center gap-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
-                  {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+                  {isImageSource(safeSiteLogo) ? (
                     <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   ) : (
-                    <span>{safeSiteLogo}</span>
+                    <span>{safeEmojiOrFallback(safeSiteLogo)}</span>
                   )}
                   <span>{safeSiteName}</span>
                 </h1>
@@ -2159,10 +2160,10 @@ export default function App() {
           {/* Col 1: Brand Info */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+              {isImageSource(safeSiteLogo) ? (
                 <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
               ) : (
-                <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{safeSiteLogo}</span>
+                <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{safeEmojiOrFallback(safeSiteLogo)}</span>
               )}
               <span className="font-extrabold text-xl bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
                 {safeSiteName}

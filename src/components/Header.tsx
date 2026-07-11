@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Bell, Moon, Sun, User as UserIcon, LogOut, Settings, Award, Shield, FileText, CheckCircle, Flame, Layers, Plus, Megaphone, Menu, X, LogIn } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { DEFAULT_USERS, BerryDatabase } from '../data';
+import { isImageSource, safeEmojiOrFallback } from '../utils/media';
 import LoginModal from './LoginModal';
 
 interface HeaderProps {
@@ -137,10 +138,10 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             onClick={() => onNavigate('home')} 
             className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none"
           >
-            {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+            {isImageSource(safeSiteLogo) ? (
               <img src={safeSiteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             ) : (
-              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{safeSiteLogo}</span>
+              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{safeEmojiOrFallback(safeSiteLogo)}</span>
             )}
             <span className="font-extrabold text-lg sm:text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
               {safeSiteName}
@@ -530,10 +531,10 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
           <div>
             <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-8">
               <div className="flex items-center gap-2">
-                {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+                {isImageSource(safeSiteLogo) ? (
                   <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <span className="text-3xl">{safeSiteLogo}</span>
+                  <span className="text-3xl">{safeEmojiOrFallback(safeSiteLogo)}</span>
                 )}
                 <span className="font-extrabold text-2xl bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
                   {safeSiteName}
