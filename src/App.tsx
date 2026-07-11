@@ -103,8 +103,12 @@ export default function App() {
   const [joinError, setJoinError] = useState('');
 
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
   const [siteBanner, setSiteBanner] = useState(() => BerryDatabase.get<string>('site_banner', '/site_banner.png'));
+
+  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim()) ? siteLogo.trim() : '🍇';
+  const safeSiteBanner = (typeof siteBanner === 'string' && siteBanner.trim()) ? siteBanner.trim() : '/site_banner.png';
+  const safeSiteName = (typeof siteName === 'string' && siteName.trim()) ? siteName.trim() : 'BerryMist';
 
   // Footer dynamic values
   const [footerDesc, setFooterDesc] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
@@ -160,7 +164,7 @@ export default function App() {
 
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      setSiteLogo(BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
       setSiteBanner(BerryDatabase.get<string>('site_banner', '/site_banner.png'));
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
@@ -854,17 +858,17 @@ export default function App() {
             <div className="relative w-full h-[160px] md:h-[240px] rounded-3xl overflow-hidden border border-white/5 shadow-xl flex items-center justify-between p-6 md:p-10 text-right animate-in fade-in duration-300">
               <div 
                 className="absolute inset-0 bg-cover bg-center transition-all duration-500 hover:scale-[1.01]"
-                style={{ backgroundImage: `url(${siteBanner})`, filter: 'brightness(0.35)' }}
+                style={{ backgroundImage: `url(${safeSiteBanner})`, filter: 'brightness(0.35)' }}
               />
               <div className="absolute inset-0 bg-gradient-to-l from-[#0F0B14] via-[#0F0B14]/40 to-transparent" />
               <div className="relative z-10 flex flex-col gap-2 max-w-2xl">
                 <h1 className="text-2xl md:text-4xl font-extrabold text-white flex items-center gap-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
-                  {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
-                    <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
+                  {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+                    <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   ) : (
-                    <span>{siteLogo}</span>
+                    <span>{safeSiteLogo}</span>
                   )}
-                  <span>{siteName}</span>
+                  <span>{safeSiteName}</span>
                 </h1>
                 <p className="text-xs md:text-sm text-purple-200 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] font-semibold">
                   المنصة العربية الفاخرة لترجمة وتأليف الروايات والقصص الخيالية ✨
@@ -880,12 +884,8 @@ export default function App() {
                 <div className="absolute top-0 left-0 w-64 h-64 bg-violet-600/10 rounded-full blur-[80px]" />
                 <div className="absolute bottom-0 right-0 w-64 h-64 bg-berry-600/10 rounded-full blur-[80px]" />
                 
-                {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
-                  <img src={siteLogo} alt="Logo" className="w-16 h-16 rounded-2xl object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 inline-block" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">{siteLogo}</span>
-                )}
-                <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {siteName} الفاخرة!</h2>
+                <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">🍇</span>
+                <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {safeSiteName} الفاخرة!</h2>
                 <p className="text-purple-300 text-sm md:text-base leading-relaxed max-w-3xl">
                   لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية! ✨
                 </p>
@@ -2159,13 +2159,13 @@ export default function App() {
           {/* Col 1: Brand Info */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
-                <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
+              {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+                <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
               ) : (
-                <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{siteLogo}</span>
+                <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{safeSiteLogo}</span>
               )}
               <span className="font-extrabold text-xl bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
-                {siteName}
+                {safeSiteName}
               </span>
             </div>
             <p className="text-xs text-purple-300 leading-relaxed max-w-xs">
@@ -2222,7 +2222,7 @@ export default function App() {
 
         {/* Sub-footer Copyright */}
         <div className="max-w-7xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-purple-400 gap-4">
-          <span className="text-center sm:text-right">حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {siteName} وللمترجمين المعتمدين.</span>
+          <span className="text-center sm:text-right">حقوق النشر والترجمة محفوظة بالكامل © 2026 لمنصة {safeSiteName} وللمترجمين المعتمدين.</span>
           <div className="flex flex-wrap justify-center gap-4">
             <span 
               onClick={() => handleNavigate('terms-of-service')}

@@ -52,9 +52,18 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [newRoleVal, setNewRoleVal] = useState<string>('MEMBER');
   const [roleChangeReason, setRoleChangeReason] = useState<string>('');
 
-  const [siteNameInput, setSiteNameInput] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogoInput, setSiteLogoInput] = useState(() => BerryDatabase.get<string>('site_logo', '/site_logo.png'));
-  const [siteBannerInput, setSiteBannerInput] = useState(() => BerryDatabase.get<string>('site_banner', '/site_banner.png'));
+  const [siteNameInput, setSiteNameInput] = useState(() => {
+    const val = BerryDatabase.get<any>('site_name', 'BerryMist');
+    return (typeof val === 'string' && val.trim()) ? val.trim() : 'BerryMist';
+  });
+  const [siteLogoInput, setSiteLogoInput] = useState(() => {
+    const val = BerryDatabase.get<any>('site_logo', '🍇');
+    return (typeof val === 'string' && val.trim()) ? val.trim() : '🍇';
+  });
+  const [siteBannerInput, setSiteBannerInput] = useState(() => {
+    const val = BerryDatabase.get<any>('site_banner', '/site_banner.png');
+    return (typeof val === 'string' && val.trim()) ? val.trim() : '/site_banner.png';
+  });
 
   // Footer dynamic inputs
   const [footerDescInput, setFooterDescInput] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));

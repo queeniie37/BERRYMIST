@@ -229,7 +229,11 @@ export class BerryDatabase {
           const serverValStr = JSON.stringify(serverDb[key]);
           
           if (localValStr !== serverValStr) {
-            localStorage.setItem(`berry_mist_${key}`, serverValStr);
+            try {
+              localStorage.setItem(`berry_mist_${key}`, serverValStr);
+            } catch (storageError) {
+              console.warn(`Failed to write key ${key} to localStorage (quota exceeded or disabled):`, storageError);
+            }
             
             // Dispatch standard custom events so that App.tsx receives updates reactive
             if (key === 'novels') {

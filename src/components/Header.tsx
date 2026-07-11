@@ -32,12 +32,15 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   }, []);
   
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+
+  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim()) ? siteLogo.trim() : '🍇';
+  const safeSiteName = (typeof siteName === 'string' && siteName.trim()) ? siteName.trim() : 'BerryMist';
 
   useEffect(() => {
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      setSiteLogo(BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
     return () => window.removeEventListener('site-settings-updated', handleSiteUpdate);
@@ -134,13 +137,13 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             onClick={() => onNavigate('home')} 
             className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none"
           >
-            {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
-              <img src={siteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
+            {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+              <img src={safeSiteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             ) : (
-              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{siteLogo}</span>
+              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{safeSiteLogo}</span>
             )}
             <span className="font-extrabold text-lg sm:text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
-              {siteName}
+              {safeSiteName}
             </span>
           </div>
 
@@ -527,13 +530,13 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
           <div>
             <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-8">
               <div className="flex items-center gap-2">
-                {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
-                  <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                {safeSiteLogo.startsWith('http') || safeSiteLogo.startsWith('/') || safeSiteLogo.includes('.') ? (
+                  <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <span className="text-3xl">{siteLogo}</span>
+                  <span className="text-3xl">{safeSiteLogo}</span>
                 )}
                 <span className="font-extrabold text-2xl bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
-                  {siteName}
+                  {safeSiteName}
                 </span>
               </div>
               <button 
