@@ -33,15 +33,19 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   }, []);
   
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+  const [siteLogo, setSiteLogo] = useState(() => {
+    const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
+    return logo === '🍇' ? '/site_logo.png' : logo;
+  });
 
-  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim()) ? siteLogo.trim() : '🍇';
+  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim() && siteLogo.trim() !== '🍇') ? siteLogo.trim() : '/site_logo.png';
   const safeSiteName = (typeof siteName === 'string' && siteName.trim()) ? siteName.trim() : 'BerryMist';
 
   useEffect(() => {
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
+      const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
+      setSiteLogo(logo === '🍇' ? '/site_logo.png' : logo);
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
     return () => window.removeEventListener('site-settings-updated', handleSiteUpdate);
@@ -141,7 +145,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             {isImageSource(safeSiteLogo) ? (
               <img src={safeSiteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             ) : (
-              <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{safeEmojiOrFallback(safeSiteLogo)}</span>
+              <img src="/site_logo.png" alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             )}
             <span className="font-extrabold text-lg sm:text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
               {safeSiteName}
@@ -330,7 +334,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                     </button>
                   ) : (
                     <>
-                      {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                      {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com') && (
                         <button 
                           onClick={() => { onNavigate('admin'); setProfileOpen(false); }}
                           className="flex items-center justify-between w-full p-2 hover:bg-white/5 rounded-xl text-sm text-purple-200 hover:text-white transition-all text-right cursor-pointer"
@@ -340,7 +344,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                         </button>
                       )}
 
-                      {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER' || currentUser.role === 'WRITER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                      {(currentUser.role === 'TRANSLATOR' || currentUser.role === 'OWNER' || currentUser.role === 'WRITER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com') && (
                         <button 
                           onClick={() => { onNavigate('translator-panel'); setProfileOpen(false); }}
                           className="flex items-center justify-between w-full p-2 hover:bg-white/5 rounded-xl text-sm text-purple-200 hover:text-white transition-all text-right cursor-pointer"
@@ -424,7 +428,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             >
               ✒️ كاتب ومؤلف
             </button>
-            {currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' ? (
+            {currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' ? (
               <button 
                 onClick={() => { onRoleChange('OWNER'); setRoleSelectorOpen(false); }}
                 className={`p-2.5 col-span-2 rounded-xl border font-semibold transition-all ${currentUser.role === 'OWNER' ? 'bg-violet-600 text-white border-violet-500' : 'bg-white/5 text-purple-300 border-white/5 hover:bg-white/10'}`}
@@ -433,7 +437,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
               </button>
             ) : (
               <button 
-                onClick={() => alert('خطأ أمني: هذه الرتبة مخصصة لمالك الموقع فقط! يرجى تسجيل الدخول كمالك بحسابك (hanona37hh@gmail.com) أولاً للوصول.')}
+                onClick={() => alert('خطأ أمني: هذه الرتبة مخصصة لمالك الموقع فقط! يرجى تسجيل الدخول كمالك بحسابك (berrymist11@gmail.com) أولاً للوصول.')}
                 className="p-2.5 col-span-2 rounded-xl border border-white/5 bg-white/5 text-purple-400/50 cursor-not-allowed font-semibold text-center"
               >
                 🔒 رتبة المالك مغلقة (يتطلب تسجيل دخول المالك)
@@ -534,7 +538,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                 {isImageSource(safeSiteLogo) ? (
                   <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <span className="text-3xl">{safeEmojiOrFallback(safeSiteLogo)}</span>
+                  <img src="/site_logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 )}
                 <span className="font-extrabold text-2xl bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
                   {safeSiteName}

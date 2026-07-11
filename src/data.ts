@@ -75,7 +75,7 @@ export const DEFAULT_USERS: { [key in UserRole]: User } = {
   OWNER: {
     id: 'berrymist-owner',
     username: 'BERRYMIST',
-    email: 'hanona37hh@gmail.com',
+    email: 'berrymist11@gmail.com',
     role: 'OWNER',
     xp: 15400,
     level: 50,
@@ -130,7 +130,7 @@ export class BerryDatabase {
           const ownerUserIds = new Set<string>();
           if (Array.isArray(parsedUsersDb)) {
             parsedUsersDb
-              .filter((u: any) => u && u.email?.toLowerCase() === 'hanona37hh@gmail.com')
+              .filter((u: any) => u && u.email?.toLowerCase() === 'berrymist11@gmail.com')
               .forEach((u: any) => ownerUserIds.add(u.id));
           }
           ownerUserIds.add('berrymist-owner');
@@ -142,7 +142,7 @@ export class BerryDatabase {
             const isPublishedByOwner = ownerUserIds.has(n.translatorId) || n.translatorName === 'BERRYMIST';
             const isAuthorized = currentUser && (
               currentUser.role === 'OWNER' || 
-              currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' || 
+              currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || 
               n.translatorId === currentUser.id || 
               isPublishedByOwner
             );
@@ -213,7 +213,21 @@ export class BerryDatabase {
     try {
       const response = await fetch('/api/db');
       if (!response.ok) return;
-      const serverDb = await response.json();
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn("Skipping database sync: Server did not return a JSON response (content-type:", contentType, ")");
+        return;
+      }
+
+      const responseText = await response.text();
+      const trimmedText = responseText.trim();
+      if (!trimmedText || trimmedText.startsWith('<!doctype') || trimmedText.startsWith('<')) {
+        console.warn("Skipping database sync: Received HTML or empty response instead of valid JSON database payload.");
+        return;
+      }
+      
+      const serverDb = JSON.parse(trimmedText);
       
       const keysToSync = [
         'novels', 'chapters', 'news', 'teams', 'suggestions', 'comments',

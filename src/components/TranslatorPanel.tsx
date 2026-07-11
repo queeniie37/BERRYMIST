@@ -658,7 +658,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       return;
     }
 
-    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com';
     const status = 'AVAILABLE'; // Make all novels active and AVAILABLE instantly so they appear on the homepage for visitors right away!
 
     const newNovel: Novel = {

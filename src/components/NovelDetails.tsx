@@ -169,7 +169,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
     const ownerUserIds = new Set(
       usersDb
-        .filter(u => u.email.toLowerCase() === 'hanona37hh@gmail.com')
+        .filter(u => u.email.toLowerCase() === 'berrymist11@gmail.com')
         .map(u => u.id)
     );
     ownerUserIds.add('berrymist-owner');
@@ -178,7 +178,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       ownerUserIds.has(foundNovel.translatorId) || 
       foundNovel.translatorName === 'BERRYMIST'
     );
-    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
+    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
     if (!isAuthorized) {
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
@@ -482,7 +482,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allNotifs = BerryDatabase.get<any[]>('notifications', []);
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
     // Find all owner users
-    const owners = usersDb.filter(u => u && (u.role === 'OWNER' || u.email?.toLowerCase() === 'hanona37hh@gmail.com'));
+    const owners = usersDb.filter(u => u && (u.role === 'OWNER' || u.email?.toLowerCase() === 'berrymist11@gmail.com'));
     const ownerIds = owners.map(u => u.id);
     if (ownerIds.length === 0) ownerIds.push('berrymist-owner'); // Fallback
 
@@ -505,7 +505,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   // Delete comment handler for Owner
   const handleDeleteComment = (commentId: string) => {
-    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
+    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'berrymist11@gmail.com') {
       alert('عذراً، هذه الصلاحية مخصصة لمالك الموقع فقط!');
       return;
     }
@@ -707,7 +707,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setNewChapterNumber('');
   };
 
-  const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+  const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com';
   const isTranslatorOrOwner = isOwner || (novel && novel.translatorId === currentUser.id);
 
   const handleDeleteNovel = () => {
@@ -774,7 +774,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   };
 
   const handleDeleteChapterByOwner = (chapterId: string, chapterNumber: number) => {
-    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
+    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'berrymist11@gmail.com') {
       alert('عذراً، هذه الصلاحية مخصصة لمالك الموقع فقط!');
       return;
     }
@@ -1584,7 +1584,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                         >
                           <span>🚩 إبلاغ</span>
                         </button>
-                        {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                        {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com') && (
                           <button
                             type="button"
                             onClick={() => handleDeleteComment(comment.id)}

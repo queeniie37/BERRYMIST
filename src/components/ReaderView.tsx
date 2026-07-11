@@ -311,7 +311,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     // Send a system notification immediately to the Owner
     const allNotifs = BerryDatabase.get<any[]>('notifications', []);
     const usersDb = BerryDatabase.get<any[]>('users_db', []);
-    const owners = usersDb.filter(u => u && (u.role === 'OWNER' || u.email?.toLowerCase() === 'hanona37hh@gmail.com'));
+    const owners = usersDb.filter(u => u && (u.role === 'OWNER' || u.email?.toLowerCase() === 'berrymist11@gmail.com'));
     const ownerIds = owners.map(u => u.id);
     if (ownerIds.length === 0) ownerIds.push('berrymist-owner'); // Fallback
 
@@ -334,7 +334,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
   // Delete comment handler for Owner
   const handleDeleteComment = (commentId: string) => {
-    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
+    if (currentUser.role !== 'OWNER' && currentUser.email?.toLowerCase() !== 'berrymist11@gmail.com') {
       alert('عذراً، هذه الصلاحية مخصصة لمالك الموقع فقط!');
       return;
     }
@@ -706,7 +706,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
                     >
                       <span>🚩 إبلاغ</span>
                     </button>
-                    {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com') && (
+                    {(currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com') && (
                       <button
                         type="button"
                         onClick={() => handleDeleteComment(comment.id)}

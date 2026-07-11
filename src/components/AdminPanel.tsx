@@ -58,8 +58,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     return (typeof val === 'string' && val.trim()) ? val.trim() : 'BerryMist';
   });
   const [siteLogoInput, setSiteLogoInput] = useState(() => {
-    const val = BerryDatabase.get<any>('site_logo', '🍇');
-    return (typeof val === 'string' && val.trim()) ? val.trim() : '🍇';
+    const val = BerryDatabase.get<any>('site_logo', '/site_logo.png');
+    const safeVal = (typeof val === 'string' && val.trim()) ? val.trim() : '/site_logo.png';
+    return safeVal === '🍇' ? '/site_logo.png' : safeVal;
   });
   const [siteBannerInput, setSiteBannerInput] = useState(() => {
     const val = BerryDatabase.get<any>('site_banner', '/site_banner.png');
@@ -145,7 +146,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     }
 
     BerryDatabase.set('site_name', siteNameInput.trim());
-    BerryDatabase.set('site_logo', siteLogoInput.trim() || '🍇');
+    BerryDatabase.set('site_logo', siteLogoInput.trim() || '/site_logo.png');
     BerryDatabase.set('site_banner', siteBannerInput.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&fm=png');
     
     // Dispatch event to update other components in real-time
@@ -1264,7 +1265,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                       {isImageSource(siteLogoInput) ? (
                         <img src={siteLogoInput} alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-lg">{safeEmojiOrFallback(siteLogoInput)}</span>
+                        <img src="/site_logo.png" alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       )}
                       <span className="text-xs font-extrabold text-white">{siteNameInput}</span>
                     </div>
@@ -1414,7 +1415,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
               </div>
 
               <div className="flex flex-col gap-4">
-                {users.filter(u => (u.email || '').toLowerCase() !== 'hanona37hh@gmail.com').map((user) => {
+                {users.filter(u => (u.email || '').toLowerCase() !== 'berrymist11@gmail.com').map((user) => {
                   const novelsCount = BerryDatabase.get<Novel[]>('novels', [])
                     .filter(n => n.translatorId === user.id && n.status !== 'PENDING').length;
 
@@ -1526,7 +1527,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   );
                 })}
 
-                {users.filter(u => (u.email || '').toLowerCase() !== 'hanona37hh@gmail.com').length === 0 && (
+                {users.filter(u => (u.email || '').toLowerCase() !== 'berrymist11@gmail.com').length === 0 && (
                   <div className="p-12 text-center glass-panel rounded-2xl border border-white/5 text-purple-400">
                     <p className="text-sm">لا يوجد أعضاء آخرون مسجلون في المنصة حالياً لتعديل رتبهم.</p>
                   </div>

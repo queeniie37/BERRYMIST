@@ -104,10 +104,13 @@ export default function App() {
   const [joinError, setJoinError] = useState('');
 
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+  const [siteLogo, setSiteLogo] = useState(() => {
+    const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
+    return logo === '🍇' ? '/site_logo.png' : logo;
+  });
   const [siteBanner, setSiteBanner] = useState(() => BerryDatabase.get<string>('site_banner', '/site_banner.png'));
 
-  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim()) ? siteLogo.trim() : '🍇';
+  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim() && siteLogo.trim() !== '🍇') ? siteLogo.trim() : '/site_logo.png';
   const safeSiteBanner = (typeof siteBanner === 'string' && siteBanner.trim()) ? siteBanner.trim() : '/site_banner.png';
   const safeSiteName = (typeof siteName === 'string' && siteName.trim()) ? siteName.trim() : 'BerryMist';
 
@@ -165,7 +168,8 @@ export default function App() {
 
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
+      const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
+      setSiteLogo(logo === '🍇' ? '/site_logo.png' : logo);
       setSiteBanner(BerryDatabase.get<string>('site_banner', '/site_banner.png'));
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
@@ -187,7 +191,7 @@ export default function App() {
     // Load from local database
     const savedUser = BerryDatabase.get<User | null>('current_user_data', null);
     if (savedUser) {
-      if (savedUser.role === 'OWNER' && savedUser.email !== 'hanona37hh@gmail.com') {
+      if (savedUser.role === 'OWNER' && savedUser.email !== 'berrymist11@gmail.com') {
         const fallbackUser = DEFAULT_USERS.GUEST;
         setCurrentUser(fallbackUser);
         BerryDatabase.set('current_user_data', fallbackUser);
@@ -234,7 +238,7 @@ export default function App() {
       const saved = BerryDatabase.get<User | null>('current_user_data', null);
       if (!saved || !saved.email) return;
       const email = saved.email.toLowerCase();
-      if (email === 'hanona37hh@gmail.com') return;
+      if (email === 'berrymist11@gmail.com') return;
       const assignments = BerryDatabase.get<Record<string, string>>('role_assignments', {});
       const assigned = assignments[email];
       if (assigned && assigned !== saved.role) {
@@ -594,8 +598,8 @@ export default function App() {
 
   // Update dynamic simulated user role
   const handleRoleChange = (newRole: UserRole) => {
-    if (newRole === 'OWNER' && currentUser.email?.toLowerCase() !== 'hanona37hh@gmail.com') {
-      alert('خطأ أمني: رتبة المالك مخصصة حصرياً لمالك الموقع! يرجى تسجيل الدخول بحساب المالك (hanona37hh@gmail.com) أولاً للوصول إلى لوحة الإدارة.');
+    if (newRole === 'OWNER' && currentUser.email?.toLowerCase() !== 'berrymist11@gmail.com') {
+      alert('خطأ أمني: رتبة المالك مخصصة حصرياً لمالك الموقع! يرجى تسجيل الدخول بحساب المالك (berrymist11@gmail.com) أولاً للوصول إلى لوحة الإدارة.');
       return;
     }
     BerryDatabase.set('current_role', newRole);
@@ -657,7 +661,7 @@ export default function App() {
 
   // Safe navigation
   const handleNavigate = (page: string, params: any = null) => {
-    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'hanona37hh@gmail.com';
+    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com';
     const isTranslatorOrWriter = currentUser.role === 'TRANSLATOR' || currentUser.role === 'WRITER';
 
     if (page === 'admin') {
@@ -867,7 +871,7 @@ export default function App() {
                   {isImageSource(safeSiteLogo) ? (
                     <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   ) : (
-                    <span>{safeEmojiOrFallback(safeSiteLogo)}</span>
+                    <img src="/site_logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   )}
                   <span>{safeSiteName}</span>
                 </h1>
@@ -2163,7 +2167,7 @@ export default function App() {
               {isImageSource(safeSiteLogo) ? (
                 <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
               ) : (
-                <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{safeEmojiOrFallback(safeSiteLogo)}</span>
+                <img src="/site_logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
               )}
               <span className="font-extrabold text-xl bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
                 {safeSiteName}

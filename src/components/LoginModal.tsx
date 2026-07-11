@@ -42,7 +42,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       // The owner account can never be (re)registered; the owner signs in
       // through the login form only. Otherwise anyone knowing the owner's
       // email could register it and gain full admin control.
-      if (email.toLowerCase() === 'hanona37hh@gmail.com') {
+      if (email.toLowerCase() === 'berrymist11@gmail.com') {
         setError('هذا البريد الإلكتروني محجوز لمالك المنصة. يرجى استخدام نموذج تسجيل الدخول بدلاً من إنشاء حساب.');
         return;
       }
@@ -78,10 +78,10 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     } else {
       // Sign In
       // Check for hardcoded owner login
-      if (email.toLowerCase() === 'hanona37hh@gmail.com' && password === 'berry11') {
+      if (email.toLowerCase() === 'berrymist11@gmail.com' && password === 'berry11@$$') {
         const ownerUser = {
           ...DEFAULT_USERS.OWNER,
-          email: 'hanona37hh@gmail.com'
+          email: 'berrymist11@gmail.com'
         };
         BerryDatabase.set('current_user_data', ownerUser);
         BerryDatabase.set('current_role', 'OWNER' as UserRole);
