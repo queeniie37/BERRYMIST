@@ -103,8 +103,8 @@ export default function App() {
   const [joinError, setJoinError] = useState('');
 
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
-  const [siteBanner, setSiteBanner] = useState(() => BerryDatabase.get<string>('site_banner', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200'));
+  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+  const [siteBanner, setSiteBanner] = useState(() => BerryDatabase.get<string>('site_banner', '/site_banner.png'));
 
   // Footer dynamic values
   const [footerDesc, setFooterDesc] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
@@ -160,8 +160,8 @@ export default function App() {
 
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
-      setSiteBanner(BerryDatabase.get<string>('site_banner', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200'));
+      setSiteLogo(BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+      setSiteBanner(BerryDatabase.get<string>('site_banner', '/site_banner.png'));
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
 
@@ -859,7 +859,7 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-l from-[#0F0B14] via-[#0F0B14]/40 to-transparent" />
               <div className="relative z-10 flex flex-col gap-2 max-w-2xl">
                 <h1 className="text-2xl md:text-4xl font-extrabold text-white flex items-center gap-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
-                  {siteLogo.startsWith('http') ? (
+                  {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
                     <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   ) : (
                     <span>{siteLogo}</span>
@@ -880,7 +880,11 @@ export default function App() {
                 <div className="absolute top-0 left-0 w-64 h-64 bg-violet-600/10 rounded-full blur-[80px]" />
                 <div className="absolute bottom-0 right-0 w-64 h-64 bg-berry-600/10 rounded-full blur-[80px]" />
                 
-                <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">🍇</span>
+                {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
+                  <img src={siteLogo} alt="Logo" className="w-16 h-16 rounded-2xl object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 inline-block" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">{siteLogo}</span>
+                )}
                 <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {siteName} الفاخرة!</h2>
                 <p className="text-purple-300 text-sm md:text-base leading-relaxed max-w-3xl">
                   لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية! ✨
@@ -2155,7 +2159,11 @@ export default function App() {
           {/* Col 1: Brand Info */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{siteLogo}</span>
+              {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
+                <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]">{siteLogo}</span>
+              )}
               <span className="font-extrabold text-xl bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
                 {siteName}
               </span>

@@ -32,12 +32,12 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   }, []);
   
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
+  const [siteLogo, setSiteLogo] = useState(() => BerryDatabase.get<string>('site_logo', '/site_logo.png'));
 
   useEffect(() => {
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      setSiteLogo(BerryDatabase.get<string>('site_logo', '🍇'));
+      setSiteLogo(BerryDatabase.get<string>('site_logo', '/site_logo.png'));
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
     return () => window.removeEventListener('site-settings-updated', handleSiteUpdate);
@@ -134,7 +134,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             onClick={() => onNavigate('home')} 
             className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none"
           >
-            {siteLogo.startsWith('http') ? (
+            {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
               <img src={siteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             ) : (
               <span className="text-2xl sm:text-3xl filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]">{siteLogo}</span>
@@ -527,7 +527,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
           <div>
             <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-8">
               <div className="flex items-center gap-2">
-                {siteLogo.startsWith('http') ? (
+                {siteLogo.startsWith('http') || siteLogo.startsWith('/') || siteLogo.includes('.') ? (
                   <img src={siteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <span className="text-3xl">{siteLogo}</span>

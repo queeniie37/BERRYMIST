@@ -53,8 +53,8 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [roleChangeReason, setRoleChangeReason] = useState<string>('');
 
   const [siteNameInput, setSiteNameInput] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
-  const [siteLogoInput, setSiteLogoInput] = useState(() => BerryDatabase.get<string>('site_logo', '🍇'));
-  const [siteBannerInput, setSiteBannerInput] = useState(() => BerryDatabase.get<string>('site_banner', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200'));
+  const [siteLogoInput, setSiteLogoInput] = useState(() => BerryDatabase.get<string>('site_logo', '/site_logo.png'));
+  const [siteBannerInput, setSiteBannerInput] = useState(() => BerryDatabase.get<string>('site_banner', '/site_banner.png'));
 
   // Footer dynamic inputs
   const [footerDescInput, setFooterDescInput] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
@@ -102,19 +102,27 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
       return;
     }
     
-    // PNG validations for image attachments
-    if (siteLogoInput.trim().startsWith('http')) {
-      const cleanLogo = siteLogoInput.trim().split('?')[0].split('#')[0].toLowerCase();
-      if (!cleanLogo.endsWith('.png') && !siteLogoInput.toLowerCase().includes('.png')) {
-        alert('عذراً، يجب أن يكون رابط الشعار بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض والشفافية!');
-        return;
+    // Support all common image formats (PNG, JPG, JPEG, WEBP, SVG, GIF) and base64/local paths
+    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif'];
+    const isImageFormat = (url: string) => {
+      const lower = url.trim().toLowerCase();
+      return (
+        lower.startsWith('/') || 
+        lower.startsWith('data:image/') || 
+        allowedExtensions.some(ext => lower.includes(ext)) ||
+        lower.includes('unsplash.com') ||
+        lower.includes('api.dicebear.com')
+      );
+    };
+
+    if (siteLogoInput.trim().startsWith('http') || siteLogoInput.trim().startsWith('/')) {
+      if (!isImageFormat(siteLogoInput)) {
+        alert('تنبيه: نوصي برابط صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG) لشعار المنصة لضمان جودة العرض!');
       }
     }
-    if (siteBannerInput.trim().startsWith('http')) {
-      const cleanBanner = siteBannerInput.trim().split('?')[0].split('#')[0].toLowerCase();
-      if (!cleanBanner.endsWith('.png') && !siteBannerInput.toLowerCase().includes('.png')) {
-        alert('عذراً، يجب أن يكون رابط بانر الموقع بصيغة PNG فقط (ينتهي بـ .png) لضمان جودة العرض والشفافية!');
-        return;
+    if (siteBannerInput.trim().startsWith('http') || siteBannerInput.trim().startsWith('/')) {
+      if (!isImageFormat(siteBannerInput)) {
+        alert('تنبيه: نوصي برابط صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG) لغلاف المنصة لضمان جودة العرض!');
       }
     }
 
@@ -1152,7 +1160,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
                   {/* Logo File / Emoji Upload */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-purple-200">شعار الموقع (ملف PNG أو إيموجي)</label>
+                    <label className="text-xs font-bold text-purple-200">شعار الموقع (ملف صورة أو إيموجي)</label>
                     <div className="flex gap-2 items-center">
                       <input 
                         type="text"
@@ -1167,17 +1175,18 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                           className="px-4 py-3 bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/25 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                         >
                           <Upload size={14} />
-                          <span>رفع PNG</span>
+                          <span>رفع صورة</span>
                         </button>
                         <input 
                           type="file" 
-                          accept=".png"
+                          accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const extension = file.name.split('.').pop()?.toLowerCase();
-                            if (extension !== 'png') {
-                              alert('خطأ: يجب اختيار صورة بصيغة PNG لشعار الموقع!');
+                            const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+                            const extension = file.name.split('.').pop()?.toLowerCase() || '';
+                            if (!allowed.includes(extension)) {
+                              alert('خطأ: يجب اختيار صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG)!');
                               return;
                             }
                             const reader = new FileReader();
@@ -1193,19 +1202,20 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   </div>
                 </div>
 
-                {/* Banner File Upload (Strictly PNG) */}
+                {/* Banner File Upload */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-purple-200">تحميل بانر الموقع الرئيسي (ملف PNG حصراً) *</label>
+                  <label className="text-xs font-bold text-purple-200">تحميل بانر الموقع الرئيسي (ملف صورة) *</label>
                   <div className="relative border border-dashed border-white/10 hover:border-violet-500/40 rounded-xl p-4 bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[90px]">
                     <input 
                       type="file" 
-                      accept=".png"
+                      accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        const extension = file.name.split('.').pop()?.toLowerCase();
-                        if (extension !== 'png') {
-                          alert('خطأ: يجب اختيار صورة غلاف بصيغة PNG لبانر الموقع!');
+                        const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+                        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+                        if (!allowed.includes(extension)) {
+                          alert('خطأ: يجب اختيار صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG)!');
                           return;
                         }
                         const reader = new FileReader();
@@ -1221,12 +1231,12 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                         <div className="w-24 h-10 rounded border border-violet-500 overflow-hidden">
                           <img src={siteBannerInput} alt="Banner Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
-                        <span className="text-[10px] text-green-400 font-bold">تم تحميل البانر بنجاح ✓ (بصيغة PNG)</span>
+                        <span className="text-[10px] text-green-400 font-bold">تم تحميل البانر بنجاح ✓</span>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-1">
                         <Upload size={18} className="text-purple-400" />
-                        <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف PNG لبانر الموقع الرئيسي</span>
+                        <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف صورة لبانر الموقع الرئيسي</span>
                       </div>
                     )}
                   </div>
@@ -1237,7 +1247,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   <div>
                     <span className="text-xs font-bold text-violet-300 block mb-1">معاينة الهوية المقترحة:</span>
                     <div className="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 w-fit">
-                      {siteLogoInput.startsWith('http') ? (
+                      {siteLogoInput.startsWith('http') || siteLogoInput.startsWith('/') || siteLogoInput.includes('.') ? (
                         <img src={siteLogoInput} alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <span className="text-lg">{siteLogoInput}</span>
