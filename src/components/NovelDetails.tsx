@@ -968,20 +968,6 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           />
         </div>
 
-        {/* 5. Content Area Troubleshoot button */}
-        <div className="flex justify-end mb-6 text-xs text-right">
-          <button
-            type="button"
-            onClick={() => {
-              alert('تمت إعادة تهيئة صندوق المحرر وتحديث الاستجابة بنجاح! يمكنكم المتابعة الآن بشكل طبيعي.');
-              editorRef.current?.focus();
-            }}
-            className="text-violet-400 hover:underline font-semibold cursor-pointer"
-          >
-            خانة محتوى الفصل لا تظهر؟ اضغط هنا
-          </button>
-        </div>
-
         <input 
           type="file" 
           id="png-uploader"
