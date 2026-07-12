@@ -1111,14 +1111,15 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               onClick={() => {
                 const input = document.createElement('input');
                 input.type = 'file';
-                input.accept = '.png';
+                input.accept = 'image/*';
                 input.onchange = (e) => {
                   const file = (e.target as HTMLInputElement).files?.[0];
                   if (!file) return;
                   
                   const extension = file.name.split('.').pop()?.toLowerCase();
-                  if (extension !== 'png') {
-                    alert('عذراً، يجب أن يكون الملف بصيغة PNG فقط لضمان جودة العرض الفاخرة بالمنصة!');
+                  const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+                  if (!extension || !allowed.includes(extension)) {
+                    alert('عذراً، يجب أن يكون الملف بصيغة (PNG, JPG, JPEG, WEBP) لضمان جودة العرض الفاخرة بالمنصة!');
                     return;
                   }
                   
@@ -1132,7 +1133,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                     
                     // Update local state
                     setNovel({ ...novel, cover: base64String });
-                    alert('تم تحديث غلاف الرواية بنجاح بصورة PNG المرفقة! 🎉');
+                    alert('تم تحديث غلاف الرواية بنجاح بالصورة المرفقة! 🎉');
                     // Trigger event so any other components update if listening
                     window.dispatchEvent(new Event('novels-updated'));
                   };

@@ -21,14 +21,15 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
 
-  // Real PNG file upload & Base64 encoding
+  // Real file upload & Base64 encoding
   const handleSimulatedUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const extension = file.name.split('.').pop()?.toLowerCase();
-    if (extension !== 'png') {
-      setError('خطأ: نقبل فقط ملفات الصور بصيغة PNG طبقاً لإجراءات الأمان المعتمدة للمنصة.');
+    const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+    if (!extension || !allowed.includes(extension)) {
+      setError('خطأ: نقبل فقط ملفات الصور بصيغة (PNG, JPG, JPEG, WEBP, SVG, GIF) طبقاً لإجراءات الأمان والجمالية للمنصة.');
       return;
     }
 
@@ -157,7 +158,7 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
             <div className="border-2 border-dashed border-white/10 hover:border-violet-500/40 rounded-2xl p-6 flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 transition-all relative">
               <input 
                 type="file" 
-                accept=".png"
+                accept="image/*"
                 onChange={handleSimulatedUpload}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
@@ -165,7 +166,7 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
                 <>
                   <Upload size={24} className="text-purple-400 mb-2" />
                   <p className="text-xs font-bold text-purple-200">اسحب صورة الغلاف إلى هنا أو تصفح ملفاتك</p>
-                  <p className="text-[10px] text-purple-400 mt-1">نقبل فقط ملفات PNG ونقوم بقصها آلياً بنسبة 2:3</p>
+                  <p className="text-[10px] text-purple-400 mt-1">نقبل صور PNG, JPG, JPEG, WEBP ونقوم بقصها آلياً بنسبة 2:3</p>
                 </>
               ) : uploadProgress < 100 ? (
                 <div className="w-full max-w-xs text-center flex flex-col items-center">

@@ -411,8 +411,9 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
     Array.from(files).forEach((file: any) => {
       const extension = file.name.split('.').pop()?.toLowerCase();
-      if (extension !== 'png' && file.type !== 'image/png') {
-        alert('يرجى اختيار صور بصيغة PNG فقط لضمان جمالية وتوافق العرض بالمنصة!');
+      const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+      if (!extension || !allowed.includes(extension)) {
+        alert('يرجى اختيار صور بصيغة (PNG, JPG, JPEG, WEBP) لضمان جمالية وتوافق العرض بالمنصة!');
         return;
       }
 
@@ -654,7 +655,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       return;
     }
     if (!coverImage) {
-      alert('خطأ: يرجى إرفاق وتحميل ملف غلاف الرواية بصيغة PNG أولاً.');
+      alert('خطأ: يرجى إرفاق وتحميل ملف غلاف الرواية أولاً.');
       return;
     }
 
@@ -703,6 +704,9 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     } else {
       setSuccess('تمت إضافة ونشر الرواية الجديدة مباشرة بنجاح بصفك مالك المنصة! 🎉');
     }
+
+    // Trigger update so App.tsx knows the novels updated!
+    window.dispatchEvent(new Event('novels-updated'));
 
     setTitleAr('');
     setTitleEn('');
@@ -1148,19 +1152,20 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                 />
               </div>
 
-              {/* Cover Image Upload (Strictly PNG) */}
+              {/* Cover Image Upload */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-purple-200">تحميل غلاف الرواية الفاخر (ملف PNG حصراً) *</label>
+                <label className="text-purple-200">تحميل غلاف الرواية الفاخر *</label>
                 <div className="relative border-2 border-dashed border-white/10 hover:border-violet-500/40 rounded-2xl p-6 flex flex-col items-center justify-center bg-[#1A1625] hover:bg-white/5 transition-all text-center cursor-pointer min-h-[120px]">
                   <input 
                     type="file" 
-                    accept=".png"
+                    accept="image/*"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const extension = file.name.split('.').pop()?.toLowerCase();
-                      if (extension !== 'png') {
-                        alert('خطأ: نقبل ملفات صور غلاف بصيغة PNG فقط لضمان الجودة الفاخرة لغلاف الرواية!');
+                      const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+                      if (!extension || !allowed.includes(extension)) {
+                        alert('خطأ: نقبل ملفات صور غلاف بصيغة (PNG, JPG, JPEG, WEBP) فقط لضمان الجودة الفاخرة لغلاف الرواية!');
                         return;
                       }
                       const reader = new FileReader();
@@ -1174,13 +1179,13 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   {coverImage ? (
                     <div className="flex flex-col items-center gap-2">
                       <img src={coverImage} alt="Cover Preview" className="w-20 h-28 object-cover rounded-xl border border-violet-500" referrerPolicy="no-referrer" />
-                      <span className="text-xs text-green-400 font-bold">تم تحميل الغلاف بنجاح ✓ (بصيغة PNG المعتمدة)</span>
+                      <span className="text-xs text-green-400 font-bold">تم تحميل الغلاف بنجاح ✓</span>
                     </div>
                   ) : (
                     <>
                       <Upload size={24} className="text-purple-400 mb-2" />
                       <p className="text-xs font-bold text-purple-200">اسحب ملف صورة الغلاف إلى هنا أو تصفح ملفاتك</p>
-                      <p className="text-[10px] text-purple-400 mt-1">نقبل فقط ملفات PNG ويجب أن تكون الأبعاد عمودية بنسبة 2:3</p>
+                      <p className="text-[10px] text-purple-400 mt-1">نقبل صور (PNG, JPG, JPEG, WEBP) ويجب أن تكون الأبعاد عمودية بنسبة 2:3</p>
                     </>
                   )}
                 </div>

@@ -42,10 +42,13 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
     loadAds();
   }, [selectedAdId]);
 
-  // Handle PNG/Image file conversion to Base64
+  // Handle Image file conversion to Base64
   const processImageFile = (file: File) => {
-    if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
-      setError('يرجى اختيار ملف صورة صالح بصيغة PNG فقط لضمان توافق جودة التصاميم الفاخرة.');
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/svg+xml'];
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExts = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+    if (!allowedTypes.includes(file.type) && !allowedExts.includes(extension)) {
+      setError('يرجى اختيار ملف صورة صالح بصيغة (PNG, JPG, JPEG, WEBP) لضمان التوافق والجودة.');
       return;
     }
     const reader = new FileReader();
@@ -243,14 +246,14 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
                     <input 
                       type="file" 
                       id="ad-image-uploader"
-                      accept="image/png"
+                      accept="image/*"
                       onChange={handleImageFileChange}
                       className="hidden"
                     />
                     <label htmlFor="ad-image-uploader" className="cursor-pointer w-full h-full flex flex-col items-center">
                       <Upload size={24} className="text-violet-400 animate-bounce mb-1" />
-                      <span className="font-bold text-white text-xs">اسحب صورة الإعلان (PNG) وأفلتها هنا أو انقر للتصفح 📂</span>
-                      <span className="text-[10px] text-purple-400 mt-1">يدعم فقط ملفات الصور بصيغة PNG لضمان جودة التصاميم الفاخرة</span>
+                      <span className="font-bold text-white text-xs">اسحب صورة الإعلان وأفلتها هنا أو انقر للتصفح 📂</span>
+                      <span className="text-[10px] text-purple-400 mt-1">يدعم صور (PNG, JPG, JPEG, WEBP) لضمان جودة التصاميم</span>
                     </label>
                   </div>
 
