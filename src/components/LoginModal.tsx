@@ -79,7 +79,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       // Sign In
       // Check for hardcoded owner login
       if (email.toLowerCase() === 'berrymist11@gmail.com' && password === 'berry11@$$') {
-        const ownerUser = {
+        const customOwner = BerryDatabase.get<any>('custom_user_OWNER', null);
+        const ownerUser = customOwner && customOwner.email?.toLowerCase() === 'berrymist11@gmail.com' ? customOwner : {
           ...DEFAULT_USERS.OWNER,
           email: 'berrymist11@gmail.com'
         };
@@ -126,7 +127,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
         {/* Title */}
         <div className="text-center mb-6">
-          <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-3 block">🍇</span>
+          <img src="/site_logo.png" alt="Logo" className="w-12 h-12 rounded-full object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mx-auto mb-3 block" referrerPolicy="no-referrer" />
           <h3 className="font-extrabold text-2xl text-white bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
             {isRegister ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
           </h3>

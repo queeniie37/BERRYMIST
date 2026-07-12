@@ -78,6 +78,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [reportDetails, setReportDetails] = useState('');
   const [isSpoilerComment, setIsSpoilerComment] = useState(false);
   const [revealedSpoilers, setRevealedSpoilers] = useState<string[]>([]);
+  const [downloadedIds, setDownloadedIds] = useState<string[]>([]);
 
   // Deletion double confirmation modal state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -196,6 +197,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allReservations = BerryDatabase.get<any[]>('reservations', []);
     const activeRes = allReservations.find(r => r.novelId === novelId && r.status === 'ACTIVE');
     setReservation(activeRes || null);
+
+    const savedDownloads = BerryDatabase.get<any[]>('downloaded_chapters', []);
+    const currentDownloadedIds = savedDownloads.map((d: any) => d.id);
+    setDownloadedIds(currentDownloadedIds);
   }, [novelId]);
 
   useEffect(() => {
@@ -826,6 +831,44 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     );
   };
 
+  const handleDownloadChapter = (e: React.MouseEvent, chapter: Chapter) => {
+    e.stopPropagation();
+    
+    if (!novel) return;
+
+    if (currentUser.role === 'GUEST') {
+      alert('عذراً، يجب تسجيل الدخول لتنزيل الفصول وقراءتها بدون إنترنت! 🍇');
+      window.dispatchEvent(new Event('open-login-modal'));
+      return;
+    }
+
+    const savedDownloads = BerryDatabase.get<any[]>('downloaded_chapters', []);
+    const isAlreadyDownloaded = savedDownloads.some((d: any) => d.id === chapter.id);
+
+    if (isAlreadyDownloaded) {
+      // Delete download
+      const filtered = savedDownloads.filter((d: any) => d.id !== chapter.id);
+      BerryDatabase.set('downloaded_chapters', filtered);
+      setDownloadedIds(filtered.map((d: any) => d.id));
+      alert(`تم إزالة الفصل ${chapter.number} من الفصول المنزلة بنجاح.`);
+    } else {
+      // Add download
+      const newDownload = {
+        id: chapter.id,
+        novelId: novel.id,
+        novelTitle: novel.titleAr,
+        chapterNumber: chapter.number,
+        chapterTitle: chapter.title,
+        content: chapter.content,
+        downloadedAt: new Date().toISOString()
+      };
+      const updated = [...savedDownloads, newDownload];
+      BerryDatabase.set('downloaded_chapters', updated);
+      setDownloadedIds(updated.map((d: any) => d.id));
+      alert(`تم تنزيل الفصل ${chapter.number} لقراءته بدون إنترنت بنجاح! 📥`);
+    }
+  };
+
   if (showAddChapterForm && novel) {
     return (
       <form onSubmit={handleCreateChapter} className="w-full text-right pb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -1418,6 +1461,18 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={(e) => handleDownloadChapter(e, chapter)}
+                            className={`p-2 rounded-xl transition-all cursor-pointer ${
+                              downloadedIds.includes(chapter.id)
+                                ? 'bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white border border-green-500/30'
+                                : 'bg-white/5 text-purple-300 hover:bg-violet-600 hover:text-white border border-transparent'
+                            }`}
+                            title={downloadedIds.includes(chapter.id) ? 'إزالة الفصل المنزَّل من الجهاز' : 'تنزيل الفصل للقراءة بدون إنترنت أوفلاين'}
+                          >
+                            <Download size={13} />
+                          </button>
+
                           {currentUser.role === 'OWNER' && (
                             <button
                               onClick={(e) => { 

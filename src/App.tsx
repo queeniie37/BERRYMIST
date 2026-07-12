@@ -3,11 +3,11 @@ import {
   Compass, Flame, Clock, Award, Plus, Layers, Search, 
   MessageSquare, Users, Shield, BookOpen, Heart, 
   ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone, Send,
-  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell, X
+  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell, X, Download
 } from 'lucide-react';
 import { User, UserRole, Novel, Suggestion, Reservation, News, Team, TranslatorRequest } from './types';
 import { DEFAULT_USERS, BerryDatabase } from './data';
-import { isImageSource, safeEmojiOrFallback } from './utils/media';
+import { isImageSource, safeEmojiOrFallback, compressImageFile } from './utils/media';
 
 // Component imports
 import Header from './components/Header';
@@ -89,6 +89,7 @@ export default function App() {
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showProfileFavorites, setShowProfileFavorites] = useState(true);
+  const [showProfileDownloads, setShowProfileDownloads] = useState(false);
   const [refreshAdsTrigger, setRefreshAdsTrigger] = useState(0);
   const [refreshNotificationsTrigger, setRefreshNotificationsTrigger] = useState(0);
 
@@ -653,6 +654,22 @@ export default function App() {
     setCurrentUser(updatedUser);
     BerryDatabase.set('current_user_data', updatedUser);
     BerryDatabase.set(`custom_user_${currentUser.role}`, updatedUser);
+
+    // Sync changes into the central user database (users_db) so all parts of the site reflect them
+    const usersDb = BerryDatabase.get<any[]>('users_db', []);
+    const userIndex = usersDb.findIndex(u => u && u.id === updatedUser.id);
+    if (userIndex !== -1) {
+      usersDb[userIndex] = { ...usersDb[userIndex], ...updatedUser };
+      BerryDatabase.set('users_db', usersDb);
+    } else {
+      const emailIndex = usersDb.findIndex(u => u && u.email?.toLowerCase() === updatedUser.email?.toLowerCase());
+      if (emailIndex !== -1) {
+        usersDb[emailIndex] = { ...usersDb[emailIndex], ...updatedUser };
+        BerryDatabase.set('users_db', usersDb);
+      } else {
+        BerryDatabase.set('users_db', [...usersDb, updatedUser]);
+      }
+    }
     
     window.dispatchEvent(new Event('user-updated'));
     setIsEditingProfile(false);
@@ -889,7 +906,7 @@ export default function App() {
                 <div className="absolute top-0 left-0 w-64 h-64 bg-violet-600/10 rounded-full blur-[80px]" />
                 <div className="absolute bottom-0 right-0 w-64 h-64 bg-berry-600/10 rounded-full blur-[80px]" />
                 
-                <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block">🍇</span>
+                <img src="/site_logo.png" alt="Logo" className="w-12 h-12 rounded-full object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block" referrerPolicy="no-referrer" />
                 <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {safeSiteName} الفاخرة!</h2>
                 <p className="text-purple-300 text-sm md:text-base leading-relaxed max-w-3xl">
                   لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية! ✨
@@ -1535,7 +1552,7 @@ export default function App() {
                 </div>
 
                 {/* Stats Section */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-white/5 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/5 text-center">
                   <div className="p-3 bg-white/5 rounded-xl border border-white/5">
                     <span className="text-[10px] text-purple-400 block mb-1">المستوى</span>
                     <span className="font-extrabold text-white text-base">Lvl {currentUser.level}</span>
@@ -1545,7 +1562,12 @@ export default function App() {
                     <span className="font-extrabold text-white text-base">{currentUser.xp} XP</span>
                   </div>
                   <button 
-                    onClick={() => setShowProfileFavorites(!showProfileFavorites)}
+                    onClick={() => {
+                      setShowProfileFavorites(!showProfileFavorites);
+                      if (!showProfileFavorites) {
+                        setShowProfileDownloads(false);
+                      }
+                    }}
                     className={`p-3 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${showProfileFavorites ? 'border-violet-500/50 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-102' : 'bg-white/5 border-white/5 hover:border-violet-500/20'}`}
                   >
                     <span className="text-[10px] text-purple-400 block mb-1">الروايات المفضلة</span>
@@ -1554,6 +1576,23 @@ export default function App() {
                     </span>
                     <span className="text-[9px] text-violet-400 mt-0.5 font-bold">
                       {showProfileFavorites ? 'انقر لإخفائها ▲' : 'انقر لتصفحها ▼'}
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowProfileDownloads(!showProfileDownloads);
+                      if (!showProfileDownloads) {
+                        setShowProfileFavorites(false);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${showProfileDownloads ? 'border-violet-500/50 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-102' : 'bg-white/5 border-white/5 hover:border-violet-500/20'}`}
+                  >
+                    <span className="text-[10px] text-purple-400 block mb-1">الفصول المنزلة أوفلاين</span>
+                    <span className="font-extrabold text-white text-base flex items-center gap-1">
+                      {BerryDatabase.get<any[]>('downloaded_chapters', []).length} <Download size={14} className="text-violet-400" />
+                    </span>
+                    <span className="text-[9px] text-violet-400 mt-0.5 font-bold">
+                      {showProfileDownloads ? 'إخفاء الفصول ▲' : 'عرض الفصول ▼'}
                     </span>
                   </button>
                 </div>
@@ -1576,24 +1615,23 @@ export default function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {/* Icon File Upload */}
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-bold text-purple-200">تحميل صورة الأيقونة الشخصية (ملف PNG حصراً) *</label>
+                      <label className="text-xs font-bold text-purple-200">تحميل صورة الأيقونة الشخصية (PNG, JPG, JPEG, WEBP) *</label>
                       <div className="relative border border-dashed border-white/10 hover:border-violet-500/40 rounded-xl p-4 bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[90px]">
                         <input 
                           type="file" 
-                          accept=".png"
+                          accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const extension = file.name.split('.').pop()?.toLowerCase();
-                            if (extension !== 'png') {
-                              alert('خطأ: يجب اختيار صورة بصيغة PNG فقط لملفك الشخصي!');
+                            const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+                            const extension = file.name.split('.').pop()?.toLowerCase() || '';
+                            if (!allowed.includes(extension)) {
+                              alert('خطأ: يجب اختيار صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG)!');
                               return;
                             }
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setEditAvatar(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                            compressImageFile(file, 256)
+                              .then((dataUrl) => setEditAvatar(dataUrl))
+                              .catch(() => alert('تعذر معالجة الأيقونة الشخصية. جرب صورة أصغر حجماً.'));
                           }}
                           className="absolute inset-0 opacity-0 cursor-pointer"
                         />
@@ -1605,33 +1643,32 @@ export default function App() {
                         ) : (
                           <div className="flex flex-col items-center gap-1">
                             <Camera size={16} className="text-purple-400" />
-                            <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف PNG لأيقونتك الشخصية</span>
+                            <span className="text-[10px] text-purple-300 font-bold">انقر لاختيار ملف لصورتك الشخصية</span>
                           </div>
                         )}
                       </div>
-                      <p className="text-[9px] text-purple-400 font-semibold">تأكد من إرفاق صورة حقيقية PNG مفرغة أو مربعة لضمان أفضل مظهر.</p>
+                      <p className="text-[9px] text-purple-400 font-semibold">تأكد من إرفاق صورة حقيقية مفرغة أو مربعة لضمان أفضل مظهر.</p>
                     </div>
 
                     {/* Banner File Upload */}
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-bold text-purple-200">تحميل غلاف الملف الشخصي (ملف PNG حصراً) *</label>
+                      <label className="text-xs font-bold text-purple-200">تحميل غلاف الملف الشخصي (PNG, JPG, JPEG, WEBP) *</label>
                       <div className="relative border border-dashed border-white/10 hover:border-violet-500/40 rounded-xl p-4 bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[90px]">
                         <input 
                           type="file" 
-                          accept=".png"
+                          accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const extension = file.name.split('.').pop()?.toLowerCase();
-                            if (extension !== 'png') {
-                              alert('خطأ: يجب اختيار صورة غلاف بصيغة PNG فقط!');
+                            const allowed = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+                            const extension = file.name.split('.').pop()?.toLowerCase() || '';
+                            if (!allowed.includes(extension)) {
+                              alert('خطأ: يجب اختيار صورة بصيغة مدعومة (PNG, JPG, JPEG, WEBP, SVG)!');
                               return;
                             }
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setEditBanner(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                            compressImageFile(file, 1600)
+                              .then((dataUrl) => setEditBanner(dataUrl))
+                              .catch(() => alert('تعذر معالجة غلاف الحساب. جرب صورة أصغر حجماً.'));
                           }}
                           className="absolute inset-0 opacity-0 cursor-pointer"
                         />
@@ -1815,6 +1852,65 @@ export default function App() {
                     >
                       تصفح واستكشف المكتبة الآن 🧭
                     </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Downloaded Chapters Display Section */}
+            {showProfileDownloads && (
+              <div className="glass-panel p-6 rounded-3xl border border-white/5 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-3">
+                  <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                    <Download size={16} className="text-violet-400" />
+                    <span>الفصول والترجمات المنزلة بجهازك للقراءة أوفلاين ({BerryDatabase.get<any[]>('downloaded_chapters', []).length})</span>
+                  </h3>
+                  <span className="text-[10px] text-purple-400 font-bold">يمكنك قراءة الفصول المنزلة مع كامل ميزات إعدادات القارئ!</span>
+                </div>
+
+                {BerryDatabase.get<any[]>('downloaded_chapters', []).length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-right">
+                    {BerryDatabase.get<any[]>('downloaded_chapters', []).map((chapter: any) => (
+                      <div 
+                        key={chapter.id}
+                        onClick={() => handleNavigate('reader', { novelId: chapter.novelId, chapterNumber: chapter.chapterNumber })}
+                        className="p-4 bg-[#14101D] border border-white/5 hover:border-violet-500/30 rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-500/10 group flex items-center justify-between gap-3 text-right"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[9px] text-purple-400 font-bold truncate block mb-1">📖 رواية: {chapter.novelTitle}</span>
+                          <h4 className="font-extrabold text-xs text-white group-hover:text-violet-400 transition-colors truncate">
+                            الفصل {chapter.chapterNumber}: {chapter.chapterTitle.split(':').slice(1).join(':').trim() || 'فصل منزل أوفلاين'}
+                          </h4>
+                          <span className="text-[8px] text-purple-500 mt-1.5 block">تم التنزيل: {new Date(chapter.downloadedAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const savedDownloads = BerryDatabase.get<any[]>('downloaded_chapters', []);
+                              const filtered = savedDownloads.filter((d: any) => d.id !== chapter.id);
+                              BerryDatabase.set('downloaded_chapters', filtered);
+                              // Force update local view
+                              setShowProfileDownloads(false);
+                              setTimeout(() => setShowProfileDownloads(true), 50);
+                            }}
+                            className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                            title="حذف الملف من الجهاز"
+                          >
+                            <X size={12} />
+                          </button>
+                          <span className="px-2.5 py-1.5 bg-violet-500/15 text-violet-300 group-hover:bg-violet-600 group-hover:text-white rounded-xl text-[10px] font-bold transition-all">
+                            قراءة أوفلاين ←
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 px-4 text-center bg-[#14101D]/50 rounded-2xl border border-dashed border-white/5 text-purple-400 animate-in fade-in duration-300">
+                    <Download size={32} className="mx-auto mb-3 text-purple-500/50" />
+                    <p className="text-xs font-semibold">لا توجد أي فصول منزلة بجهازك حالياً!</p>
+                    <p className="text-[10px] text-purple-400 mt-1">اذهب لصفحة فصول روايتك المفضلة وانقر على زر التنزيل لحفظها محلياً لقراءتها في أي وقت دون اتصال بالإنترنت.</p>
                   </div>
                 )}
               </div>
