@@ -106,12 +106,12 @@ export default function App() {
 
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
   const [siteLogo, setSiteLogo] = useState(() => {
-    const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
-    return logo === '🍇' ? '/site_logo.png' : logo;
+    const logo = BerryDatabase.get<string>('site_logo', '/site_logo_v2.png');
+    return logo === '🍇' ? '/site_logo_v2.png' : logo;
   });
   const [siteBanner, setSiteBanner] = useState(() => BerryDatabase.get<string>('site_banner', '/site_banner.png'));
 
-  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim() && siteLogo.trim() !== '🍇') ? siteLogo.trim() : '/site_logo.png';
+  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim() && siteLogo.trim() !== '🍇') ? siteLogo.trim() : '/site_logo_v2.png';
   const safeSiteBanner = (typeof siteBanner === 'string' && siteBanner.trim()) ? siteBanner.trim() : '/site_banner.png';
   const safeSiteName = (typeof siteName === 'string' && siteName.trim()) ? siteName.trim() : 'BerryMist';
 
@@ -169,8 +169,8 @@ export default function App() {
 
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
-      setSiteLogo(logo === '🍇' ? '/site_logo.png' : logo);
+      const logo = BerryDatabase.get<string>('site_logo', '/site_logo_v2.png');
+      setSiteLogo(logo === '🍇' ? '/site_logo_v2.png' : logo);
       setSiteBanner(BerryDatabase.get<string>('site_banner', '/site_banner.png'));
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
@@ -888,7 +888,7 @@ export default function App() {
                   {isImageSource(safeSiteLogo) ? (
                     <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   ) : (
-                    <img src="/site_logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
+                    <img src="/site_logo_v2.png" alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)]" referrerPolicy="no-referrer" />
                   )}
                   <span>{safeSiteName}</span>
                 </h1>
@@ -906,7 +906,7 @@ export default function App() {
                 <div className="absolute top-0 left-0 w-64 h-64 bg-violet-600/10 rounded-full blur-[80px]" />
                 <div className="absolute bottom-0 right-0 w-64 h-64 bg-berry-600/10 rounded-full blur-[80px]" />
                 
-                <img src="/site_logo.png" alt="Logo" className="w-12 h-12 rounded-full object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block" referrerPolicy="no-referrer" />
+                <img src="/site_logo_v2.png" alt="Logo" className="w-12 h-12 rounded-full object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mb-4 block" referrerPolicy="no-referrer" />
                 <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">أهلاً بك في منصة {safeSiteName} الفاخرة!</h2>
                 <p className="text-purple-300 text-sm md:text-base leading-relaxed max-w-3xl">
                   لا توجد روايات منشورة بالمنصة حتى الآن. ترقبوا قريباً أولى الروايات والفصول المترجمة الحصرية! ✨
@@ -2263,7 +2263,7 @@ export default function App() {
               {isImageSource(safeSiteLogo) ? (
                 <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
               ) : (
-                <img src="/site_logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
+                <img src="/site_logo_v2.png" alt="Logo" className="w-8 h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.4)]" referrerPolicy="no-referrer" />
               )}
               <span className="font-extrabold text-xl bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
                 {safeSiteName}

@@ -127,7 +127,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
         {/* Title */}
         <div className="text-center mb-6">
-          <img src="/site_logo.png" alt="Logo" className="w-12 h-12 rounded-full object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mx-auto mb-3 block" referrerPolicy="no-referrer" />
+          <img src="/site_logo_v2.png" alt="Logo" className="w-12 h-12 rounded-full object-cover filter drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] mx-auto mb-3 block" referrerPolicy="no-referrer" />
           <h3 className="font-extrabold text-2xl text-white bg-gradient-to-r from-violet-400 to-berry-400 bg-clip-text text-transparent">
             {isRegister ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
           </h3>

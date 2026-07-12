@@ -34,18 +34,18 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   
   const [siteName, setSiteName] = useState(() => BerryDatabase.get<string>('site_name', 'BerryMist'));
   const [siteLogo, setSiteLogo] = useState(() => {
-    const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
-    return logo === '🍇' ? '/site_logo.png' : logo;
+    const logo = BerryDatabase.get<string>('site_logo', '/site_logo_v2.png');
+    return logo === '🍇' ? '/site_logo_v2.png' : logo;
   });
 
-  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim() && siteLogo.trim() !== '🍇') ? siteLogo.trim() : '/site_logo.png';
+  const safeSiteLogo = (typeof siteLogo === 'string' && siteLogo.trim() && siteLogo.trim() !== '🍇') ? siteLogo.trim() : '/site_logo_v2.png';
   const safeSiteName = (typeof siteName === 'string' && siteName.trim()) ? siteName.trim() : 'BerryMist';
 
   useEffect(() => {
     const handleSiteUpdate = () => {
       setSiteName(BerryDatabase.get<string>('site_name', 'BerryMist'));
-      const logo = BerryDatabase.get<string>('site_logo', '/site_logo.png');
-      setSiteLogo(logo === '🍇' ? '/site_logo.png' : logo);
+      const logo = BerryDatabase.get<string>('site_logo', '/site_logo_v2.png');
+      setSiteLogo(logo === '🍇' ? '/site_logo_v2.png' : logo);
     };
     window.addEventListener('site-settings-updated', handleSiteUpdate);
     return () => window.removeEventListener('site-settings-updated', handleSiteUpdate);
@@ -145,7 +145,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
             {isImageSource(safeSiteLogo) ? (
               <img src={safeSiteLogo} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             ) : (
-              <img src="/site_logo.png" alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
+              <img src="/site_logo_v2.png" alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover filter drop-shadow-[0_0_10px_rgba(139,92,246,0.6)] animate-pulse" referrerPolicy="no-referrer" />
             )}
             <span className="font-extrabold text-lg sm:text-2xl tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
               {safeSiteName}
@@ -538,7 +538,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
                 {isImageSource(safeSiteLogo) ? (
                   <img src={safeSiteLogo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <img src="/site_logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  <img src="/site_logo_v2.png" alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                 )}
                 <span className="font-extrabold text-2xl bg-gradient-to-r from-violet-400 via-purple-400 to-berry-400 bg-clip-text text-transparent">
                   {safeSiteName}

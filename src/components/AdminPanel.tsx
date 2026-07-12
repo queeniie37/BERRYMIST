@@ -58,9 +58,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     return (typeof val === 'string' && val.trim()) ? val.trim() : 'BerryMist';
   });
   const [siteLogoInput, setSiteLogoInput] = useState(() => {
-    const val = BerryDatabase.get<any>('site_logo', '/site_logo.png');
-    const safeVal = (typeof val === 'string' && val.trim()) ? val.trim() : '/site_logo.png';
-    return safeVal === '🍇' ? '/site_logo.png' : safeVal;
+    const val = BerryDatabase.get<any>('site_logo', '/site_logo_v2.png');
+    const safeVal = (typeof val === 'string' && val.trim()) ? val.trim() : '/site_logo_v2.png';
+    return safeVal === '🍇' ? '/site_logo_v2.png' : safeVal;
   });
   const [siteBannerInput, setSiteBannerInput] = useState(() => {
     const val = BerryDatabase.get<any>('site_banner', '/site_banner.png');
@@ -146,7 +146,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     }
 
     BerryDatabase.set('site_name', siteNameInput.trim());
-    BerryDatabase.set('site_logo', siteLogoInput.trim() || '/site_logo.png');
+    BerryDatabase.set('site_logo', siteLogoInput.trim() || '/site_logo_v2.png');
     BerryDatabase.set('site_banner', siteBannerInput.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&fm=png');
     
     // Dispatch event to update other components in real-time
@@ -1265,7 +1265,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                       {isImageSource(siteLogoInput) ? (
                         <img src={siteLogoInput} alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <img src="/site_logo.png" alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                        <img src="/site_logo_v2.png" alt="Preview Logo" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       )}
                       <span className="text-xs font-extrabold text-white">{siteNameInput}</span>
                     </div>
