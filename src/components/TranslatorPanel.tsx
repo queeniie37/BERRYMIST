@@ -660,7 +660,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     }
 
     const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com';
-    const status = 'AVAILABLE'; // Make all novels active and AVAILABLE instantly so they appear on the homepage for visitors right away!
+    const status = isOwner ? 'AVAILABLE' : 'PENDING';
 
     const newNovel: Novel = {
       id: `novel-draft-${Date.now()}`,
@@ -676,7 +676,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       bookmarksCount: 0,
       rating: 5.0,
       ratingCount: 0,
-      status: status, // Published immediately!
+      status: status,
       language: lang,
       genres: selectedGenres,
       description: desc,
@@ -693,16 +693,16 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       const newNotif = {
         id: `notif-review-${Date.now()}`,
         userId: 'berrymist-owner', // Notify Super Admin
-        title: 'تم نشر رواية جديدة تلقائياً',
-        message: `قام ${currentUser.role === 'WRITER' ? 'الكاتب' : 'المترجم'} "${currentUser.username}" بنشر رواية جديدة "${titleAr}" بنجاح على الموقع.`,
+        title: 'طلب مراجعة رواية جديدة ⏳',
+        message: `قام ${currentUser.role === 'WRITER' ? 'الكاتب' : 'المترجم'} "${currentUser.username}" بتقديم رواية جديدة "${titleAr}" وبانتظار موافقتك لتظهر للعامة.`,
         type: 'SYSTEM',
         isRead: false,
         createdAt: 'الآن'
       };
       BerryDatabase.set('notifications', [...allNotifs, newNotif]);
-      setSuccess('تهانينا! تم إنشاء ونشر روايتك بنجاح وأصبحت نشطة فوراً لجميع الزوار على الصفحة الرئيسية! 🎉');
+      setSuccess('تهانينا! تم تقديم روايتك بنجاح وجاري مراجعتها من قبل الإدارة لتفعيلها قريباً! 🎉');
     } else {
-      setSuccess('تمت إضافة ونشر الرواية الجديدة مباشرة بنجاح بصفك مالك المنصة! 🎉');
+      setSuccess('تمت إضافة ونشر الرواية الجديدة مباشرة بنجاح بصفتك مالك المنصة! 🎉');
     }
 
     // Trigger update so App.tsx knows the novels updated!

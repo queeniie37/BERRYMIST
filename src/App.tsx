@@ -817,8 +817,8 @@ export default function App() {
   };
 
   // All uploaded novels are publicly visible to every visitor (guests included),
-  // except cancelled ones. Interaction (bookmarks, comments, votes) still requires signing in.
-  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'CANCELLED'), [novels]);
+  // except cancelled or pending ones. Interaction (bookmarks, comments, votes) still requires signing in.
+  const activeNovels = useMemo(() => novels.filter(n => n.status !== 'CANCELLED' && n.status !== 'PENDING'), [novels]);
 
   // Filter trending list (sorted by views / popular)
   const trendingNovels = useMemo(() => [...activeNovels]
