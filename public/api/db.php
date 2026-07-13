@@ -34,12 +34,21 @@ function load_db($file) {
 }
 
 function save_db($file, $data) {
-    // LOCK_EX guards against two visitors writing at the same moment.
-    file_put_contents(
-        $file,
-        json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
-        LOCK_EX
-    );
+    // Atomic write: encode to a temp file first, then rename over the real
+    // file. If PHP is killed mid-write (big payloads on shared hosting),
+    // berry_db.json is never left half-written/corrupt for all visitors.
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+    if ($json === false) return false;
+    $tmp = $file . '.tmp.' . getmypid();
+    if (file_put_contents($tmp, $json, LOCK_EX) === false) {
+        @unlink($tmp);
+        return false;
+    }
+    if (!rename($tmp, $file)) {
+        @unlink($tmp);
+        return false;
+    }
+    return true;
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -65,7 +74,17 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    $body = json_decode(file_get_contents('php://input'), true);
+    $raw = file_get_contents('php://input');
+
+    // A payload larger than post_max_size arrives truncated or empty.
+    // Reject it explicitly so the client keeps the write pending and
+    // retries, instead of silently losing the published novel.
+    $body = json_decode($raw, true);
+    if (!is_array($body)) {
+        http_response_code(400);
+        echo json_encode(array('error' => 'Invalid or truncated JSON payload (possibly exceeds post_max_size)'));
+        exit;
+    }
     $key = isset($body['key']) ? $body['key'] : null;
 
     if (!$key || !is_string($key)) {
@@ -80,8 +99,31 @@ if ($method === 'POST') {
     }
 
     $db = load_db($DB_FILE);
+
+    // Rotating hourly backup BEFORE applying the write, so the site's data
+    // can always be restored if a bug or a malicious visitor wipes content
+    // (the API is writable by design — every publish comes from a browser).
+    // Keeps the newest 24 hourly snapshots in api/backups/.
+    $backupDir = __DIR__ . '/backups';
+    if (!is_dir($backupDir)) { @mkdir($backupDir, 0755, true); }
+    if (is_dir($backupDir) && file_exists($DB_FILE)) {
+        $stampFile = $backupDir . '/berry_db-' . gmdate('Ymd-H') . '.json';
+        if (!file_exists($stampFile)) {
+            @copy($DB_FILE, $stampFile);
+            $old = glob($backupDir . '/berry_db-*.json');
+            if ($old && count($old) > 24) {
+                sort($old);
+                foreach (array_slice($old, 0, count($old) - 24) as $f) { @unlink($f); }
+            }
+        }
+    }
+
     $db[$key] = isset($body['value']) ? $body['value'] : null;
-    save_db($DB_FILE, $db);
+    if (!save_db($DB_FILE, $db)) {
+        http_response_code(500);
+        echo json_encode(array('error' => 'Failed to write database file'));
+        exit;
+    }
     echo json_encode(array('success' => true));
     exit;
 }

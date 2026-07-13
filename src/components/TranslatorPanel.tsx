@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertCircle, Edit, Trash2, Calendar, BookOpen, Eye, RefreshCw, Upload, Image } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
+import { compressImageFile } from '../utils/media';
 import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -417,12 +418,11 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
         return;
       }
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setEditChapterImages(prev => prev ? `${prev}, ${base64String}` : base64String);
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file, 1000)
+        .then((base64String) => {
+          setEditChapterImages(prev => prev ? `${prev}, ${base64String}` : base64String);
+        })
+        .catch(() => alert('تعذر معالجة إحدى الصور. جرب صورة أصغر حجماً.'));
     });
   };
 
@@ -687,7 +687,11 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     };
 
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-    BerryDatabase.set('novels', [newNovel, ...allNovels]);
+    const savedOk = BerryDatabase.set('novels', [newNovel, ...allNovels]);
+    if (!savedOk) {
+      alert('تعذر حفظ الرواية: مساحة التخزين ممتلئة (غالباً بسبب صور كبيرة). جرب غلافاً أصغر أو احذف بعض المحتوى القديم.');
+      return; // Keep the form filled so the user does not lose their work
+    }
 
     // Notify administrators
     const allNotifs = BerryDatabase.get<any[]>('notifications', []);
@@ -1166,11 +1170,11 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                         alert('خطأ: نقبل ملفات صور غلاف بصيغة (PNG, JPG, JPEG, WEBP) فقط لضمان الجودة الفاخرة لغلاف الرواية!');
                         return;
                       }
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setCoverImage(reader.result as string);
-                      };
-                      reader.readAsDataURL(file);
+                      // Compress before storing: raw multi-MB covers were the
+                      // main reason publish syncs failed and novels vanished.
+                      compressImageFile(file, 600)
+                        .then((dataUrl) => setCoverImage(dataUrl))
+                        .catch(() => alert('تعذر معالجة صورة الغلاف. جرب صورة أصغر حجماً.'));
                     }}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />

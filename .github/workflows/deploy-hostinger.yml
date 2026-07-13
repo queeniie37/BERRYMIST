@@ -20,7 +20,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -49,5 +49,7 @@ jobs:
           server-dir: ${{ secrets.FTP_SERVER_DIR || '/public_html/' }}
           # Keep the shared database file on the server between deploys so
           # published novels are never wiped by a redeploy.
+          # Also keep the hourly server-side backups between deploys.
           exclude: |
             **/berry_db.json
+            **/backups/**
