@@ -50,6 +50,10 @@ const defaults: any = {
   // email(lowercase) -> role, so owner role approvals propagate across devices
   // without ever syncing account credentials (users_db stays private)
   role_assignments: {},
+  // userId -> badges granted by the owner (admin panel)
+  user_badges: {},
+  // userId -> public profile + reading stats, published by each member's device
+  user_directory: {},
   site_name: "BerryMist",
   site_logo: "🍇",
   site_banner: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200",
