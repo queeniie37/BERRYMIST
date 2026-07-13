@@ -15,6 +15,8 @@ export interface User {
   customStatus?: string;
   banner?: string;
   supportLink?: string;
+  // Owner-managed social media links (+/× on the profile edit page)
+  socialLinks?: { id: string; name: string; icon: string; url: string }[];
 }
 
 export type NovelStatus = 'AVAILABLE' | 'RESERVED' | 'TRANSLATING' | 'HIATUS' | 'COMPLETED' | 'ONGOING' | 'PENDING' | 'CANCELLED' | 'PENDING_APPROVAL';

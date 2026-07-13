@@ -33,6 +33,17 @@ import TranslatorRequestForm from './components/TranslatorRequestForm';
 // Themed placeholders shown when a remote image (cover/avatar/banner) fails to
 // load, so visitors never see a broken-image icon. Inline SVG data URIs can
 // never themselves fail to load.
+// Social platforms the OWNER can attach to their profile with the +/× manager
+const SOCIAL_PLATFORMS = [
+  { id: 'discord', name: 'ديسكورد', icon: '👾', placeholder: 'https://discord.gg/...' },
+  { id: 'telegram', name: 'تيليجرام', icon: '📢', placeholder: 'https://t.me/...' },
+  { id: 'instagram', name: 'انستغرام', icon: '📸', placeholder: 'https://instagram.com/...' },
+  { id: 'tiktok', name: 'تيك توك', icon: '🎵', placeholder: 'https://tiktok.com/@...' },
+  { id: 'youtube', name: 'يوتيوب', icon: '📺', placeholder: 'https://youtube.com/@...' },
+  { id: 'x', name: 'X (تويتر)', icon: '🐦', placeholder: 'https://x.com/...' },
+  { id: 'snapchat', name: 'سناب شات', icon: '👻', placeholder: 'https://snapchat.com/add/...' }
+];
+
 const FALLBACK_COVER =
   'data:image/svg+xml;utf8,' +
   encodeURIComponent(
@@ -665,19 +676,25 @@ export default function App() {
   const [editAvatar, setEditAvatar] = useState('');
   const [editBanner, setEditBanner] = useState('');
   const [editBio, setEditBio] = useState('');
-  const [editDiscord, setEditDiscord] = useState('');
-  const [editTelegram, setEditTelegram] = useState('');
   const [editPaypalEmail, setEditPaypalEmail] = useState('');
   const [editSupportLink, setEditSupportLink] = useState('');
+  const [editSocialLinks, setEditSocialLinks] = useState<{ id: string; url: string }[]>([]);
+  const [newSocialPlatform, setNewSocialPlatform] = useState('');
 
   const handleOpenEditProfile = () => {
     setEditAvatar(currentUser.avatar || '');
     setEditBanner(currentUser.banner || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200');
     setEditBio(currentUser.bio || '');
-    setEditDiscord(currentUser.discord || '');
-    setEditTelegram(currentUser.telegram || '');
     setEditPaypalEmail(currentUser.paypalEmail || '');
     setEditSupportLink(currentUser.supportLink || '');
+    // Owner's social links; migrate the old fixed discord/telegram fields once
+    const existing = Array.isArray(currentUser.socialLinks) ? currentUser.socialLinks.map(l => ({ id: l.id, url: l.url })) : [];
+    if (existing.length === 0) {
+      if (currentUser.discord) existing.push({ id: 'discord', url: currentUser.discord });
+      if (currentUser.telegram) existing.push({ id: 'telegram', url: currentUser.telegram });
+    }
+    setEditSocialLinks(existing);
+    setNewSocialPlatform('');
     // Profile editing lives on its own dedicated page
     handleNavigate('profile-edit');
   };
@@ -685,23 +702,29 @@ export default function App() {
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Regular readers can only customize avatar, banner and bio. Support and
-    // social/contact channels are reserved for the owner and owner-approved
-    // creative roles, so their values are never saved for a reader account.
-    const canEditContacts = ['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role);
+    // Regular readers can only customize avatar, banner and bio.
+    // Support/funding channels are for the owner and owner-approved creative
+    // roles; SOCIAL MEDIA links are managed exclusively by the owner.
+    const canEditSupport = ['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role);
+    const isOwnerRole = currentUser.role === 'OWNER';
+    const cleanedSocials = editSocialLinks
+      .filter(l => l.url.trim())
+      .map(l => {
+        const platform = SOCIAL_PLATFORMS.find(pf => pf.id === l.id);
+        return { id: l.id, name: platform?.name || l.id, icon: platform?.icon || '🔗', url: l.url.trim() };
+      });
     const updatedUser: User = {
       ...currentUser,
       avatar: editAvatar.trim(),
       banner: editBanner.trim(),
       bio: editBio.trim(),
-      ...(canEditContacts
+      ...(canEditSupport
         ? {
-            discord: editDiscord.trim(),
-            telegram: editTelegram.trim(),
             paypalEmail: editPaypalEmail.trim(),
             supportLink: editSupportLink.trim()
           }
-        : {})
+        : {}),
+      ...(isOwnerRole ? { socialLinks: cleanedSocials } : {})
     };
     
     setCurrentUser(updatedUser);
@@ -1465,6 +1488,8 @@ export default function App() {
                   }
                   return !n.userId && !n.email || n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase();
                 });
+                // Newest notifications always on top
+                userNotifications.sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
 
                 return (
                   <div className="flex flex-col gap-4">
@@ -1595,14 +1620,15 @@ export default function App() {
                           <span className="text-purple-500/70 italic">لا يوجد رابط دعم حالياً</span>
                         )}
                       </div>
-                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-                        <span className="text-[9px] text-purple-400 font-bold">👾 حساب الديسكورد للتواصل:</span>
-                        <span className="text-white font-mono truncate">{currentUser.discord || 'غير متوفر'}</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-                        <span className="text-[9px] text-purple-400 font-bold">📢 معرف التليجرام الخاص بي:</span>
-                        <span className="text-white font-mono truncate">{currentUser.telegram || 'غير متوفر'}</span>
-                      </div>
+                      {/* Social media accounts: owner-managed list only */}
+                      {currentUser.role === 'OWNER' && (currentUser.socialLinks || []).map((link) => (
+                        <div key={link.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                          <span className="text-[9px] text-purple-400 font-bold">{link.icon} {link.name}:</span>
+                          <a href={link.url.startsWith('http') ? link.url : undefined} target="_blank" rel="noreferrer" className="text-white font-mono truncate hover:text-violet-300">
+                            {link.url}
+                          </a>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   )}
@@ -1959,7 +1985,7 @@ export default function App() {
                     </h4>
                     <p className="text-[9px] text-purple-400 mb-4 font-semibold">أدخل بياناتك ليتمكن القراء ومحبو أعمالك من تقديم الدعم المالي والتواصل المباشر معك بسهولة تامة.</p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* PayPal Email */}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-bold text-purple-200">بريد باي بال للدعم (PayPal Email)</label>
@@ -1986,30 +2012,71 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Discord contact */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-purple-200">حساب ديسكورد للتواصل</label>
-                        <input 
-                          type="text"
-                          value={editDiscord}
-                          onChange={(e) => setEditDiscord(e.target.value)}
-                          placeholder="مثال: shadow_trans#9999"
-                          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors"
-                        />
-                      </div>
-
-                      {/* Telegram contact */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-purple-200">معرف أو رابط تليجرام للتواصل</label>
-                        <input 
-                          type="text"
-                          value={editTelegram}
-                          onChange={(e) => setEditTelegram(e.target.value)}
-                          placeholder="مثال: @shadow_trans"
-                          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors"
-                        />
-                      </div>
                     </div>
+
+                    {/* Social media manager: OWNER ONLY. Add a platform with
+                        the + button, remove one with ×. Translators cannot
+                        add social media links. */}
+                    {currentUser.role === 'OWNER' && (
+                      <div className="mt-5 pt-4 border-t border-white/5">
+                        <h4 className="text-xs font-bold text-violet-300 mb-3">مواقع التواصل الاجتماعي الخاصة بك (صلاحية المالك):</h4>
+                        <div className="flex flex-col gap-2.5">
+                          {editSocialLinks.map((link, idx) => {
+                            const platform = SOCIAL_PLATFORMS.find(pf => pf.id === link.id);
+                            return (
+                              <div key={link.id} className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditSocialLinks(prev => prev.filter((_, i) => i !== idx))}
+                                  className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer shrink-0"
+                                  title={`حذف ${platform?.name || link.id}`}
+                                >
+                                  <X size={12} />
+                                </button>
+                                <input
+                                  type="text"
+                                  value={link.url}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setEditSocialLinks(prev => prev.map((l, i) => i === idx ? { ...l, url: v } : l));
+                                  }}
+                                  placeholder={platform?.placeholder || 'https://...'}
+                                  className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
+                                  dir="ltr"
+                                />
+                                <span className="w-28 shrink-0 text-[11px] font-bold text-purple-200 text-right">
+                                  {platform?.icon} {platform?.name || link.id}
+                                </span>
+                              </div>
+                            );
+                          })}
+
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newSocialPlatform) { alert('اختر موقع التواصل من القائمة أولاً.'); return; }
+                                setEditSocialLinks(prev => [...prev, { id: newSocialPlatform, url: '' }]);
+                                setNewSocialPlatform('');
+                              }}
+                              className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-md shadow-violet-500/10 shrink-0"
+                            >
+                              + إضافة
+                            </button>
+                            <select
+                              value={newSocialPlatform}
+                              onChange={(e) => setNewSocialPlatform(e.target.value)}
+                              className="flex-1 bg-[#0F0C17] border border-white/10 rounded-xl px-3 py-2.5 text-[11px] text-white outline-none focus:border-violet-500/50 text-right"
+                            >
+                              <option value="">— اختر موقعاً لإضافته —</option>
+                              {SOCIAL_PLATFORMS.filter(pf => !editSocialLinks.some(l => l.id === pf.id)).map(pf => (
+                                <option key={pf.id} value={pf.id}>{pf.icon} {pf.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   )}
 

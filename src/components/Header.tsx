@@ -105,6 +105,9 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       }
       return !n.userId && !n.email || n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase();
     });
+    // Newest notifications always on top (legacy entries with
+    // non-parseable dates sink to the bottom)
+    filtered.sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
     setLocalNotifications(filtered);
   };
 
