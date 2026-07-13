@@ -201,6 +201,18 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   }, [novelId]);
 
+  // Live-refresh comments pulled by the background server sync so every
+  // visitor (guest, reader, translator, owner) sees all comments without
+  // needing to re-open the page.
+  useEffect(() => {
+    const refresh = () => {
+      const allComments = BerryDatabase.get<Comment[]>('comments', []);
+      setComments(allComments.filter(c => c.refId === novelId || chapters.some(ch => ch.id === c.refId)));
+    };
+    window.addEventListener('comments-updated', refresh);
+    return () => window.removeEventListener('comments-updated', refresh);
+  }, [novelId, chapters]);
+
   useEffect(() => {
     if (autoOpenAddChapter) {
       setActiveTab('chapters');

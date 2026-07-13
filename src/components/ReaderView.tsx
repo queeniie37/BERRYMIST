@@ -234,6 +234,20 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     }
   }, [novelId, chapterNumber, currentUser]);
 
+  // Live-refresh comments: other visitors' comments arrive through the
+  // background server sync. Without this listener, anyone who opened the
+  // chapter before the first sync completed (e.g. a fresh guest) would
+  // never see the existing comments until they navigated away and back.
+  useEffect(() => {
+    const refresh = () => {
+      if (!chapter) return;
+      const allComments = BerryDatabase.get<Comment[]>('comments', []);
+      setComments(allComments.filter(c => c.refId === chapter.id));
+    };
+    window.addEventListener('comments-updated', refresh);
+    return () => window.removeEventListener('comments-updated', refresh);
+  }, [chapter]);
+
   // Views are only counted if reader spends > 30 seconds
   useEffect(() => {
     if (!novelId || !chapterNumber) return;
