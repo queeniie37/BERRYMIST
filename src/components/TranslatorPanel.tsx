@@ -3,6 +3,7 @@ import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertC
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
 import { compressImageFile } from '../utils/media';
+import { normalizeChapterText } from '../utils/text';
 import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -401,7 +402,9 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
     setEditingChapter(chapter);
     setEditChapterTitle(chapter.title.split(':').slice(1).join(':').trim() || chapter.title);
-    setEditChapterContent(chapter.content);
+    // Legacy chapters may still hold pasted HTML soup — clean it so the
+    // editor shows readable text, and the next save persists the clean form.
+    setEditChapterContent(normalizeChapterText(chapter.content));
     setEditChapterPublishAt(chapter.publishAt || '');
     setEditChapterImages(chapter.images ? chapter.images.join(', ') : '');
   };
@@ -467,7 +470,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
         return {
           ...c,
           title: `الفصل ${editingChapter.number}: ${editChapterTitle}`,
-          content: editChapterContent,
+          content: normalizeChapterText(editChapterContent),
           isDraft: isScheduled,
           publishAt: editChapterPublishAt || undefined,
           images: imgUrls.length > 0 ? imgUrls : undefined
