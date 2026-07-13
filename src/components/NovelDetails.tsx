@@ -5,6 +5,7 @@ import { BerryDatabase } from '../data';
 import { compressImageFile } from '../utils/media';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
+import DownloadNovelDialog from './DownloadNovelDialog';
 
 function sanitizeChapterHtml(raw: string): string {
   const escaped = raw
@@ -80,6 +81,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [isSpoilerComment, setIsSpoilerComment] = useState(false);
   const [revealedSpoilers, setRevealedSpoilers] = useState<string[]>([]);
   const [downloadedIds, setDownloadedIds] = useState<string[]>([]);
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
 
   // Deletion double confirmation modal state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -1233,8 +1235,26 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               </button>
             )}
 
+            {/* Download novel button: owner can always download any novel;
+                members need downloadAllowed; guests get the login prompt. */}
+            <button
+              onClick={() => {
+                if (currentUser.role === 'GUEST') {
+                  alert('عذراً، يجب تسجيل الدخول لتنزيل الروايات! 🍇');
+                  window.dispatchEvent(new Event('open-login-modal'));
+                  return;
+                }
+                setShowDownloadDialog(true);
+              }}
+              className="px-5 py-3 bg-gradient-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10"
+              title="تنزيل فصول الرواية كملفات PNG / JPG / TXT"
+            >
+              <Download size={14} />
+              <span>تنزيل الرواية 📥</span>
+            </button>
+
             {/* Bookmark button */}
-            <button 
+            <button
               onClick={() => onBookmarkToggle(novel.id)}
               className={`px-5 py-3 border rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${isBookmarked ? 'bg-berry-600/20 border-berry-500/40 text-berry-300' : 'bg-white/5 border-white/10 text-purple-300 hover:bg-white/10'}`}
             >
@@ -1764,6 +1784,17 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
         danger={confirmConfig.danger}
       />
+
+      {showDownloadDialog && novel && (
+        <DownloadNovelDialog
+          novel={novel}
+          chapters={chapters}
+          currentUser={currentUser}
+          isOwner={isOwner}
+          onClose={() => setShowDownloadDialog(false)}
+          onDownloadAllowedChange={(allowed) => setNovel(prev => prev ? { ...prev, downloadAllowed: allowed } : prev)}
+        />
+      )}
 
     </div>
   );
