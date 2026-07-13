@@ -1,9 +1,11 @@
 name: Deploy to Hostinger
 
-# Builds the site and uploads the production files (dist/) to Hostinger over FTP
-# every time you push to main. This is what makes the site actually work on
-# Hostinger shared hosting: visitors get the built app plus the PHP shared
-# database (api/db.php), so every published novel is visible to everyone.
+# Builds the site on every push to main. The built site (dist/) is always
+# uploaded as a downloadable artifact — grab it from the run's "Artifacts"
+# section and upload its CONTENTS to public_html for a manual deploy.
+# If the FTP secrets are configured, the same build is also deployed to
+# Hostinger automatically; if they are missing, the FTP step is skipped
+# with a warning instead of failing the whole run.
 
 on:
   push:
@@ -15,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -29,7 +31,33 @@ jobs:
       - name: Build the site
         run: npm run build
 
+      # Ready-to-upload copy of the site for manual deploys: download it from
+      # this run's Artifacts, unzip, and upload the contents to public_html
+      # (including the hidden .htaccess and api/.user.ini files).
+      - name: Upload built site as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: berrymist-site
+          path: dist/
+          include-hidden-files: true
+          if-no-files-found: error
+
+      - name: Check whether FTP secrets are configured
+        id: ftp
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -n "$FTP_SERVER" ] && [ -n "$FTP_USERNAME" ] && [ -n "$FTP_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FTP secrets (FTP_SERVER / FTP_USERNAME / FTP_PASSWORD) are not set — skipping the automatic FTP deploy. Download the 'berrymist-site' artifact from this run and upload its contents to public_html manually, or add the secrets in Settings → Secrets and variables → Actions to enable auto-deploy."
+          fi
+
       - name: Deploy dist/ to Hostinger via FTP
+        if: steps.ftp.outputs.configured == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           # Add these three secrets in GitHub:
