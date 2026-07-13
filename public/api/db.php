@@ -59,6 +59,20 @@ if ($method === 'OPTIONS') {
 }
 
 if ($method === 'GET') {
+    // Cheap conditional polling: the client polls every couple of seconds
+    // to make new comments/chapters appear for everyone almost instantly.
+    // When nothing changed we answer 304 with an empty body instead of
+    // re-sending the whole database file.
+    $etag = file_exists($DB_FILE)
+        ? '"' . md5(filemtime($DB_FILE) . '-' . filesize($DB_FILE)) . '"'
+        : '"empty"';
+    header('ETag: ' . $etag);
+    $inm = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? trim($_SERVER['HTTP_IF_NONE_MATCH']) : '';
+    if ($inm !== '' && $inm === $etag) {
+        http_response_code(304);
+        exit;
+    }
+
     $db = load_db($DB_FILE);
     foreach ($PRIVATE_KEYS as $k) {
         unset($db[$k]);

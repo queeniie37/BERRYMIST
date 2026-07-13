@@ -331,10 +331,12 @@ export default function App() {
     };
     syncDb();
 
-    // Poll the backend server database every 4 seconds to auto-update in real-time across all devices
+    // Poll the backend server database every 2 seconds so new comments and
+    // chapters appear for everyone almost instantly. Unchanged polls cost
+    // almost nothing: the server answers 304 via the ETag handshake.
     const syncInterval = setInterval(() => {
       syncDb();
-    }, 4000);
+    }, 2000);
 
     // Run automatic reservation expiration check
     checkReservationsExpiration(loadedNovels, loadedSuggestions);
@@ -1488,13 +1490,18 @@ export default function App() {
                   }
                   return !n.userId && !n.email || n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase();
                 });
-                // Newest notifications always on top
-                userNotifications.sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
+                // Newest notifications always on top. New notifications are
+                // appended to the end of the stored array, so for legacy
+                // entries without parseable dates we fall back to reversed
+                // insertion order.
+                const indexed = userNotifications.map((n, idx) => ({ n, idx, t: Date.parse(n?.createdAt || '') || 0 }));
+                indexed.sort((a, b) => (b.t - a.t) || (b.idx - a.idx));
+                const sortedNotifications = indexed.map(x => x.n);
 
                 return (
                   <div className="flex flex-col gap-4">
-                    {userNotifications.length > 0 ? (
-                      userNotifications.map((notif) => (
+                    {sortedNotifications.length > 0 ? (
+                      sortedNotifications.map((notif) => (
                         <div 
                           key={notif.id} 
                           className={`p-5 rounded-2xl border transition-all duration-300 flex flex-col gap-2 ${
