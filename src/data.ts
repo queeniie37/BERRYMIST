@@ -110,12 +110,157 @@ const PRIVATE_LOCAL_KEYS = new Set([
   'reading_history'
 ]);
 
-// Database class to handle localStorage safely with immediate cleanup migration
+// ---------------------------------------------------------------------------
+// Storage backend: in-memory cache + IndexedDB persistence.
+//
+// localStorage's ~5MB quota used to cap the ENTIRE site (novels, chapters,
+// covers, user accounts). IndexedDB quotas are hundreds of MB to multiple GB,
+// so the library and member base can grow far beyond the old limit. The
+// in-memory Map keeps BerryDatabase.get() synchronous for all existing
+// callers; BerryDatabase.hydrate() (awaited in main.tsx before the app
+// renders) loads everything from IndexedDB — and migrates any pre-existing
+// localStorage data — into the cache first.
+// ---------------------------------------------------------------------------
+
+const IDB_NAME = 'berry_mist_db';
+const IDB_STORE = 'kv';
+
+const memCache = new Map<string, string>();
+let idbHandle: IDBDatabase | null = null;
+
+function openIdb(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === 'undefined') return resolve(null);
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+          req.result.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function idbPut(key: string, value: string): void {
+  if (!idbHandle) return;
+  try {
+    const tx = idbHandle.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.onerror = () => console.error('IndexedDB write failed for', key, tx.error);
+  } catch (e) {
+    console.error('IndexedDB write failed for', key, e);
+  }
+}
+
+function storeRead(fullKey: string): string | null {
+  const v = memCache.get(fullKey);
+  return v === undefined ? null : v;
+}
+
+function storeWrite(fullKey: string, value: string): void {
+  memCache.set(fullKey, value);
+  if (idbHandle) {
+    idbPut(fullKey, value);
+  } else {
+    // Browsers without IndexedDB fall back to localStorage (old 5MB limit).
+    try {
+      localStorage.setItem(fullKey, value);
+    } catch (e) {
+      console.error('localStorage fallback write failed for', fullKey, e);
+    }
+  }
+}
+
+// Database class handling storage safely with immediate cleanup migration
 export class BerryDatabase {
+  // Loads persisted data into the synchronous in-memory cache. MUST complete
+  // before the first React render (awaited in main.tsx) because components
+  // read state via BerryDatabase.get() in their useState initializers.
+  static async hydrate(): Promise<void> {
+    idbHandle = await openIdb();
+
+    if (idbHandle) {
+      await new Promise<void>((resolve) => {
+        try {
+          const tx = idbHandle!.transaction(IDB_STORE, 'readonly');
+          const cursorReq = tx.objectStore(IDB_STORE).openCursor();
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result;
+            if (cursor) {
+              if (typeof cursor.key === 'string' && typeof cursor.value === 'string') {
+                memCache.set(cursor.key, cursor.value);
+              }
+              cursor.continue();
+            } else {
+              resolve();
+            }
+          };
+          cursorReq.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+    }
+
+    // One-time migration: copy any pre-IndexedDB data that still lives in
+    // localStorage (existing visitors' accounts, bookmarks, drafts…) into
+    // the new store, then free the old quota-limited copies.
+    try {
+      const toMigrate: Array<[string, string]> = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('berry_mist_') && !memCache.has(k)) {
+          const v = localStorage.getItem(k);
+          if (v !== null) toMigrate.push([k, v]);
+        }
+      }
+      for (const [k, v] of toMigrate) memCache.set(k, v);
+
+      if (idbHandle && toMigrate.length > 0) {
+        const migrated = await new Promise<boolean>((resolve) => {
+          try {
+            const tx = idbHandle!.transaction(IDB_STORE, 'readwrite');
+            const store = tx.objectStore(IDB_STORE);
+            for (const [k, v] of toMigrate) store.put(v, k);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+            tx.onabort = () => resolve(false);
+          } catch {
+            resolve(false);
+          }
+        });
+        // Only clear localStorage copies once IndexedDB durably holds them.
+        // The tiny init flags stay: initialize() reads them synchronously.
+        if (migrated) {
+          for (const [k] of toMigrate) {
+            if (k !== 'berry_mist_initialized' && k !== 'berry_mist_cleaned_v6') {
+              try { localStorage.removeItem(k); } catch { /* ignore */ }
+            }
+          }
+        }
+      }
+    } catch {
+      // localStorage disabled — IndexedDB (or memory only) still works.
+    }
+
+    // Ask the browser to protect this origin's storage from automatic
+    // eviction under disk pressure, so downloaded/offline data survives.
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        await navigator.storage.persist();
+      }
+    } catch { /* optional */ }
+  }
   static get<T>(key: string, defaultValue: T): T {
     try {
       if (key === 'novels') {
-        const data = localStorage.getItem(`berry_mist_novels`);
+        const data = storeRead(`berry_mist_novels`);
         if (data) {
           const rawList = JSON.parse(data);
           // Defensive normalization: the novels list is synced from a
@@ -145,13 +290,13 @@ export class BerryDatabase {
               description: typeof n.description === 'string' ? n.description : '',
               createdAt: typeof n.createdAt === 'string' ? n.createdAt : new Date(0).toISOString()
             }));
-          const chapsData = localStorage.getItem(`berry_mist_chapters`);
+          const chapsData = storeRead(`berry_mist_chapters`);
           const chapsList = chapsData ? JSON.parse(chapsData) as Chapter[] : [];
-          
-          const userStr = localStorage.getItem('berry_mist_current_user_data');
+
+          const userStr = storeRead('berry_mist_current_user_data');
           const currentUser = userStr ? JSON.parse(userStr) : null;
-          
-          const usersDbStr = localStorage.getItem('berry_mist_users_db');
+
+          const usersDbStr = storeRead('berry_mist_users_db');
           const parsedUsersDb = usersDbStr ? JSON.parse(usersDbStr) : [];
           
           const ownerUserIds = new Set<string>();
@@ -185,7 +330,7 @@ export class BerryDatabase {
         }
       }
 
-      const data = localStorage.getItem(`berry_mist_${key}`);
+      const data = storeRead(`berry_mist_${key}`);
       return data ? JSON.parse(data) : defaultValue;
     } catch {
       return defaultValue;
@@ -239,7 +384,7 @@ export class BerryDatabase {
   static set<T>(key: string, value: T): boolean {
     try {
       const serialized = JSON.stringify(value);
-      localStorage.setItem(`berry_mist_${key}`, serialized);
+      storeWrite(`berry_mist_${key}`, serialized);
 
       // Private per-user keys stay on this device only (no events, no server sync)
       if (PRIVATE_LOCAL_KEYS.has(key)) return true;
@@ -264,9 +409,9 @@ export class BerryDatabase {
   // defaults do not wipe the site's real content for everyone.
   static setLocal<T>(key: string, value: T): void {
     try {
-      localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
+      storeWrite(`berry_mist_${key}`, JSON.stringify(value));
     } catch (e) {
-      console.error("Error writing to localStorage", e);
+      console.error("Error writing to storage", e);
     }
   }
 
@@ -309,15 +454,11 @@ export class BerryDatabase {
           continue;
         }
         if (key in serverDb) {
-          const localValStr = localStorage.getItem(`berry_mist_${key}`);
+          const localValStr = storeRead(`berry_mist_${key}`);
           const serverValStr = JSON.stringify(serverDb[key]);
-          
+
           if (localValStr !== serverValStr) {
-            try {
-              localStorage.setItem(`berry_mist_${key}`, serverValStr);
-            } catch (storageError) {
-              console.warn(`Failed to write key ${key} to localStorage (quota exceeded or disabled):`, storageError);
-            }
+            storeWrite(`berry_mist_${key}`, serverValStr);
             
             // Dispatch standard custom events so that App.tsx receives updates reactive
             if (key === 'novels') {
@@ -347,8 +488,8 @@ export class BerryDatabase {
     // content is then pulled from the server by syncWithServer(). Writing
     // these empty defaults with set() would push them to /api/db and erase
     // the shared database for every visitor.
-    const isCleaned = localStorage.getItem('berry_mist_cleaned_v6');
-    if (!isCleaned || !localStorage.getItem('berry_mist_initialized')) {
+    const isCleaned = storeRead('berry_mist_cleaned_v6');
+    if (!isCleaned || !storeRead('berry_mist_initialized')) {
       this.setLocal('novels', INITIAL_NOVELS);
       this.setLocal('news', INITIAL_NEWS);
       this.setLocal('teams', INITIAL_TEAMS);
@@ -365,8 +506,8 @@ export class BerryDatabase {
       this.setLocal('ads', INITIAL_ADS);
       this.setLocal('chapters', [] as Chapter[]);
 
-      localStorage.setItem('berry_mist_initialized', 'true');
-      localStorage.setItem('berry_mist_cleaned_v6', 'true');
+      storeWrite('berry_mist_initialized', 'true');
+      storeWrite('berry_mist_cleaned_v6', 'true');
     }
   }
 }
