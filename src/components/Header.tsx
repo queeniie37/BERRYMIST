@@ -105,10 +105,12 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       }
       return !n.userId && !n.email || n.userId === currentUser.id || n.email?.toLowerCase() === currentUser.email?.toLowerCase();
     });
-    // Newest notifications always on top (legacy entries with
-    // non-parseable dates sink to the bottom)
-    filtered.sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
-    setLocalNotifications(filtered);
+    // Newest notifications always on top. New ones are appended to the end
+    // of the stored array, so entries without parseable dates fall back to
+    // reversed insertion order instead of keeping oldest-first.
+    const indexed = filtered.map((n, idx) => ({ n, idx, t: Date.parse(n?.createdAt || '') || 0 }));
+    indexed.sort((a, b) => (b.t - a.t) || (b.idx - a.idx));
+    setLocalNotifications(indexed.map(x => x.n));
   };
 
   useEffect(() => {

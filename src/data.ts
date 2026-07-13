@@ -415,10 +415,19 @@ export class BerryDatabase {
     }
   }
 
+  // ETag of the last database payload we processed; lets the fast poll
+  // answer with an empty 304 when nothing changed on the server.
+  private static lastSyncEtag: string | null = null;
+
   static async syncWithServer(): Promise<void> {
     try {
-      const response = await fetch('/api/db');
+      const response = await fetch('/api/db', {
+        headers: this.lastSyncEtag ? { 'If-None-Match': this.lastSyncEtag } : {}
+      });
+      if (response.status === 304) return; // nothing changed since last poll
       if (!response.ok) return;
+      const etag = response.headers.get('etag');
+      if (etag) this.lastSyncEtag = etag;
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {

@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { createHash } from "crypto";
 import { createServer as createViteServer } from "vite";
 
 const app = express();
@@ -100,7 +101,16 @@ app.get("/api/db", (req, res) => {
   for (const key of PRIVATE_KEYS) {
     delete db[key];
   }
-  res.json(db);
+  // Cheap conditional polling (matches api/db.php): empty 304 when the
+  // client already holds the latest data.
+  const body = JSON.stringify(db);
+  const etag = '"' + createHash("md5").update(body).digest("hex") + '"';
+  res.setHeader("ETag", etag);
+  if (req.headers["if-none-match"] === etag) {
+    res.status(304).end();
+    return;
+  }
+  res.type("application/json").send(body);
 });
 
 app.post("/api/db", (req, res) => {
