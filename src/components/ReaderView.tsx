@@ -3,6 +3,7 @@ import { ChevronRight, ChevronLeft, Settings, Type, BookOpen, HelpCircle, Heart,
 import { Chapter, Novel, User, Comment, CommentReply, Report } from '../types';
 import { BerryDatabase } from '../data';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
+import { normalizeChapterText } from '../utils/text';
 
 // Chapter text is author-provided. Escape all HTML, then re-allow only the
 // simple formatting tags the chapter editor can produce (<b>, <i>, <u>, <img>) so a
@@ -729,7 +730,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
         {/* Text paragraph splitter */}
         <div className="space-y-6">
-          {chapter.content.split('\n\n').map((para, idx) => (
+          {normalizeChapterText(chapter.content).split('\n\n').map((para, idx) => (
             <p 
               key={idx} 
               className={`whitespace-pre-wrap ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}
