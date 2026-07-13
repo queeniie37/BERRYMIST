@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Star, Eye, Layers, Heart, Download, Share2, Plus, Calendar, Clock, ChevronDown, MessageSquare, Edit2, AlertCircle, Trash2, Upload, Image, ArrowUp, ArrowDown, FileText, ChevronLeft, Undo2, Redo2, BookOpen, Info } from 'lucide-react';
 import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } from '../types';
 import { BerryDatabase } from '../data';
+import { compressImageFile } from '../utils/media';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -587,14 +588,13 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         return;
       }
       
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        // Insert clean standard <img> tag at cursor
-        const imgTag = `<img src="${base64String}" />`;
-        insertTextAtCursor(imgTag);
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file, 1000)
+        .then((base64String) => {
+          // Insert clean standard <img> tag at cursor
+          const imgTag = `<img src="${base64String}" />`;
+          insertTextAtCursor(imgTag);
+        })
+        .catch(() => alert('تعذر معالجة الصورة. جرب صورة أصغر حجماً.'));
     });
   };
 
@@ -1123,21 +1123,21 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                     return;
                   }
                   
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    const base64String = reader.result as string;
+                  compressImageFile(file, 600).then((base64String) => {
                     // Update in database
                     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
                     const updatedNovels = allNovels.map(n => n.id === novel.id ? { ...n, cover: base64String } : n);
-                    BerryDatabase.set('novels', updatedNovels);
-                    
+                    const savedOk = BerryDatabase.set('novels', updatedNovels);
+                    if (!savedOk) {
+                      alert('تعذر حفظ الغلاف: مساحة التخزين ممتلئة. جرب صورة أصغر.');
+                      return;
+                    }
                     // Update local state
                     setNovel({ ...novel, cover: base64String });
                     alert('تم تحديث غلاف الرواية بنجاح بالصورة المرفقة! 🎉');
                     // Trigger event so any other components update if listening
                     window.dispatchEvent(new Event('novels-updated'));
-                  };
-                  reader.readAsDataURL(file);
+                  }).catch(() => alert('تعذر معالجة صورة الغلاف. جرب صورة أصغر حجماً.'));
                 };
                 input.click();
               }}

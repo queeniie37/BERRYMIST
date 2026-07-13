@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { LogIn, UserPlus, X, Shield, Mail, Lock, User as UserIcon } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { BerryDatabase, DEFAULT_USERS } from '../data';
+import { hashPassword, verifyOwnerLogin } from '../utils/auth';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -53,7 +54,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         return;
       }
 
-      const newUser: User & { password?: string } = {
+      const newUser: User & { password?: string; passwordHash?: string } = {
         id: `user-${Date.now()}`,
         username: username,
         email: email.toLowerCase(),
@@ -62,7 +63,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         level: 1,
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`,
         bio: 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
-        password: password
+        // Store only a salted hash — never the plaintext password
+        passwordHash: await hashPassword(password)
       };
 
       BerryDatabase.set('users_db', [...usersDb, newUser]);
@@ -77,8 +79,9 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
     } else {
       // Sign In
-      // Check for hardcoded owner login
-      if (email.toLowerCase() === 'berrymist11@gmail.com' && password === 'berry11@$$') {
+      // Owner login is verified against a salted hash — the plaintext
+      // password no longer exists anywhere in the shipped bundle.
+      if (await verifyOwnerLogin(email, password)) {
         const customOwner = BerryDatabase.get<any>('custom_user_OWNER', null);
         const ownerUser = customOwner && customOwner.email?.toLowerCase() === 'berrymist11@gmail.com' ? customOwner : {
           ...DEFAULT_USERS.OWNER,
@@ -94,11 +97,24 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         return;
       }
 
-      // Check in user database
-      const user = usersDb.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-      if (!user) {
+      // Check in user database (hashed). Accounts created before hashing
+      // still hold a plaintext `password` — verify once, then migrate them
+      // to `passwordHash` and remove the plaintext permanently.
+      const inputHash = await hashPassword(password);
+      const userIndex = usersDb.findIndex(u =>
+        u.email.toLowerCase() === email.toLowerCase() &&
+        (u.passwordHash === inputHash || (u.password && u.password === password))
+      );
+      if (userIndex === -1) {
         setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
         return;
+      }
+      let user = usersDb[userIndex];
+      if (user.password) {
+        const { password: _plain, ...rest } = user;
+        user = { ...rest, passwordHash: inputHash };
+        usersDb[userIndex] = user;
+        BerryDatabase.set('users_db', usersDb);
       }
 
       BerryDatabase.set('current_user_data', user);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, X, Upload, Check, AlertCircle } from 'lucide-react';
 import { Suggestion, User } from '../types';
+import { compressImageFile } from '../utils/media';
 
 interface SuggestNovelDialogProps {
   currentUser: User;
@@ -36,26 +37,24 @@ export default function SuggestNovelDialog({ currentUser, onClose, onAddSuggesti
     setError('');
     setUploadProgress(10);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      let progress = 10;
-      const interval = setInterval(() => {
-        progress += 30;
-        if (progress >= 100) {
-          clearInterval(interval);
-          setUploadProgress(100);
-          setCover(base64String);
-        } else {
-          setUploadProgress(progress);
-        }
-      }, 100);
-    };
-    reader.onerror = () => {
-      setError('حدث خطأ أثناء قراءة ملف الصورة. يرجى المحاولة مرة أخرى.');
-      setUploadProgress(null);
-    };
-    reader.readAsDataURL(file);
+    compressImageFile(file, 600)
+      .then((base64String) => {
+        let progress = 10;
+        const interval = setInterval(() => {
+          progress += 30;
+          if (progress >= 100) {
+            clearInterval(interval);
+            setUploadProgress(100);
+            setCover(base64String);
+          } else {
+            setUploadProgress(progress);
+          }
+        }, 100);
+      })
+      .catch(() => {
+        setError('حدث خطأ أثناء قراءة أو ضغط ملف الصورة. يرجى المحاولة مرة أخرى بصورة أصغر.');
+        setUploadProgress(null);
+      });
   };
 
   const handleGenreToggle = (genre: string) => {

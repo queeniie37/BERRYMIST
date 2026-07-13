@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Megaphone, Plus, Trash2, Calendar, FileText, Image as ImageIcon, CheckCircle, Sparkles, AlertCircle, X, ExternalLink, ArrowRight, Upload } from 'lucide-react';
 import { Ad, User } from '../types';
 import { BerryDatabase } from '../data';
+import { compressImageFile } from '../utils/media';
 
 interface AdsPageProps {
   currentUser: User;
@@ -51,18 +52,15 @@ export default function AdsPage({ currentUser, onNavigate, selectedAdId }: AdsPa
       setError('يرجى اختيار ملف صورة صالح بصيغة (PNG, JPG, JPEG, WEBP) لضمان التوافق والجودة.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        setImage(e.target.result as string);
+    compressImageFile(file, 1200)
+      .then((dataUrl) => {
+        setImage(dataUrl);
         setSuccess('تم تحميل الصورة وتحويلها بنجاح! 🎉');
         setError('');
-      }
-    };
-    reader.onerror = () => {
-      setError('فشل قراءة الملف. حاول مرة أخرى.');
-    };
-    reader.readAsDataURL(file);
+      })
+      .catch(() => {
+        setError('فشل قراءة الملف أو ضغطه. حاول مرة أخرى بصورة أصغر.');
+      });
   };
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

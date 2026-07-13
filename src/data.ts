@@ -117,7 +117,34 @@ export class BerryDatabase {
       if (key === 'novels') {
         const data = localStorage.getItem(`berry_mist_novels`);
         if (data) {
-          const novelsList = JSON.parse(data) as Novel[];
+          const rawList = JSON.parse(data);
+          // Defensive normalization: the novels list is synced from a
+          // world-writable endpoint, so a single malformed record (missing
+          // views/genres/…) used to crash every page that rendered it,
+          // leaving visitors with a blank white screen. Drop entries that
+          // aren't novel-shaped and default the fields the UI dereferences.
+          const novelsList: Novel[] = (Array.isArray(rawList) ? rawList : [])
+            .filter((n: any) => n && typeof n === 'object' && typeof n.id === 'string')
+            .map((n: any) => ({
+              ...n,
+              titleAr: typeof n.titleAr === 'string' ? n.titleAr : (typeof n.titleEn === 'string' ? n.titleEn : 'بدون عنوان'),
+              titleEn: typeof n.titleEn === 'string' ? n.titleEn : '',
+              author: typeof n.author === 'string' ? n.author : '',
+              translatorId: typeof n.translatorId === 'string' ? n.translatorId : '',
+              translatorName: typeof n.translatorName === 'string' ? n.translatorName : '',
+              cover: typeof n.cover === 'string' ? n.cover : '',
+              chaptersCount: typeof n.chaptersCount === 'number' ? n.chaptersCount : 0,
+              views: typeof n.views === 'number' ? n.views : 0,
+              likes: typeof n.likes === 'number' ? n.likes : 0,
+              bookmarksCount: typeof n.bookmarksCount === 'number' ? n.bookmarksCount : 0,
+              rating: typeof n.rating === 'number' ? n.rating : 0,
+              ratingCount: typeof n.ratingCount === 'number' ? n.ratingCount : 0,
+              status: typeof n.status === 'string' ? n.status : 'AVAILABLE',
+              language: typeof n.language === 'string' ? n.language : '',
+              genres: Array.isArray(n.genres) ? n.genres : [],
+              description: typeof n.description === 'string' ? n.description : '',
+              createdAt: typeof n.createdAt === 'string' ? n.createdAt : new Date(0).toISOString()
+            }));
           const chapsData = localStorage.getItem(`berry_mist_chapters`);
           const chapsList = chapsData ? JSON.parse(chapsData) as Chapter[] : [];
           
@@ -165,36 +192,70 @@ export class BerryDatabase {
     }
   }
 
-  static set<T>(key: string, value: T): void {
+  // Keys whose latest local write has NOT yet been confirmed by the server.
+  // While a key is pending, syncWithServer must NOT pull the server's copy
+  // over it — that pull is exactly what made freshly published novels
+  // "disappear": the 4-second poll fetched the server's OLD list before the
+  // publish POST finished (or after it failed) and overwrote localStorage.
+  private static pendingSync = new Map<string, string>();
+
+  private static pushToServer(key: string, serialized: string): void {
+    this.pendingSync.set(key, serialized);
+    fetch('/api/db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: `{"key":${JSON.stringify(key)},"value":${serialized}}`
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        // Only clear if no newer local write replaced this one meanwhile
+        if (this.pendingSync.get(key) === serialized) {
+          this.pendingSync.delete(key);
+        }
+      })
+      .catch((err) => {
+        // Keep the key pending; syncWithServer retries it every cycle
+        // instead of overwriting local data with the stale server copy.
+        console.error(`Error syncing key "${key}" to backend (will retry):`, err);
+      });
+  }
+
+  private static dispatchKeyEvent(key: string): void {
+    if (key === 'novels') {
+      window.dispatchEvent(new Event('novels-updated'));
+    } else if (key === 'notifications') {
+      window.dispatchEvent(new Event('notifications-updated'));
+    } else if (key === 'ads') {
+      window.dispatchEvent(new Event('ads-updated'));
+    } else if (key === 'site_name' || key === 'site_logo' || key === 'site_banner') {
+      window.dispatchEvent(new Event('site-settings-updated'));
+    } else if (key.startsWith('footer_')) {
+      window.dispatchEvent(new Event('footer-settings-updated'));
+    } else {
+      window.dispatchEvent(new Event(`${key}-updated`));
+    }
+  }
+
+  static set<T>(key: string, value: T): boolean {
     try {
-      localStorage.setItem(`berry_mist_${key}`, JSON.stringify(value));
+      const serialized = JSON.stringify(value);
+      localStorage.setItem(`berry_mist_${key}`, serialized);
 
       // Private per-user keys stay on this device only (no events, no server sync)
-      if (PRIVATE_LOCAL_KEYS.has(key)) return;
+      if (PRIVATE_LOCAL_KEYS.has(key)) return true;
 
       // Dispatch standard custom events so that App.tsx updates reactively and instantly
-      if (key === 'novels') {
-        window.dispatchEvent(new Event('novels-updated'));
-      } else if (key === 'notifications') {
-        window.dispatchEvent(new Event('notifications-updated'));
-      } else if (key === 'ads') {
-        window.dispatchEvent(new Event('ads-updated'));
-      } else if (key === 'site_name' || key === 'site_logo' || key === 'site_banner') {
-        window.dispatchEvent(new Event('site-settings-updated'));
-      } else if (key.startsWith('footer_')) {
-        window.dispatchEvent(new Event('footer-settings-updated'));
-      } else {
-        window.dispatchEvent(new Event(`${key}-updated`));
-      }
+      this.dispatchKeyEvent(key);
 
-      // Sync shared site content to the backend Express server database asynchronously
-      fetch('/api/db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value })
-      }).catch(err => console.error("Error syncing to backend database:", err));
+      // Sync shared site content to the backend server database asynchronously,
+      // with retry protection against the polling overwrite race.
+      this.pushToServer(key, serialized);
+      return true;
     } catch (e) {
+      // Most common cause: QuotaExceededError from oversized base64 images.
+      // Callers can now detect the failure instead of showing a fake success.
       console.error("Error writing to localStorage", e);
+      return false;
     }
   }
 
@@ -238,6 +299,15 @@ export class BerryDatabase {
       ];
       
       for (const key of keysToSync) {
+        // A local write to this key hasn't been confirmed by the server yet
+        // (publish POST still in flight, or it failed). Pulling the server's
+        // stale copy now would erase the user's new data — retry the push
+        // instead and skip this key for this cycle.
+        const pendingValue = this.pendingSync.get(key);
+        if (pendingValue !== undefined) {
+          this.pushToServer(key, pendingValue);
+          continue;
+        }
         if (key in serverDb) {
           const localValStr = localStorage.getItem(`berry_mist_${key}`);
           const serverValStr = JSON.stringify(serverDb[key]);

@@ -6,6 +6,13 @@ DirectoryIndex index.html index.php
 
 RewriteEngine On
 
+# Force HTTPS: login hashing uses the browser WebCrypto API, which is only
+# available on secure origins — and visitors should never send passwords or
+# read content over plain HTTP anyway. (Hostinger provides free SSL.)
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
 # Route the shared-database API to the PHP handler so the site works without a
 # running Node.js server. The client keeps calling /api/db.
 RewriteRule ^api/db/?$ api/db.php [L]
