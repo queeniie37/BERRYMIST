@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, Moon, Sun, User as UserIcon, LogOut, Settings, Award, Shield, FileText, CheckCircle, Flame, Layers, Plus, Megaphone, Menu, X, LogIn } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { DEFAULT_USERS, BerryDatabase } from '../data';
@@ -21,6 +21,24 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
   const [roleSelectorOpen, setRoleSelectorOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+
+  // Close the profile/notifications dropdowns when clicking anywhere
+  // outside them (e.g. on a novel card) instead of leaving them open.
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (notificationsRef.current && !notificationsRef.current.contains(target)) {
+        setNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
   
   useEffect(() => {
     const handleOpenLoginModal = () => {
@@ -226,7 +244,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
           </button>
 
           {/* Notifications Trigger */}
-          <div className="relative">
+          <div className="relative" ref={notificationsRef}>
             <button 
               onClick={() => {
                 setNotificationsOpen(!notificationsOpen);
@@ -290,7 +308,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
           </div>
 
           {/* User Profile Avatar with Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={profileRef}>
             <button 
               onClick={() => {
                 setProfileOpen(!profileOpen);

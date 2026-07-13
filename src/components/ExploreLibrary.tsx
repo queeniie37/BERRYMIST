@@ -15,8 +15,7 @@ const STATUS_OPTIONS = [
   { value: 'ALL', label: 'كل الحالات' },
   { value: 'TRANSLATING', label: 'قيد الترجمة' },
   { value: 'COMPLETED', label: 'مكتملة' },
-  { value: 'HIATUS', label: 'متوقفة مؤقتاً' },
-  { value: 'ONGOING', label: 'مستمرة بالبلد الأم' }
+  { value: 'HIATUS', label: 'متوقفة مؤقتاً' }
 ];
 
 export default function ExploreLibrary({ novels, bookmarks, onBookmarkToggle, onNovelClick }: ExploreLibraryProps) {
@@ -35,7 +34,13 @@ export default function ExploreLibrary({ novels, bookmarks, onBookmarkToggle, on
         
         const matchesGenre = selectedGenre === 'الكل' || novel.genres.includes(selectedGenre);
         
-        const matchesStatus = selectedStatus === 'ALL' || novel.status === selectedStatus;
+        // A novel that is still ongoing counts as "قيد الترجمة" in the
+        // library; once its status flips to COMPLETED it moves to "مكتملة".
+        const matchesStatus =
+          selectedStatus === 'ALL' ||
+          (selectedStatus === 'TRANSLATING'
+            ? ['TRANSLATING', 'ONGOING', 'AVAILABLE', 'RESERVED'].includes(novel.status)
+            : novel.status === selectedStatus);
 
         return matchesSearch && matchesGenre && matchesStatus;
       })
