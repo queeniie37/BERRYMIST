@@ -141,6 +141,15 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const editorRef = useRef<HTMLDivElement>(null);
   const lastHtmlRef = useRef('');
 
+  // Opening the add-chapter page always starts from the top (the trigger
+  // button sits far down the novel page, so without this the form opened
+  // at the previous scroll position).
+  useEffect(() => {
+    if (showAddChapterForm) {
+      window.scrollTo(0, 0);
+    }
+  }, [showAddChapterForm]);
+
   useEffect(() => {
     if (showAddChapterForm) {
       if (editorRef.current && newChapterContent !== lastHtmlRef.current) {
