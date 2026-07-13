@@ -437,7 +437,7 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
               </button>
             ) : (
               <button 
-                onClick={() => alert('خطأ أمني: هذه الرتبة مخصصة لمالك الموقع فقط! يرجى تسجيل الدخول كمالك بحسابك (berrymist11@gmail.com) أولاً للوصول.')}
+                onClick={() => alert('خطأ أمني: هذه الرتبة مخصصة لمالك الموقع فقط! يرجى تسجيل الدخول كمالك بحسابك أولاً للوصول.')}
                 className="p-2.5 col-span-2 rounded-xl border border-white/5 bg-white/5 text-purple-400/50 cursor-not-allowed font-semibold text-center"
               >
                 🔒 رتبة المالك مغلقة (يتطلب تسجيل دخول المالك)

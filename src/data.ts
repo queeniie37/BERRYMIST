@@ -130,7 +130,7 @@ export class BerryDatabase {
           const ownerUserIds = new Set<string>();
           if (Array.isArray(parsedUsersDb)) {
             parsedUsersDb
-              .filter((u: any) => u && u.email?.toLowerCase() === 'berrymist11@gmail.com')
+              .filter((u: any) => u && (u.email?.toLowerCase() === 'berrymist11@gmail.com'))
               .forEach((u: any) => ownerUserIds.add(u.id));
           }
           ownerUserIds.add('berrymist-owner');

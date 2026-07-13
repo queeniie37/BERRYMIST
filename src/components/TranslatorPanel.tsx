@@ -654,13 +654,15 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       alert('يرجى ملء الحقول الإلزامية.');
       return;
     }
-    if (!coverImage) {
-      alert('خطأ: يرجى إرفاق وتحميل ملف غلاف الرواية أولاً.');
-      return;
+
+    let finalCover = coverImage;
+    if (!finalCover) {
+      const keys = Object.keys(COVER_IMAGES);
+      const randomKey = keys[Math.floor(Math.random() * keys.length)];
+      finalCover = COVER_IMAGES[randomKey as keyof typeof COVER_IMAGES];
     }
 
-    const isOwner = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com';
-    const status = isOwner ? 'AVAILABLE' : 'PENDING';
+    const status = 'AVAILABLE'; // Publish immediately so it appears on the homepage for visitors right away!
 
     const newNovel: Novel = {
       id: `novel-draft-${Date.now()}`,
@@ -669,7 +671,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       author,
       translatorId: currentUser.id,
       translatorName: currentUser.username,
-      cover: coverImage,
+      cover: finalCover,
       chaptersCount: 0,
       views: 0,
       likes: 0,
@@ -687,23 +689,19 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
     BerryDatabase.set('novels', [newNovel, ...allNovels]);
 
-    if (!isOwner) {
-      // Notify administrators
-      const allNotifs = BerryDatabase.get<any[]>('notifications', []);
-      const newNotif = {
-        id: `notif-review-${Date.now()}`,
-        userId: 'berrymist-owner', // Notify Super Admin
-        title: 'طلب مراجعة رواية جديدة ⏳',
-        message: `قام ${currentUser.role === 'WRITER' ? 'الكاتب' : 'المترجم'} "${currentUser.username}" بتقديم رواية جديدة "${titleAr}" وبانتظار موافقتك لتظهر للعامة.`,
-        type: 'SYSTEM',
-        isRead: false,
-        createdAt: 'الآن'
-      };
-      BerryDatabase.set('notifications', [...allNotifs, newNotif]);
-      setSuccess('تهانينا! تم تقديم روايتك بنجاح وجاري مراجعتها من قبل الإدارة لتفعيلها قريباً! 🎉');
-    } else {
-      setSuccess('تمت إضافة ونشر الرواية الجديدة مباشرة بنجاح بصفتك مالك المنصة! 🎉');
-    }
+    // Notify administrators
+    const allNotifs = BerryDatabase.get<any[]>('notifications', []);
+    const newNotif = {
+      id: `notif-review-${Date.now()}`,
+      userId: 'berrymist-owner', // Notify Super Admin
+      title: 'تم نشر رواية جديدة 📣',
+      message: `قام ${currentUser.role === 'WRITER' ? 'الكاتب' : 'المترجم'} "${currentUser.username}" بنشر رواية جديدة "${titleAr}" وهي نشطة الآن بالمنصة.`,
+      type: 'SYSTEM',
+      isRead: false,
+      createdAt: 'الآن'
+    };
+    BerryDatabase.set('notifications', [...allNotifs, newNotif]);
+    setSuccess('تهانينا! تم إنشاء ونشر روايتك بنجاح وأصبحت نشطة فوراً لجميع الزوار على الصفحة الرئيسية! 🎉');
 
     // Trigger update so App.tsx knows the novels updated!
     window.dispatchEvent(new Event('novels-updated'));
@@ -1154,7 +1152,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
 
               {/* Cover Image Upload */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-purple-200">تحميل غلاف الرواية الفاخر *</label>
+                <label className="text-purple-200">غلاف الرواية الفاخر (اختياري - سيتم تعيين غلاف مميز تلقائياً إن تركته فارغاً)</label>
                 <div className="relative border-2 border-dashed border-white/10 hover:border-violet-500/40 rounded-2xl p-6 flex flex-col items-center justify-center bg-[#1A1625] hover:bg-white/5 transition-all text-center cursor-pointer min-h-[120px]">
                   <input 
                     type="file" 
@@ -1197,7 +1195,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   type="submit"
                   className="px-6 py-3 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md shadow-violet-500/10"
                 >
-                  تقديم طلب مراجعة الرواية ونشرها بالمنصة
+                  إنشاء ونشر الرواية فوراً بالمنصة 🚀
                 </button>
               </div>
 
