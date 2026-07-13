@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck, Upload, Trash2 } from 'lucide-react';
+import { Shield, Check, X, AlertCircle, MessageSquare, Layers, Clock, Settings, Bell, RefreshCw, UserCheck, Upload, Trash2, Award } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User, TranslatorRequest, Report } from '../types';
 import { BerryDatabase } from '../data';
 import { isImageSource, safeEmojiOrFallback, compressImageFile } from '../utils/media';
 import { getAllTranslatorsPoints, crownTranslator, getCrownedTranslatorId, getCurrentMonthKey } from '../utils/points';
+import { BADGE_CATALOG, getUserBadges, grantBadge, revokeBadge } from '../utils/badges';
+import { UserDirectory } from '../utils/directory';
 import ConfirmModal from './ConfirmModal';
 
 interface AdminPanelProps {
@@ -17,7 +19,10 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports' | 'edit-requests' | 'points' | 'trash'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports' | 'edit-requests' | 'points' | 'badges' | 'trash'>('novels');
+  // Badges tab: selected catalog badge per member + a version bump to re-render after grant/revoke
+  const [badgeSelections, setBadgeSelections] = useState<{ [userId: string]: string }>({});
+  const [badgesVersion, setBadgesVersion] = useState(0);
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [deletedNovels, setDeletedNovels] = useState<any[]>([]);
   const [deletedChapters, setDeletedChapters] = useState<any[]>([]);
@@ -848,6 +853,13 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
           {activeTab === 'points' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
         <button 
+          onClick={() => setActiveTab('badges')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'badges' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>الأوسمة وإنجازات المشتركين 🎖️</span>
+          {activeTab === 'badges' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
+        <button 
           onClick={() => setActiveTab('trash')}
           className={`pb-3 px-6 relative transition-colors ${activeTab === 'trash' ? 'text-white' : 'hover:text-white'}`}
         >
@@ -858,6 +870,176 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
 
       {/* Panel Tab Content */}
       <div className="w-full">
+        {/* TAB: Members' badges & achievements (owner grants/revokes) */}
+        {activeTab === 'badges' && (() => {
+          void badgesVersion; // re-compute after every grant/revoke
+          const directory = BerryDatabase.get<UserDirectory>('user_directory', {});
+          const comments = BerryDatabase.get<any[]>('comments', []);
+          const chapters = BerryDatabase.get<any[]>('chapters', []);
+          const novelsByTranslator = new Map<string, number>();
+          const novelOwner = new Map<string, string>();
+          for (const n of allNovels) {
+            if (n.translatorId) {
+              novelOwner.set(n.id, n.translatorId);
+              if (n.status !== 'PENDING') {
+                novelsByTranslator.set(n.translatorId, (novelsByTranslator.get(n.translatorId) || 0) + 1);
+              }
+            }
+          }
+          const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+          const chaptersThisMonth = new Map<string, number>();
+          for (const c of chapters) {
+            const owner = novelOwner.get(c.novelId);
+            if (owner && typeof c.createdAt === 'string' && c.createdAt.slice(0, 7) === monthKey) {
+              chaptersThisMonth.set(owner, (chaptersThisMonth.get(owner) || 0) + 1);
+            }
+          }
+
+          // Members come from the synced directory (each member's device
+          // publishes its own entry). Translators publishing novels appear
+          // even if their directory entry hasn't synced yet.
+          const members = new Map<string, any>();
+          for (const entry of Object.values(directory || {})) {
+            if (entry && (entry as any).id) members.set((entry as any).id, { ...(entry as any) });
+          }
+          for (const n of allNovels) {
+            if (n.translatorId && !members.has(n.translatorId)) {
+              members.set(n.translatorId, {
+                id: n.translatorId,
+                username: n.translatorName || 'مترجم',
+                avatar: '',
+                role: 'TRANSLATOR',
+                novelsRead: 0,
+                chaptersRead: 0
+              });
+            }
+          }
+
+          const rows = Array.from(members.values()).map((m: any) => ({
+            ...m,
+            commentsCount: comments.filter((c: any) => c && c.authorName === m.username).length,
+            translatedNovels: novelsByTranslator.get(m.id) || 0,
+            chaptersPerMonth: chaptersThisMonth.get(m.id) || 0,
+            badges: getUserBadges(m.id)
+          }));
+          const isTranslatorRole = (r: string) => ['TRANSLATOR', 'WRITER', 'OWNER'].includes(r);
+          rows.sort((a, b) => (b.badges.length - a.badges.length) || (b.chaptersRead || 0) - (a.chaptersRead || 0));
+
+          return (
+            <div className="flex flex-col gap-4 text-right">
+              <div className="p-4 bg-violet-500/5 border border-violet-500/15 rounded-2xl text-[11px] text-purple-300 leading-relaxed">
+                🎖️ الأوسمة تُمنح حصرياً من هنا وتظهر فوراً في الملف الشخصي للعضو على جهازه. اختر وساماً يناسب إنجازات العضو: أوسمة القراءة والتفاعل للقرّاء، وأوسمة النشر والترجمة للمترجمين.
+              </div>
+
+              {rows.length === 0 ? (
+                <div className="py-12 text-center bg-[#14101D]/50 rounded-2xl border border-dashed border-white/5 text-purple-400">
+                  <Award size={32} className="mx-auto mb-3 text-purple-500/50" />
+                  <p className="text-xs font-semibold">لا يوجد مشتركون مسجلون في الدليل حتى الآن.</p>
+                  <p className="text-[10px] mt-1">يظهر كل عضو هنا تلقائياً بعد أول تسجيل دخول له بعد هذا التحديث.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-white/5">
+                  <table className="w-full text-right text-xs min-w-[900px]">
+                    <thead>
+                      <tr className="bg-[#1D172B] text-purple-300 text-[10px]">
+                        <th className="py-3 px-4">العضو</th>
+                        <th className="py-3 px-3">الرتبة</th>
+                        <th className="py-3 px-3">روايات قرأها</th>
+                        <th className="py-3 px-3">فصول قرأها</th>
+                        <th className="py-3 px-3">تعليقاته</th>
+                        <th className="py-3 px-3">روايات يترجمها</th>
+                        <th className="py-3 px-3">فصول هذا الشهر</th>
+                        <th className="py-3 px-4 w-[320px]">الأوسمة الممنوحة والمنح</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((m: any) => (
+                        <tr key={m.id} className="border-t border-white/5 hover:bg-white/[0.02] align-top">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              {m.avatar ? (
+                                <img src={m.avatar} alt={m.username} className="w-8 h-8 rounded-full border border-white/10 object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="w-8 h-8 rounded-full bg-violet-600/20 border border-violet-500/20 flex items-center justify-center">👤</span>
+                              )}
+                              <span className="font-bold text-white">{m.username}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isTranslatorRole(m.role) ? 'bg-violet-600/20 text-violet-300' : 'bg-white/5 text-purple-300'}`}>
+                              {m.role === 'OWNER' ? 'المالك 👑' : m.role === 'TRANSLATOR' ? 'مترجم ✍️' : m.role === 'WRITER' ? 'كاتب ✍️' : m.role === 'SUPERVISOR' ? 'مشرف 🛡️' : 'قارئ 👤'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-mono text-white">{m.novelsRead || 0}</td>
+                          <td className="py-3 px-3 font-mono text-white">{m.chaptersRead || 0}</td>
+                          <td className="py-3 px-3 font-mono text-white">{m.commentsCount}</td>
+                          <td className="py-3 px-3 font-mono text-white">{m.translatedNovels}</td>
+                          <td className="py-3 px-3 font-mono text-white">{m.chaptersPerMonth}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {m.badges.length === 0 && (
+                                <span className="text-[9px] text-purple-500 italic">لا أوسمة ممنوحة بعد</span>
+                              )}
+                              {m.badges.map((b: any) => (
+                                <span key={b.id} className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/10 border border-yellow-500/25 rounded-lg text-[9px] text-yellow-200 font-bold">
+                                  <span>{b.icon} {b.name}</span>
+                                  <button
+                                    onClick={() => { revokeBadge(m.id, b.id); setBadgesVersion(v => v + 1); }}
+                                    className="text-red-400 hover:text-red-200 cursor-pointer"
+                                    title="سحب الوسام"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={badgeSelections[m.id] || ''}
+                                onChange={(e) => setBadgeSelections(prev => ({ ...prev, [m.id]: e.target.value }))}
+                                className="flex-1 bg-[#0F0C17] border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white outline-none focus:border-violet-500/50"
+                              >
+                                <option value="">— اختر وساماً للمنح —</option>
+                                <optgroup label="🏅 أوسمة إنجازات القارئ">
+                                  {BADGE_CATALOG.filter(b => b.kind === 'READER').map(b => (
+                                    <option key={b.id} value={b.id} disabled={m.badges.some((x: any) => x.id === b.id)}>
+                                      {b.icon} {b.name} — {b.desc}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="🏆 أوسمة إنجازات المترجم">
+                                  {BADGE_CATALOG.filter(b => b.kind === 'TRANSLATOR').map(b => (
+                                    <option key={b.id} value={b.id} disabled={m.badges.some((x: any) => x.id === b.id)}>
+                                      {b.icon} {b.name} — {b.desc}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </select>
+                              <button
+                                onClick={() => {
+                                  const badgeId = badgeSelections[m.id];
+                                  if (!badgeId) { alert('اختر وساماً من القائمة أولاً.'); return; }
+                                  if (grantBadge(m.id, badgeId)) {
+                                    setBadgeSelections(prev => ({ ...prev, [m.id]: '' }));
+                                    setBadgesVersion(v => v + 1);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-yellow-500 hover:to-amber-400 text-white rounded-lg text-[10px] font-extrabold cursor-pointer shadow-md shadow-yellow-500/10"
+                              >
+                                منح 🎖️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* TAB: Translator Requests for Owner approval */}
         {activeTab === 'translator_requests' && (
           <div className="flex flex-col gap-4 text-right">

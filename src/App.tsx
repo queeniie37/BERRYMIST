@@ -3,11 +3,13 @@ import {
   Compass, Flame, Clock, Award, Plus, Layers, Search, 
   MessageSquare, Users, Shield, BookOpen, Heart, 
   ArrowUp, Mail, AlertCircle, TrendingUp, CheckCircle, HelpCircle, FileText, Megaphone, Send,
-  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell, X, Download
+  Edit, Camera, DollarSign, Settings, Link, Check, Image, Bell, X
 } from 'lucide-react';
 import { User, UserRole, Novel, Suggestion, Reservation, News, Team, TranslatorRequest } from './types';
 import { DEFAULT_USERS, BerryDatabase } from './data';
 import { isImageSource, safeEmojiOrFallback, compressImageFile } from './utils/media';
+import { getUserBadges } from './utils/badges';
+import { upsertSelfInDirectory } from './utils/directory';
 
 // Component imports
 import Header from './components/Header';
@@ -82,6 +84,17 @@ export default function App() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [readingHistory, setReadingHistory] = useState<any[]>([]);
+
+  // Publish this member's public entry (username/avatar/role + reading
+  // stats) to the shared directory so the owner's badges panel can list
+  // every subscriber. No email or credentials leave the device.
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'GUEST') return;
+    upsertSelfInDirectory(currentUser);
+    const refresh = () => upsertSelfInDirectory(currentUser);
+    window.addEventListener('read_chapters-updated', refresh);
+    return () => window.removeEventListener('read_chapters-updated', refresh);
+  }, [currentUser, readingHistory]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   
@@ -89,7 +102,6 @@ export default function App() {
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showProfileFavorites, setShowProfileFavorites] = useState(true);
-  const [showProfileDownloads, setShowProfileDownloads] = useState(false);
   const [refreshAdsTrigger, setRefreshAdsTrigger] = useState(0);
   const [refreshNotificationsTrigger, setRefreshNotificationsTrigger] = useState(0);
 
@@ -617,7 +629,6 @@ export default function App() {
   };
 
   // Profile editing local state
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editAvatar, setEditAvatar] = useState('');
   const [editBanner, setEditBanner] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -634,21 +645,30 @@ export default function App() {
     setEditTelegram(currentUser.telegram || '');
     setEditPaypalEmail(currentUser.paypalEmail || '');
     setEditSupportLink(currentUser.supportLink || '');
-    setIsEditingProfile(true);
+    // Profile editing lives on its own dedicated page
+    handleNavigate('profile-edit');
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Regular readers can only customize avatar, banner and bio. Support and
+    // social/contact channels are reserved for the owner and owner-approved
+    // creative roles, so their values are never saved for a reader account.
+    const canEditContacts = ['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role);
     const updatedUser: User = {
       ...currentUser,
       avatar: editAvatar.trim(),
       banner: editBanner.trim(),
       bio: editBio.trim(),
-      discord: editDiscord.trim(),
-      telegram: editTelegram.trim(),
-      paypalEmail: editPaypalEmail.trim(),
-      supportLink: editSupportLink.trim()
+      ...(canEditContacts
+        ? {
+            discord: editDiscord.trim(),
+            telegram: editTelegram.trim(),
+            paypalEmail: editPaypalEmail.trim(),
+            supportLink: editSupportLink.trim()
+          }
+        : {})
     };
     
     setCurrentUser(updatedUser);
@@ -672,8 +692,9 @@ export default function App() {
     }
     
     window.dispatchEvent(new Event('user-updated'));
-    setIsEditingProfile(false);
     alert('تم حفظ وتحديث بيانات ملفك الشخصي بنجاح ونشرها حياً في الموقع! 🎉');
+    // Editing happens on its own dedicated page — return to the profile
+    handleNavigate('profile');
   };
 
   // Safe navigation
@@ -1509,7 +1530,7 @@ export default function App() {
 
               {/* Biography, Support Methods and Stats */}
               <div className="p-6 pt-0 border-t border-white/5 bg-[#14101D]/90">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div className={`grid grid-cols-1 ${['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role) ? 'md:grid-cols-2' : ''} gap-6 mt-6`}>
                   {/* Bio & Details */}
                   <div className="text-right flex flex-col gap-3">
                     <div>
@@ -1520,7 +1541,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Support methods column */}
+                  {/* Support & contact methods: shown ONLY for the owner and
+                      owner-approved creative roles — never for regular readers */}
+                  {['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role) && (
                   <div className="text-right flex flex-col gap-3">
                     <span className="text-[10px] text-purple-400 font-bold block mb-1">طرق الدعم والتواصل المعتمدة:</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -1549,10 +1572,11 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  )}
                 </div>
 
                 {/* Stats Section */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/5 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-white/5 text-center">
                   <div className="p-3 bg-white/5 rounded-xl border border-white/5">
                     <span className="text-[10px] text-purple-400 block mb-1">المستوى</span>
                     <span className="font-extrabold text-white text-base">Lvl {currentUser.level}</span>
@@ -1562,12 +1586,7 @@ export default function App() {
                     <span className="font-extrabold text-white text-base">{currentUser.xp} XP</span>
                   </div>
                   <button 
-                    onClick={() => {
-                      setShowProfileFavorites(!showProfileFavorites);
-                      if (!showProfileFavorites) {
-                        setShowProfileDownloads(false);
-                      }
-                    }}
+                    onClick={() => setShowProfileFavorites(!showProfileFavorites)}
                     className={`p-3 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${showProfileFavorites ? 'border-violet-500/50 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-102' : 'bg-white/5 border-white/5 hover:border-violet-500/20'}`}
                   >
                     <span className="text-[10px] text-purple-400 block mb-1">الروايات المفضلة</span>
@@ -1578,29 +1597,223 @@ export default function App() {
                       {showProfileFavorites ? 'انقر لإخفائها ▲' : 'انقر لتصفحها ▼'}
                     </span>
                   </button>
-                  <button 
-                    onClick={() => {
-                      setShowProfileDownloads(!showProfileDownloads);
-                      if (!showProfileDownloads) {
-                        setShowProfileFavorites(false);
-                      }
-                    }}
-                    className={`p-3 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${showProfileDownloads ? 'border-violet-500/50 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-102' : 'bg-white/5 border-white/5 hover:border-violet-500/20'}`}
-                  >
-                    <span className="text-[10px] text-purple-400 block mb-1">الفصول المنزلة أوفلاين</span>
-                    <span className="font-extrabold text-white text-base flex items-center gap-1">
-                      {BerryDatabase.get<any[]>('downloaded_chapters', []).length} <Download size={14} className="text-violet-400" />
-                    </span>
-                    <span className="text-[9px] text-violet-400 mt-0.5 font-bold">
-                      {showProfileDownloads ? 'إخفاء الفصول ▲' : 'عرض الفصول ▼'}
-                    </span>
-                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Edit Profile Form Container */}
-            {isEditingProfile && (
+            {/* Bookmarks Display Section */}
+            {showProfileFavorites && (
+              <div className="glass-panel p-6 rounded-3xl border border-white/5 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-3">
+                  <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                    <Heart size={16} className="text-berry-400 fill-berry-400 animate-pulse" />
+                    <span>قائمة الروايات المفضلة الخاصة بك ({bookmarks.length})</span>
+                  </h3>
+                  <span className="text-[10px] text-purple-400 font-bold">انقر على الرواية للذهاب لصفحة فصولها حياً</span>
+                </div>
+
+                {bookmarks.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {novels
+                      .filter((n) => bookmarks.includes(n.id))
+                      .map((novel) => (
+                        <div 
+                          key={novel.id}
+                          onClick={() => handleNavigate('novel', { id: novel.id })}
+                          className="bg-[#14101D] border border-white/5 hover:border-violet-500/30 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-500/15 group flex flex-col justify-between h-full"
+                        >
+                          <div className="relative aspect-[3/4] overflow-hidden">
+                            <img 
+                              src={novel.cover} 
+                              alt={novel.titleAr} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-95" />
+                            
+                            {/* Remove button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBookmarkToggle(novel.id);
+                              }}
+                              className="absolute top-2 left-2 p-1.5 bg-black/60 hover:bg-black/80 text-berry-400 hover:text-white rounded-full transition-all cursor-pointer z-10"
+                              title="إزالة من المفضلة"
+                            >
+                              <Heart size={12} className="fill-current" />
+                            </button>
+                          </div>
+                          <div className="p-2.5 text-right flex-1 flex flex-col justify-between">
+                            <div>
+                              <h4 className="font-extrabold text-[11px] text-white group-hover:text-violet-400 transition-colors truncate">
+                                {novel.titleAr}
+                              </h4>
+                              <span className="text-[9px] text-purple-400 truncate block mt-0.5">{novel.titleEn}</span>
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-white/5 text-[9px] text-purple-300 font-bold text-left">
+                              تصفح الرواية ←
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="py-12 px-4 text-center bg-[#14101D]/50 rounded-2xl border border-dashed border-white/5 text-purple-400 animate-in fade-in duration-300">
+                    <Heart size={32} className="mx-auto mb-3 text-purple-500/50" />
+                    <p className="text-xs font-semibold">مفضلتك فارغة تماماً حالياً!</p>
+                    <p className="text-[10px] text-purple-400 mt-1">ابدأ بإضافة رواياتك الفخمة المفضلة من المكتبة لتظهر هنا.</p>
+                    <button
+                      onClick={() => handleNavigate('explore')}
+                      className="px-5 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold mt-4 transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md shadow-violet-500/10"
+                    >
+                      تصفح واستكشف المكتبة الآن 🧭
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Works & Reservations Section for Creative Roles */}
+            {['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role) && (
+              <div className="glass-panel p-6 rounded-3xl border border-white/5 mb-6 animate-in fade-in duration-300">
+                <h3 className="font-extrabold text-sm text-white mb-6 flex items-center gap-2 border-b border-white/5 pb-3">
+                  <FileText size={16} className="text-violet-400" />
+                  <span>💼 لوحة الأعمال والحجوزات الشخصية</span>
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Column 1: Active Translating/Writing Works */}
+                  <div>
+                    <h4 className="font-bold text-xs text-purple-300 mb-3 flex items-center gap-1.5">
+                      <BookOpen size={14} className="text-violet-400" />
+                      <span>الأعمال الحالية ({novels.filter(n => n.translatorId === currentUser.id).length})</span>
+                    </h4>
+
+                    {novels.filter(n => n.translatorId === currentUser.id).length > 0 ? (
+                      <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                        {novels
+                          .filter(n => n.translatorId === currentUser.id)
+                          .map(novel => (
+                            <div 
+                              key={novel.id}
+                              onClick={() => handleNavigate('novel', { id: novel.id })}
+                              className="p-3 bg-[#14101D] hover:bg-[#1C1628] border border-white/5 hover:border-violet-500/20 rounded-xl flex items-center gap-3 cursor-pointer transition-all text-right"
+                            >
+                              <img src={novel.cover} alt={novel.titleAr} className="w-10 h-14 rounded-lg object-cover border border-white/5" />
+                              <div className="flex-1 text-right">
+                                <h5 className="font-extrabold text-[11px] text-white truncate">{novel.titleAr}</h5>
+                                <span className="text-[9px] text-purple-400 block truncate">{novel.titleEn}</span>
+                                <span className="text-[8px] mt-1 inline-block bg-violet-600/20 text-violet-300 px-1.5 py-0.5 rounded font-bold">
+                                  {novel.chaptersCount} فصلاً • {novel.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center bg-[#14101D]/50 border border-dashed border-white/5 rounded-2xl text-[10px] text-purple-400">
+                        {currentUser.role === 'WRITER' ? 'لم تقم بتأليف أي رواية حتى الآن.' : 'لم تقم بترجمة أي رواية مسجلة باسمك بعد.'}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Column 2: Reserved Works */}
+                  <div>
+                    <h4 className="font-bold text-xs text-purple-300 mb-3 flex items-center gap-1.5">
+                      <Clock size={14} className="text-violet-400" />
+                      <span>الحجوزات النشطة على الملف ({BerryDatabase.get<any[]>('reservations', []).filter(r => r.translatorId === currentUser.id && r.status === 'ACTIVE').length})</span>
+                    </h4>
+
+                    {BerryDatabase.get<any[]>('reservations', []).filter(r => r.translatorId === currentUser.id && r.status === 'ACTIVE').length > 0 ? (
+                      <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                        {BerryDatabase.get<any[]>('reservations', [])
+                          .filter(r => r.translatorId === currentUser.id && r.status === 'ACTIVE')
+                          .map(res => {
+                            const daysLeft = Math.ceil((new Date(res.endAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                            return (
+                              <div 
+                                key={res.id}
+                                className="p-3 bg-[#14101D] border border-white/5 rounded-xl flex flex-col justify-between"
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <h5 className="font-bold text-[11px] text-white truncate text-right">{res.novelTitle}</h5>
+                                  <span className="text-[8px] bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded font-extrabold shrink-0">
+                                    {daysLeft > 0 ? `${daysLeft} يوم متبقي` : 'منتهي'}
+                                  </span>
+                                </div>
+                                <div className="text-[8px] text-purple-400 mt-2 flex justify-between items-center font-mono">
+                                  <span>تاريخ الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
+                                  <span>الانتهاء: {new Date(res.endAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center bg-[#14101D]/50 border border-dashed border-white/5 rounded-2xl text-[10px] text-purple-400">
+                        لا توجد أي روايات محجوزة باسمك في الوقت الحالي.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Real badges: shown ONLY when the owner has granted this user
+                at least one badge from the admin panel — no automatic or
+                placeholder achievements. */}
+            {(() => {
+              const myBadges = getUserBadges(currentUser.id);
+              if (myBadges.length === 0) return null;
+              return (
+                <div className="glass-panel p-6 rounded-3xl border border-white/5">
+                  <h3 className="font-bold text-sm text-white mb-4 flex items-center gap-2">
+                    <Award size={16} className="text-yellow-400" />
+                    <span>الأوسمة والإنجازات الشخصية الممنوحة من إدارة المنصة 🎖️</span>
+                  </h3>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    {myBadges.map((badge) => (
+                      <div key={badge.id} className="p-4 bg-white/5 rounded-2xl border border-yellow-500/20 flex flex-col items-center shadow-lg shadow-yellow-500/5">
+                        <span className="text-2xl mb-2">{badge.icon}</span>
+                        <span className="font-bold text-xs text-white">{badge.name}</span>
+                        <span className="text-[10px] text-purple-400 mt-1">{badge.desc}</span>
+                        <span className="text-[8px] text-purple-500 mt-1.5 font-mono">
+                          مُنح: {new Date(badge.grantedAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* If Member (Reader), show Translator Request Form */}
+            {currentUser.role === 'MEMBER' && (
+              <TranslatorRequestForm 
+                currentUser={currentUser} 
+                onRequestSubmitted={() => {
+                  // Re-render or notify user
+                  console.log('Translator request submitted!');
+                }} 
+              />
+            )}
+          </div>
+        )}
+
+        {/* ==================== SCREEN 7.5: PROFILE EDIT PAGE (standalone) ==================== */}
+        {currentPage === 'profile-edit' && currentUser.role !== 'GUEST' && (
+          <div className="w-full text-right mt-4 pb-12 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <button
+                onClick={() => handleNavigate('profile')}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-purple-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                ← عودة للملف الشخصي
+              </button>
+              <h2 className="text-lg md:text-xl font-extrabold text-white">تعديل الملف الشخصي ⚙️</h2>
+            </div>
               <div className="p-6 bg-[#1A1625] rounded-3xl border border-violet-500/20 shadow-2xl relative overflow-hidden mb-6 animate-in slide-in-from-top-4 duration-300">
                 <div className="absolute top-0 right-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
                 <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
@@ -1702,7 +1915,10 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Support links and communication */}
+                  {/* Support links and communication: reserved for the owner
+                      and owner-approved creative roles. Readers only edit
+                      their avatar, banner and bio. */}
+                  {['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role) && (
                   <div className="border-t border-white/5 pt-5 mt-2">
                     <h4 className="text-xs font-bold text-violet-300 mb-3 flex items-center gap-1.5">
                       <DollarSign size={14} className="text-berry-400" />
@@ -1762,6 +1978,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   <div className="flex gap-3 mt-4">
                     <button 
@@ -1774,7 +1991,7 @@ export default function App() {
                     
                     <button 
                       type="button"
-                      onClick={() => setIsEditingProfile(false)}
+                      onClick={() => handleNavigate('profile')}
                       className="px-6 py-3 bg-white/5 hover:bg-white/10 text-purple-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
                       إلغاء
@@ -1782,267 +1999,6 @@ export default function App() {
                   </div>
                 </form>
               </div>
-            )}
-
-            {/* Bookmarks Display Section */}
-            {showProfileFavorites && (
-              <div className="glass-panel p-6 rounded-3xl border border-white/5 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-3">
-                  <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
-                    <Heart size={16} className="text-berry-400 fill-berry-400 animate-pulse" />
-                    <span>قائمة الروايات المفضلة الخاصة بك ({bookmarks.length})</span>
-                  </h3>
-                  <span className="text-[10px] text-purple-400 font-bold">انقر على الرواية للذهاب لصفحة فصولها حياً</span>
-                </div>
-
-                {bookmarks.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {novels
-                      .filter((n) => bookmarks.includes(n.id))
-                      .map((novel) => (
-                        <div 
-                          key={novel.id}
-                          onClick={() => handleNavigate('novel', { id: novel.id })}
-                          className="bg-[#14101D] border border-white/5 hover:border-violet-500/30 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-500/15 group flex flex-col justify-between h-full"
-                        >
-                          <div className="relative aspect-[3/4] overflow-hidden">
-                            <img 
-                              src={novel.cover} 
-                              alt={novel.titleAr} 
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-95" />
-                            
-                            {/* Remove button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleBookmarkToggle(novel.id);
-                              }}
-                              className="absolute top-2 left-2 p-1.5 bg-black/60 hover:bg-black/80 text-berry-400 hover:text-white rounded-full transition-all cursor-pointer z-10"
-                              title="إزالة من المفضلة"
-                            >
-                              <Heart size={12} className="fill-current" />
-                            </button>
-                          </div>
-                          <div className="p-2.5 text-right flex-1 flex flex-col justify-between">
-                            <div>
-                              <h4 className="font-extrabold text-[11px] text-white group-hover:text-violet-400 transition-colors truncate">
-                                {novel.titleAr}
-                              </h4>
-                              <span className="text-[9px] text-purple-400 truncate block mt-0.5">{novel.titleEn}</span>
-                            </div>
-                            <div className="mt-2 pt-2 border-t border-white/5 text-[9px] text-purple-300 font-bold text-left">
-                              تصفح الرواية ←
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="py-12 px-4 text-center bg-[#14101D]/50 rounded-2xl border border-dashed border-white/5 text-purple-400 animate-in fade-in duration-300">
-                    <Heart size={32} className="mx-auto mb-3 text-purple-500/50" />
-                    <p className="text-xs font-semibold">مفضلتك فارغة تماماً حالياً!</p>
-                    <p className="text-[10px] text-purple-400 mt-1">ابدأ بإضافة رواياتك الفخمة المفضلة من المكتبة لتظهر هنا.</p>
-                    <button
-                      onClick={() => handleNavigate('explore')}
-                      className="px-5 py-2 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold mt-4 transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md shadow-violet-500/10"
-                    >
-                      تصفح واستكشف المكتبة الآن 🧭
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Downloaded Chapters Display Section */}
-            {showProfileDownloads && (
-              <div className="glass-panel p-6 rounded-3xl border border-white/5 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-3">
-                  <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
-                    <Download size={16} className="text-violet-400" />
-                    <span>الفصول والترجمات المنزلة بجهازك للقراءة أوفلاين ({BerryDatabase.get<any[]>('downloaded_chapters', []).length})</span>
-                  </h3>
-                  <span className="text-[10px] text-purple-400 font-bold">يمكنك قراءة الفصول المنزلة مع كامل ميزات إعدادات القارئ!</span>
-                </div>
-
-                {BerryDatabase.get<any[]>('downloaded_chapters', []).length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-right">
-                    {BerryDatabase.get<any[]>('downloaded_chapters', []).map((chapter: any) => (
-                      <div 
-                        key={chapter.id}
-                        onClick={() => handleNavigate('reader', { novelId: chapter.novelId, chapterNumber: chapter.chapterNumber })}
-                        className="p-4 bg-[#14101D] border border-white/5 hover:border-violet-500/30 rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-500/10 group flex items-center justify-between gap-3 text-right"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[9px] text-purple-400 font-bold truncate block mb-1">📖 رواية: {chapter.novelTitle}</span>
-                          <h4 className="font-extrabold text-xs text-white group-hover:text-violet-400 transition-colors truncate">
-                            الفصل {chapter.chapterNumber}: {chapter.chapterTitle.split(':').slice(1).join(':').trim() || 'فصل منزل أوفلاين'}
-                          </h4>
-                          <span className="text-[8px] text-purple-500 mt-1.5 block">تم التنزيل: {new Date(chapter.downloadedAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const savedDownloads = BerryDatabase.get<any[]>('downloaded_chapters', []);
-                              const filtered = savedDownloads.filter((d: any) => d.id !== chapter.id);
-                              BerryDatabase.set('downloaded_chapters', filtered);
-                              // Force update local view
-                              setShowProfileDownloads(false);
-                              setTimeout(() => setShowProfileDownloads(true), 50);
-                            }}
-                            className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
-                            title="حذف الملف من الجهاز"
-                          >
-                            <X size={12} />
-                          </button>
-                          <span className="px-2.5 py-1.5 bg-violet-500/15 text-violet-300 group-hover:bg-violet-600 group-hover:text-white rounded-xl text-[10px] font-bold transition-all">
-                            قراءة أوفلاين ←
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-12 px-4 text-center bg-[#14101D]/50 rounded-2xl border border-dashed border-white/5 text-purple-400 animate-in fade-in duration-300">
-                    <Download size={32} className="mx-auto mb-3 text-purple-500/50" />
-                    <p className="text-xs font-semibold">لا توجد أي فصول منزلة بجهازك حالياً!</p>
-                    <p className="text-[10px] text-purple-400 mt-1">اذهب لصفحة فصول روايتك المفضلة وانقر على زر التنزيل لحفظها محلياً لقراءتها في أي وقت دون اتصال بالإنترنت.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Works & Reservations Section for Creative Roles */}
-            {['OWNER', 'TRANSLATOR', 'WRITER'].includes(currentUser.role) && (
-              <div className="glass-panel p-6 rounded-3xl border border-white/5 mb-6 animate-in fade-in duration-300">
-                <h3 className="font-extrabold text-sm text-white mb-6 flex items-center gap-2 border-b border-white/5 pb-3">
-                  <FileText size={16} className="text-violet-400" />
-                  <span>💼 لوحة الأعمال والحجوزات الشخصية</span>
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Column 1: Active Translating/Writing Works */}
-                  <div>
-                    <h4 className="font-bold text-xs text-purple-300 mb-3 flex items-center gap-1.5">
-                      <BookOpen size={14} className="text-violet-400" />
-                      <span>الأعمال الحالية ({novels.filter(n => n.translatorId === currentUser.id).length})</span>
-                    </h4>
-
-                    {novels.filter(n => n.translatorId === currentUser.id).length > 0 ? (
-                      <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                        {novels
-                          .filter(n => n.translatorId === currentUser.id)
-                          .map(novel => (
-                            <div 
-                              key={novel.id}
-                              onClick={() => handleNavigate('novel', { id: novel.id })}
-                              className="p-3 bg-[#14101D] hover:bg-[#1C1628] border border-white/5 hover:border-violet-500/20 rounded-xl flex items-center gap-3 cursor-pointer transition-all text-right"
-                            >
-                              <img src={novel.cover} alt={novel.titleAr} className="w-10 h-14 rounded-lg object-cover border border-white/5" />
-                              <div className="flex-1 text-right">
-                                <h5 className="font-extrabold text-[11px] text-white truncate">{novel.titleAr}</h5>
-                                <span className="text-[9px] text-purple-400 block truncate">{novel.titleEn}</span>
-                                <span className="text-[8px] mt-1 inline-block bg-violet-600/20 text-violet-300 px-1.5 py-0.5 rounded font-bold">
-                                  {novel.chaptersCount} فصلاً • {novel.status}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <div className="p-6 text-center bg-[#14101D]/50 border border-dashed border-white/5 rounded-2xl text-[10px] text-purple-400">
-                        {currentUser.role === 'WRITER' ? 'لم تقم بتأليف أي رواية حتى الآن.' : 'لم تقم بترجمة أي رواية مسجلة باسمك بعد.'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Column 2: Reserved Works */}
-                  <div>
-                    <h4 className="font-bold text-xs text-purple-300 mb-3 flex items-center gap-1.5">
-                      <Clock size={14} className="text-violet-400" />
-                      <span>الحجوزات النشطة على الملف ({BerryDatabase.get<any[]>('reservations', []).filter(r => r.translatorId === currentUser.id && r.status === 'ACTIVE').length})</span>
-                    </h4>
-
-                    {BerryDatabase.get<any[]>('reservations', []).filter(r => r.translatorId === currentUser.id && r.status === 'ACTIVE').length > 0 ? (
-                      <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                        {BerryDatabase.get<any[]>('reservations', [])
-                          .filter(r => r.translatorId === currentUser.id && r.status === 'ACTIVE')
-                          .map(res => {
-                            const daysLeft = Math.ceil((new Date(res.endAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                            return (
-                              <div 
-                                key={res.id}
-                                className="p-3 bg-[#14101D] border border-white/5 rounded-xl flex flex-col justify-between"
-                              >
-                                <div className="flex justify-between items-start gap-2">
-                                  <h5 className="font-bold text-[11px] text-white truncate text-right">{res.novelTitle}</h5>
-                                  <span className="text-[8px] bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded font-extrabold shrink-0">
-                                    {daysLeft > 0 ? `${daysLeft} يوم متبقي` : 'منتهي'}
-                                  </span>
-                                </div>
-                                <div className="text-[8px] text-purple-400 mt-2 flex justify-between items-center font-mono">
-                                  <span>تاريخ الحجز: {new Date(res.startAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
-                                  <span>الانتهاء: {new Date(res.endAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    ) : (
-                      <div className="p-6 text-center bg-[#14101D]/50 border border-dashed border-white/5 rounded-2xl text-[10px] text-purple-400">
-                        لا توجد أي روايات محجوزة باسمك في الوقت الحالي.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Achievements Grid List */}
-            <div className="glass-panel p-6 rounded-3xl border border-white/5">
-              <h3 className="font-bold text-sm text-white mb-4 flex items-center gap-2">
-                <Award size={16} className="text-yellow-400" />
-                <span>الأوسمة والإنجازات الشخصية</span>
-              </h3>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center">
-                  <span className="text-2xl mb-2">⭐</span>
-                  <span className="font-bold text-xs text-white">الناقد المعتمد</span>
-                  <span className="text-[10px] text-purple-400 mt-1">كتابة أول مراجعة تفصيلية</span>
-                </div>
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center">
-                  <span className="text-2xl mb-2">🔥</span>
-                  <span className="font-bold text-xs text-white">القارئ المتفجر</span>
-                  <span className="text-[10px] text-purple-400 mt-1">قراءة أكثر من 100 فصلاً</span>
-                </div>
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center">
-                  <span className="text-2xl mb-2">💬</span>
-                  <span className="font-bold text-xs text-white">الملهم المتحدث</span>
-                  <span className="text-[10px] text-purple-400 mt-1">كتابة أكثر من 20 تعليقاً</span>
-                </div>
-                <div className="p-4 bg-[#14101D] opacity-40 rounded-2xl border border-dashed border-white/10 flex flex-col items-center" title="مغلق حالياً">
-                  <span className="text-2xl mb-2">🏆</span>
-                  <span className="font-bold text-xs text-purple-400">بطل الموسم</span>
-                  <span className="text-[9px] text-purple-500 mt-1">يتطلب XP أكثر</span>
-                </div>
-              </div>
-            </div>
-
-            {/* If Member (Reader), show Translator Request Form */}
-            {currentUser.role === 'MEMBER' && (
-              <TranslatorRequestForm 
-                currentUser={currentUser} 
-                onRequestSubmitted={() => {
-                  // Re-render or notify user
-                  console.log('Translator request submitted!');
-                }} 
-              />
-            )}
           </div>
         )}
 
