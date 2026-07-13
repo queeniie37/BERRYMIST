@@ -76,8 +76,41 @@ function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: stri
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
-  const [currentPage, setCurrentPage] = useState<string>('home'); // home, explore, suggestions, teams, profile, novel, reader, translator-panel, admin
-  const [currentParams, setCurrentParams] = useState<any>(null);
+  // Restore the last visited screen after a page refresh so the visitor
+  // stays exactly where they were (same novel/chapter) instead of being
+  // thrown back to the homepage.
+  const restoreLastScreen = () => {
+    try {
+      const raw = sessionStorage.getItem('berry_mist_last_page');
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v && typeof v.page === 'string') return v;
+      }
+    } catch { /* sessionStorage unavailable */ }
+    return { page: 'home', params: null };
+  };
+  const [currentPage, setCurrentPage] = useState<string>(() => restoreLastScreen().page); // home, explore, suggestions, teams, profile, novel, reader, translator-panel, admin
+  const [currentParams, setCurrentParams] = useState<any>(() => restoreLastScreen().params);
+
+  // Keep the current screen + scroll position saved for refresh restore
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('berry_mist_last_page', JSON.stringify({ page: currentPage, params: currentParams }));
+    } catch { /* ignore */ }
+  }, [currentPage, currentParams]);
+  useEffect(() => {
+    const saveScroll = () => {
+      try { sessionStorage.setItem('berry_mist_scroll', String(window.scrollY)); } catch { /* ignore */ }
+    };
+    window.addEventListener('beforeunload', saveScroll);
+    let savedScroll = 0;
+    try { savedScroll = parseInt(sessionStorage.getItem('berry_mist_scroll') || '0', 10); } catch { /* ignore */ }
+    if (savedScroll > 0) {
+      // Wait for the restored screen's content to render before scrolling
+      setTimeout(() => window.scrollTo(0, savedScroll), 500);
+    }
+    return () => window.removeEventListener('beforeunload', saveScroll);
+  }, []);
 
   const [novels, setNovels] = useState<Novel[]>([]);
   const [news, setNews] = useState<News[]>([]);
