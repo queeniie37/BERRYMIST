@@ -259,6 +259,20 @@ export class BerryDatabase {
   }
   static get<T>(key: string, defaultValue: T): T {
     try {
+      if (key === 'comments') {
+        // Hide tombstoned (deleted) and malformed comments everywhere in the
+        // UI. Tombstones stay in storage so the server-side merge propagates
+        // the deletion to every device instead of resurrecting the comment.
+        const data = storeRead('berry_mist_comments');
+        if (data) {
+          const rawList = JSON.parse(data);
+          const list = (Array.isArray(rawList) ? rawList : [])
+            .filter((c: any) => c && typeof c === 'object' && typeof c.id === 'string' && !c.deleted);
+          return list as unknown as T;
+        }
+        return defaultValue;
+      }
+
       if (key === 'novels') {
         const data = storeRead(`berry_mist_novels`);
         if (data) {
@@ -296,29 +310,19 @@ export class BerryDatabase {
           const userStr = storeRead('berry_mist_current_user_data');
           const currentUser = userStr ? JSON.parse(userStr) : null;
 
-          const usersDbStr = storeRead('berry_mist_users_db');
-          const parsedUsersDb = usersDbStr ? JSON.parse(usersDbStr) : [];
-          
-          const ownerUserIds = new Set<string>();
-          if (Array.isArray(parsedUsersDb)) {
-            parsedUsersDb
-              .filter((u: any) => u && (u.email?.toLowerCase() === 'berrymist11@gmail.com'))
-              .forEach((u: any) => ownerUserIds.add(u.id));
-          }
-          ownerUserIds.add('berrymist-owner');
-
           const updated = novelsList.map(n => {
             let nChaps = chapsList.filter(c => c.novelId === n.id);
-            
-            // Check if authorized
-            const isPublishedByOwner = ownerUserIds.has(n.translatorId) || n.translatorName === 'BERRYMIST';
+
+            // Scheduled (future publishAt) chapters count only for the
+            // owner and the novel's own translator. The viewer's identity
+            // decides — never the novel's publisher, otherwise every visitor
+            // would see the owner's scheduled chapters before their time.
             const isAuthorized = currentUser && (
-              currentUser.role === 'OWNER' || 
-              currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || 
-              n.translatorId === currentUser.id || 
-              isPublishedByOwner
+              currentUser.role === 'OWNER' ||
+              currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' ||
+              n.translatorId === currentUser.id
             );
-            
+
             if (!isAuthorized) {
               nChaps = nChaps.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
             }
@@ -400,6 +404,30 @@ export class BerryDatabase {
       // Most common cause: QuotaExceededError from oversized base64 images.
       // Callers can now detect the failure instead of showing a fake success.
       console.error("Error writing to localStorage", e);
+      return false;
+    }
+  }
+
+  // Delete a comment by writing a tombstone instead of removing it from the
+  // array. get('comments') hides tombstones, and the server-side merge keeps
+  // them, so the deletion reaches every device (a plain removal would be
+  // "resurrected" by the merge with any device that still had the comment).
+  static deleteComment(commentId: string): boolean {
+    try {
+      const raw = storeRead('berry_mist_comments');
+      const list = raw ? JSON.parse(raw) : [];
+      const updated = (Array.isArray(list) ? list : []).map((c: any) =>
+        c && c.id === commentId
+          ? { ...c, deleted: true, updatedAt: new Date().toISOString() }
+          : c
+      );
+      const serialized = JSON.stringify(updated);
+      storeWrite('berry_mist_comments', serialized);
+      this.dispatchKeyEvent('comments');
+      this.pushToServer('comments', serialized);
+      return true;
+    } catch (e) {
+      console.error('Error deleting comment', e);
       return false;
     }
   }

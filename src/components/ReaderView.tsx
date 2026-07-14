@@ -333,8 +333,11 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     }
     if (!commentText.trim() || !chapter) return;
 
+    // Random suffix: Date.now() alone collides when the same member posts
+    // several comments quickly, making later comments seem to never appear.
+    const createdAt = new Date().toISOString();
     const newComment: Comment = {
-      id: `comm-${Date.now()}`,
+      id: `comm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       refId: chapter.id,
       refType: 'CHAPTER',
       authorName: currentUser.username,
@@ -344,7 +347,8 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       likes: 0,
       likedBy: [],
       replies: [],
-      createdAt: new Date().toISOString(),
+      createdAt,
+      updatedAt: createdAt,
       isSpoiler: isSpoilerComment
     };
 
@@ -371,7 +375,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
           ? c.likedBy.filter(id => id !== currentUser.id)
           : [...c.likedBy, currentUser.id];
         const likes = alreadyLiked ? c.likes - 1 : c.likes + 1;
-        return { ...c, likes, likedBy };
+        return { ...c, likes, likedBy, updatedAt: new Date().toISOString() };
       }
       return c;
     });
@@ -389,7 +393,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     if (!replyText || !replyText.trim() || !chapter) return;
 
     const newReply = {
-      id: `rep-${Date.now()}`,
+      id: `rep-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       authorName: currentUser.username,
       authorAvatar: currentUser.avatar,
       authorRole: currentUser.role === 'OWNER' ? 'المالك 👑' : currentUser.role === 'TRANSLATOR' ? 'مترجم ✍️' : 'عضو قارئ 👤',
@@ -402,7 +406,8 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       if (c.id === commentId) {
         return {
           ...c,
-          replies: [...(c.replies || []), newReply]
+          replies: [...(c.replies || []), newReply],
+          updatedAt: new Date().toISOString()
         };
       }
       return c;
@@ -474,10 +479,11 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     }
 
     if (!chapter) return;
-    const allComments = BerryDatabase.get<Comment[]>('comments', []);
-    const updated = allComments.filter(c => c.id !== commentId);
-    BerryDatabase.set('comments', updated);
-    setComments(updated.filter(c => c.refId === chapter.id));
+    // Tombstone-delete so the removal propagates to every device instead of
+    // being resurrected by the server-side comments merge.
+    BerryDatabase.deleteComment(commentId);
+    const remaining = BerryDatabase.get<Comment[]>('comments', []);
+    setComments(remaining.filter(c => c.refId === chapter.id));
     alert('تم حذف التعليق بنجاح.');
   };
 

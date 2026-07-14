@@ -51,6 +51,48 @@ function save_db($file, $data) {
     return true;
 }
 
+/**
+ * Comments are written by many visitors at once. A plain "replace the whole
+ * array" write makes the last writer erase everyone else's fresh comments,
+ * so the server merges instead: comments only the server knows about are
+ * kept, and for comments both sides know the newest version wins. Deleted
+ * comments arrive as tombstones ({deleted:true}) so deletions survive the
+ * merge; tombstones older than 30 days are purged.
+ */
+function comment_time($c) {
+    if (!is_array($c)) return 0;
+    $raw = isset($c['updatedAt']) ? $c['updatedAt'] : (isset($c['createdAt']) ? $c['createdAt'] : '');
+    if (!is_string($raw) || $raw === '') return 0;
+    $t = strtotime($raw);
+    return $t === false ? 0 : $t * 1000;
+}
+
+function merge_comments($stored, $incoming) {
+    $stored = is_array($stored) ? $stored : array();
+    $incoming = is_array($incoming) ? $incoming : array();
+    $by_id = array();
+    foreach ($stored as $c) {
+        if (is_array($c) && isset($c['id']) && is_string($c['id'])) $by_id[$c['id']] = $c;
+    }
+    foreach ($incoming as $c) {
+        if (!is_array($c) || !isset($c['id']) || !is_string($c['id'])) continue;
+        $prev = isset($by_id[$c['id']]) ? $by_id[$c['id']] : null;
+        if ($prev === null || comment_time($c) >= comment_time($prev)) $by_id[$c['id']] = $c;
+    }
+    $cutoff = (time() - 30 * 24 * 60 * 60) * 1000;
+    $merged = array();
+    foreach ($by_id as $c) {
+        if (empty($c['deleted']) || comment_time($c) > $cutoff) $merged[] = $c;
+    }
+    usort($merged, function ($a, $b) {
+        $ta = comment_time($a);
+        $tb = comment_time($b);
+        if ($ta === $tb) return 0;
+        return $tb > $ta ? 1 : -1;
+    });
+    return $merged;
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'OPTIONS') {
@@ -132,7 +174,11 @@ if ($method === 'POST') {
         }
     }
 
-    $db[$key] = isset($body['value']) ? $body['value'] : null;
+    $value = isset($body['value']) ? $body['value'] : null;
+    if ($key === 'comments') {
+        $value = merge_comments(isset($db[$key]) ? $db[$key] : array(), $value);
+    }
+    $db[$key] = $value;
     if (!save_db($DB_FILE, $db)) {
         http_response_code(500);
         echo json_encode(array('error' => 'Failed to write database file'));

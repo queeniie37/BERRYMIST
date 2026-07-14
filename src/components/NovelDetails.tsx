@@ -175,21 +175,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     let foundChapters = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
-    
-    // Filter out scheduled chapters for non-author / non-owner users (unless published by the owner)
-    const usersDb = BerryDatabase.get<any[]>('users_db', []);
-    const ownerUserIds = new Set(
-      usersDb
-        .filter(u => u.email.toLowerCase() === 'berrymist11@gmail.com')
-        .map(u => u.id)
-    );
-    ownerUserIds.add('berrymist-owner');
 
-    const isPublishedByOwner = foundNovel && (
-      ownerUserIds.has(foundNovel.translatorId) || 
-      foundNovel.translatorName === 'BERRYMIST'
-    );
-    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id) || isPublishedByOwner;
+    // Scheduled (future publishAt) chapters are visible only to the owner
+    // and the novel's own translator. The VIEWER decides — never the novel's
+    // publisher, otherwise every visitor would see the owner's scheduled
+    // chapters before their publish time.
+    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id);
     if (!isAuthorized) {
       foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     }
@@ -209,6 +200,33 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setReservation(activeRes || null);
 
   }, [novelId]);
+
+  // Live-refresh the chapter list: picks up chapters synced from the server
+  // AND makes a scheduled chapter appear for readers the moment its publish
+  // time arrives (checked every 15s), without re-opening the page.
+  useEffect(() => {
+    const refreshChapters = () => {
+      const allNovels = BerryDatabase.get<Novel[]>('novels', []);
+      const foundNovel = allNovels.find(n => n.id === novelId);
+      const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
+      let list = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
+      const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id);
+      if (!isAuthorized) {
+        list = list.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
+      }
+      setChapters(prev => {
+        // Avoid re-render churn when nothing actually changed
+        if (prev.length === list.length && prev.every((p, i) => p.id === list[i].id && p.title === list[i].title)) return prev;
+        return list;
+      });
+    };
+    window.addEventListener('chapters-updated', refreshChapters);
+    const timer = setInterval(refreshChapters, 15000);
+    return () => {
+      window.removeEventListener('chapters-updated', refreshChapters);
+      clearInterval(timer);
+    };
+  }, [novelId, currentUser]);
 
   // Live-refresh comments pulled by the background server sync so every
   // visitor (guest, reader, translator, owner) sees all comments without
@@ -383,8 +401,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     }
     if (commentText.trim() === '') return;
 
+    // Random suffix: Date.now() alone collides when the same member posts
+    // several comments quickly, making later comments seem to never appear.
+    const createdAt = new Date().toISOString();
     const newComment: Comment = {
-      id: `comm-${Date.now()}`,
+      id: `comm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       refId: novel.id,
       refType: 'NOVEL',
       authorName: currentUser.username,
@@ -394,7 +415,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       likes: 0,
       likedBy: [],
       replies: [],
-      createdAt: new Date().toISOString(),
+      createdAt,
+      updatedAt: createdAt,
       isSpoiler: isSpoilerComment
     };
 
@@ -417,7 +439,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       if (c.id === commentId) {
         const isLiked = c.likedBy.includes(currentUser.id);
         const likedBy = isLiked ? c.likedBy.filter(id => id !== currentUser.id) : [...c.likedBy, currentUser.id];
-        return { ...c, likes: isLiked ? c.likes - 1 : c.likes + 1, likedBy };
+        return { ...c, likes: isLiked ? c.likes - 1 : c.likes + 1, likedBy, updatedAt: new Date().toISOString() };
       }
       return c;
     });
@@ -432,7 +454,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     if (currentUser.role === 'GUEST') return;
 
     const newReply = {
-      id: `reply-${Date.now()}`,
+      id: `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       authorName: currentUser.username,
       authorAvatar: currentUser.avatar,
       authorRole: currentUser.role,
@@ -443,7 +465,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const updated = allComments.map(c => {
       if (c.id === commentId) {
-        return { ...c, replies: [...(c.replies || []), newReply] };
+        return { ...c, replies: [...(c.replies || []), newReply], updatedAt: new Date().toISOString() };
       }
       return c;
     });
@@ -538,11 +560,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       return;
     }
 
-    const allComments = BerryDatabase.get<Comment[]>('comments', []);
-    const updated = allComments.filter(c => c.id !== commentId);
-    BerryDatabase.set('comments', updated);
+    // Tombstone-delete so the removal propagates to every device instead of
+    // being resurrected by the server-side comments merge.
+    BerryDatabase.deleteComment(commentId);
+    const remaining = BerryDatabase.get<Comment[]>('comments', []);
     if (novel) {
-      setComments(updated.filter(c => c.refId === novel.id || chapters.some(ch => ch.id === c.refId)));
+      setComments(remaining.filter(c => c.refId === novel.id || chapters.some(ch => ch.id === c.refId)));
     }
     alert('تم حذف التعليق بنجاح.');
   };
@@ -707,20 +730,41 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     BerryDatabase.set('novels', updatedNovels);
     setNovel({ ...novel, chaptersCount: novel.chaptersCount + 1, status: newStatus });
 
-    // Notify all bookmark users
+    // Scheduled chapters stay private until their publish time: no public
+    // "new chapter" announcement now — checkScheduledChapters() sends it when
+    // the scheduled date/time actually arrives. The creator only gets a
+    // private confirmation that the chapter is scheduled.
     const allNotifs = BerryDatabase.get<any[]>('notifications', []);
-    const newNotif = {
-      id: `notif-${Date.now()}`,
-      userId: currentUser.id,
-      title: 'فصل جديد صدر!',
-      message: `تم نشر الفصل ${newChapterNum} من رواية "${novel.titleAr}" بنجاح.`,
-      type: 'CHAPTER' as const,
-      isRead: false,
-      createdAt: 'الآن',
-      novelId: novel.id,
-      chapterId: newChap.id
-    };
+    const newNotif = isScheduled
+      ? {
+          id: `notif-${Date.now()}`,
+          userId: currentUser.id,
+          title: '📅 تمت جدولة الفصل بنجاح',
+          message: `تمت جدولة الفصل ${newChapterNum} من رواية "${novel.titleAr}" وسيُنشر تلقائياً للقراء في ${new Date(newChapterPublishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}. يظهر الآن في صفحة الأنشطة والجدولة كمجدول للنشر.`,
+          type: 'CHAPTER' as const,
+          isRead: false,
+          createdAt: 'الآن',
+          novelId: novel.id,
+          chapterId: newChap.id
+        }
+      : {
+          id: `notif-${Date.now()}`,
+          userId: currentUser.id,
+          title: 'فصل جديد صدر!',
+          message: `تم نشر الفصل ${newChapterNum} من رواية "${novel.titleAr}" بنجاح.`,
+          type: 'CHAPTER' as const,
+          isRead: false,
+          createdAt: 'الآن',
+          novelId: novel.id,
+          chapterId: newChap.id
+        };
     BerryDatabase.set('notifications', [...allNotifs, newNotif]);
+
+    if (isScheduled) {
+      alert(`📅 تمت جدولة الفصل ${newChapterNum} بنجاح! لن يظهر للقراء إلا في ${new Date(newChapterPublishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}، ويمكنك متابعته من صفحة الأنشطة والجدولة.`);
+    } else {
+      alert(`تم نشر الفصل ${newChapterNum} بنجاح وهو متاح الآن لجميع القراء! 🎉`);
+    }
 
     setShowAddChapterForm(false);
     setNewChapterTitle('');
