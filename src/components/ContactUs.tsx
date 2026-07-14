@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, MessageSquare, Send, CheckCircle, ArrowLeft, Trash2, Shield, Calendar, User as UserIcon } from 'lucide-react';
 import { User } from '../types';
 import { BerryDatabase } from '../data';
@@ -17,6 +17,25 @@ interface ContactMessage {
   createdAt: string;
 }
 
+// Owner-editable text of the "Contact us" page. Defaults match the original
+// hard-coded copy so nothing changes until the owner customizes it from the
+// admin panel. Kept in sync here and in AdminPanel.tsx.
+export interface ContactSettings {
+  subtitle: string;
+  intro: string;
+  email: string;
+  discord: string;
+  hours: string;
+}
+
+export const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
+  subtitle: 'تواصل مباشرة مع إدارة بيري مست وسنجيبك في أسرع وقت',
+  intro: 'إذا واجهتك مشكلة تقنية، أو رغبت في الاستفسار عن ترجمة أو شراكة، يمكنك استخدام النموذج المجاور أو مراسلتنا مباشرة عبر القنوات التالية:',
+  email: 'support@berrymist.com',
+  discord: 'تذكرة الديسكورد الرسمية',
+  hours: '24 ساعة / طوال أيام الأسبوع'
+};
+
 export default function ContactUs({ currentUser, onNavigate }: ContactUsProps) {
   const isOwner = currentUser?.role === 'OWNER';
   
@@ -27,10 +46,31 @@ export default function ContactUs({ currentUser, onNavigate }: ContactUsProps) {
   const [message, setMessage] = useState('');
   
   // Messages state for the Owner Panel
-  const [messages, setMessages] = useState<ContactMessage[]>(() => 
+  const [messages, setMessages] = useState<ContactMessage[]>(() =>
     BerryDatabase.get<ContactMessage[]>('contact_messages', [])
   );
-  
+
+  // Owner-editable page content; refreshes live when the owner saves it from
+  // the admin panel or when it arrives via the background server sync.
+  const [contactSettings, setContactSettings] = useState<ContactSettings>(() => ({
+    ...DEFAULT_CONTACT_SETTINGS,
+    ...(BerryDatabase.get<Partial<ContactSettings>>('contact_settings', {}) || {})
+  }));
+
+  useEffect(() => {
+    const refreshSettings = () => setContactSettings({
+      ...DEFAULT_CONTACT_SETTINGS,
+      ...(BerryDatabase.get<Partial<ContactSettings>>('contact_settings', {}) || {})
+    });
+    const refreshMessages = () => setMessages(BerryDatabase.get<ContactMessage[]>('contact_messages', []));
+    window.addEventListener('contact_settings-updated', refreshSettings);
+    window.addEventListener('contact_messages-updated', refreshMessages);
+    return () => {
+      window.removeEventListener('contact_settings-updated', refreshSettings);
+      window.removeEventListener('contact_messages-updated', refreshMessages);
+    };
+  }, []);
+
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -89,7 +129,7 @@ export default function ContactUs({ currentUser, onNavigate }: ContactUsProps) {
               <span>اتصل بنا</span>
               <Mail className="text-violet-400" size={24} />
             </h1>
-            <p className="text-[10px] text-purple-400 mt-1">تواصل مباشرة مع إدارة بيري مست وسنجيبك في أسرع وقت</p>
+            <p className="text-[10px] text-purple-400 mt-1">{contactSettings.subtitle}</p>
           </div>
         </div>
       </div>
@@ -118,20 +158,20 @@ export default function ContactUs({ currentUser, onNavigate }: ContactUsProps) {
               <span>قنوات الدعم والاتصال الرسمي</span>
               <MessageSquare size={16} className="text-violet-400" />
             </h3>
-            <p className="text-xs text-purple-200/85 mb-4 leading-relaxed">
-              إذا واجهتك مشكلة تقنية، أو رغبت في الاستفسار عن ترجمة أو شراكة، يمكنك استخدام النموذج المجاور أو مراسلتنا مباشرة عبر القنوات التالية:
+            <p className="text-xs text-purple-200/85 mb-4 leading-relaxed whitespace-pre-wrap">
+              {contactSettings.intro}
             </p>
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
-                <span className="text-xs font-mono text-purple-100 select-all">support@berrymist.com</span>
+                <span className="text-xs font-mono text-purple-100 select-all">{contactSettings.email}</span>
                 <span className="text-xs text-purple-300 font-bold">البريد الإلكتروني</span>
               </div>
               <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
-                <span className="text-xs font-bold text-violet-400">تذكرة الديسكورد الرسمية</span>
+                <span className="text-xs font-bold text-violet-400">{contactSettings.discord}</span>
                 <span className="text-xs text-purple-300 font-bold">الدعم الفني المباشر</span>
               </div>
               <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
-                <span className="text-xs text-purple-100 font-bold">24 ساعة / طوال أيام الأسبوع</span>
+                <span className="text-xs text-purple-100 font-bold">{contactSettings.hours}</span>
                 <span className="text-xs text-purple-300 font-bold">ساعات العمل</span>
               </div>
             </div>

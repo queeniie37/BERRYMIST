@@ -48,6 +48,16 @@ const defaults: any = {
   translator_requests: [],
   chapters: [],
   ads: [],
+  // Visitor messages sent from the "Contact us" page (owner inbox)
+  contact_messages: [],
+  // Owner-editable content of the "Contact us" page
+  contact_settings: {
+    subtitle: "تواصل مباشرة مع إدارة بيري مست وسنجيبك في أسرع وقت",
+    intro: "إذا واجهتك مشكلة تقنية، أو رغبت في الاستفسار عن ترجمة أو شراكة، يمكنك استخدام النموذج المجاور أو مراسلتنا مباشرة عبر القنوات التالية:",
+    email: "support@berrymist.com",
+    discord: "تذكرة الديسكورد الرسمية",
+    hours: "24 ساعة / طوال أيام الأسبوع"
+  },
   // email(lowercase) -> role, so owner role approvals propagate across devices
   // without ever syncing account credentials (users_db stays private)
   role_assignments: {},

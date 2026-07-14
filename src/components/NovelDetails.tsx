@@ -1491,7 +1491,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                             )}
                           </h4>
                           <span className={`text-[10px] mt-1 block ${isRead ? 'text-violet-400/80' : 'text-purple-400'}`}>
-                            تاريخ النشر: {new Date(chapter.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}
+                            {/* Scheduled chapters carry their scheduled publish time in
+                                publishAt; show that as the publish date so a chapter that
+                                went live on schedule reads as published on its scheduled
+                                day, not the day it was drafted. */}
+                            تاريخ النشر: {new Date(chapter.publishAt || chapter.createdAt).toLocaleDateString('ar-EG', { numberingSystem: 'latn' })}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">

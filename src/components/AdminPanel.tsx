@@ -7,6 +7,7 @@ import { getAllTranslatorsPoints, crownTranslator, getCrownedTranslatorId, getCu
 import { BADGE_CATALOG, getUserBadges, grantBadge, revokeBadge } from '../utils/badges';
 import { UserDirectory } from '../utils/directory';
 import ConfirmModal from './ConfirmModal';
+import { DEFAULT_CONTACT_SETTINGS, ContactSettings } from './ContactUs';
 
 interface AdminPanelProps {
   currentUser: User;
@@ -89,6 +90,26 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     { id: "whatsapp", name: "WhatsApp", icon: "💬", url: "", active: false }
   ];
   const [footerSocialsInput, setFooterSocialsInput] = useState<any[]>(() => BerryDatabase.get<any[]>('footer_socials', defaultSocialLinks));
+
+  // "Contact us" page content, owner-editable
+  const [contactSettingsInput, setContactSettingsInput] = useState<ContactSettings>(() => ({
+    ...DEFAULT_CONTACT_SETTINGS,
+    ...(BerryDatabase.get<Partial<ContactSettings>>('contact_settings', {}) || {})
+  }));
+
+  const handleSaveContactSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned: ContactSettings = {
+      subtitle: contactSettingsInput.subtitle.trim(),
+      intro: contactSettingsInput.intro.trim(),
+      email: contactSettingsInput.email.trim(),
+      discord: contactSettingsInput.discord.trim(),
+      hours: contactSettingsInput.hours.trim()
+    };
+    BerryDatabase.set('contact_settings', cleaned);
+    window.dispatchEvent(new Event('contact_settings-updated'));
+    alert('تم حفظ ونشر بيانات صفحة "اتصل بنا" بنجاح للزوار! 🎉');
+  };
 
   const handleSocialUrlChange = (id: string, url: string) => {
     setFooterSocialsInput(prev => prev.map(item => item.id === id ? { ...item, url } : item));
@@ -1569,12 +1590,97 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   </div>
                 </div>
 
-                <button 
+                <button
                   type="submit"
                   className="w-full py-3.5 mt-4 bg-gradient-to-r from-berry-600 to-violet-600 hover:from-berry-500 hover:to-violet-500 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-berry-500/20 flex items-center justify-center gap-2"
                 >
                   <Check size={16} />
                   <span>حفظ ونشر جميع إعدادات الفوتر والشبكات الاجتماعية</span>
+                </button>
+              </form>
+            </div>
+
+            {/* "Contact us" page content customization */}
+            <div className="p-6 bg-[#1A1625] rounded-3xl border border-white/5 shadow-xl relative overflow-hidden mt-6">
+              <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-6">
+                <MessageSquare className="text-violet-400" size={20} />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">تعديل بيانات صفحة "اتصل بنا"</h3>
+                  <p className="text-[10px] text-purple-400 mt-0.5">تحكّم بكل النصوص وقنوات التواصل المعروضة للزوار في صفحة اتصل بنا، وتُحدَّث لديهم فوراً.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveContactSettings} className="flex flex-col gap-5 text-right">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-purple-200">العنوان الفرعي أعلى الصفحة</label>
+                  <input
+                    type="text"
+                    value={contactSettingsInput.subtitle}
+                    onChange={(e) => setContactSettingsInput(prev => ({ ...prev, subtitle: e.target.value }))}
+                    placeholder="مثال: تواصل مباشرة مع إدارة بيري مست وسنجيبك في أسرع وقت"
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-purple-200">النص التعريفي لقنوات الدعم</label>
+                  <textarea
+                    rows={3}
+                    value={contactSettingsInput.intro}
+                    onChange={(e) => setContactSettingsInput(prev => ({ ...prev, intro: e.target.value }))}
+                    placeholder="إذا واجهتك مشكلة تقنية، أو رغبت في الاستفسار عن ترجمة أو شراكة..."
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">البريد الإلكتروني المعروض</label>
+                    <input
+                      type="email"
+                      value={contactSettingsInput.email}
+                      onChange={(e) => setContactSettingsInput(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="support@berrymist.com"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors font-mono"
+                      dir="ltr"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-purple-200">قناة الدعم الفني المباشر</label>
+                    <input
+                      type="text"
+                      value={contactSettingsInput.discord}
+                      onChange={(e) => setContactSettingsInput(prev => ({ ...prev, discord: e.target.value }))}
+                      placeholder="مثال: تذكرة الديسكورد الرسمية"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-purple-200">ساعات العمل المعروضة</label>
+                  <input
+                    type="text"
+                    value={contactSettingsInput.hours}
+                    onChange={(e) => setContactSettingsInput(prev => ({ ...prev, hours: e.target.value }))}
+                    placeholder="مثال: 24 ساعة / طوال أيام الأسبوع"
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3.5 mt-4 bg-gradient-to-r from-violet-600 to-berry-500 hover:from-violet-500 hover:to-berry-400 text-white rounded-xl text-xs font-bold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+                >
+                  <Check size={16} />
+                  <span>حفظ ونشر بيانات صفحة اتصل بنا</span>
                 </button>
               </form>
             </div>
