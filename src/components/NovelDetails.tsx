@@ -65,7 +65,9 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [comments, setComments] = useState<Comment[]>([]);
   const [readChapters, setReadChapters] = useState<any[]>([]);
   // Chapter list ordering: true = ascending (1 → N), false = descending (N → 1)
-  const [chaptersAscending, setChaptersAscending] = useState(true);
+  // Chapter list order: newest chapter first by default whenever a novel is
+  // opened; the toolbar toggle can flip it to oldest-first per visit.
+  const [chaptersAscending, setChaptersAscending] = useState(false);
   
   // Claim state variables
   const [timeRemaining, setTimeRemaining] = useState('');
@@ -183,6 +185,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     setChapters(foundChapters);
     setNewChapterNumber('');
+    // Entering a novel always starts with the newest chapters on top
+    setChaptersAscending(false);
 
     const allComments = BerryDatabase.get<Comment[]>('comments', []);
     const foundComments = allComments.filter(c => c.refId === novelId || foundChapters.some(ch => ch.id === c.refId));
