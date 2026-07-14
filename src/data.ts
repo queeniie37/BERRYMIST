@@ -307,25 +307,14 @@ export class BerryDatabase {
           const chapsData = storeRead(`berry_mist_chapters`);
           const chapsList = chapsData ? JSON.parse(chapsData) as Chapter[] : [];
 
-          const userStr = storeRead('berry_mist_current_user_data');
-          const currentUser = userStr ? JSON.parse(userStr) : null;
-
           const updated = novelsList.map(n => {
             let nChaps = chapsList.filter(c => c.novelId === n.id);
 
-            // Scheduled (future publishAt) chapters count only for the
-            // owner and the novel's own translator. The viewer's identity
-            // decides — never the novel's publisher, otherwise every visitor
-            // would see the owner's scheduled chapters before their time.
-            const isAuthorized = currentUser && (
-              currentUser.role === 'OWNER' ||
-              currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' ||
-              n.translatorId === currentUser.id
-            );
-
-            if (!isAuthorized) {
-              nChaps = nChaps.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
-            }
+            // Scheduled (future publishAt) chapters never count as
+            // published — for anyone, owner and translator included. Until
+            // their time arrives they exist only in the translator panel's
+            // Activity & Scheduling page.
+            nChaps = nChaps.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
             
             const actualCount = nChaps.length;
             return { ...n, chaptersCount: actualCount };

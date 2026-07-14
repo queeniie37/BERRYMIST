@@ -187,10 +187,10 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     let novelChapters = allChapters.filter(c => c.novelId === novelId);
 
-    // Filter out scheduled chapters for non-author / non-owner users
-    if (currentUser.role !== 'OWNER' && foundNovel?.translatorId !== currentUser.id) {
-      novelChapters = novelChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
-    }
+    // Scheduled chapters are unreadable for everyone (owner and translator
+    // included) until their publish time — they live only in the Activity &
+    // Scheduling page of the translator panel before that.
+    novelChapters = novelChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
 
     // Sort chapters by number ascending
     novelChapters.sort((a, b) => a.number - b.number);
