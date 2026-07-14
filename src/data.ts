@@ -467,7 +467,10 @@ export class BerryDatabase {
         'translator_requests', 'ads', 'role_assignments', 'user_badges', 'user_directory',
         'site_name', 'site_logo', 'site_banner',
         'footer_description', 'footer_email', 'footer_support_text',
-        'footer_community_text', 'footer_socials'
+        'footer_community_text', 'footer_socials',
+        // Owner-editable "Contact us" page content + the inbox of messages
+        // visitors send, so both sync across every device.
+        'contact_settings', 'contact_messages'
       ];
       
       for (const key of keysToSync) {
