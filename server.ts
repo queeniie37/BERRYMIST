@@ -113,6 +113,35 @@ app.get("/api/db", (req, res) => {
   res.type("application/json").send(body);
 });
 
+// Comments are written by many visitors at once. A plain "replace the whole
+// array" write makes the last writer erase everyone else's fresh comments,
+// so instead the server merges: comments only the server knows about are
+// kept, and for comments both sides know the newest version wins. Deleted
+// comments arrive as tombstones ({deleted:true}) so deletions survive the
+// merge; tombstones older than 30 days are purged.
+function commentTime(c: any): number {
+  const t = Date.parse(c?.updatedAt || c?.createdAt || "");
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function mergeComments(stored: any, incoming: any): any[] {
+  const storedList = Array.isArray(stored) ? stored : [];
+  const incomingList = Array.isArray(incoming) ? incoming : [];
+  const byId = new Map<string, any>();
+  for (const c of storedList) {
+    if (c && typeof c === "object" && typeof c.id === "string") byId.set(c.id, c);
+  }
+  for (const c of incomingList) {
+    if (!c || typeof c !== "object" || typeof c.id !== "string") continue;
+    const prev = byId.get(c.id);
+    if (!prev || commentTime(c) >= commentTime(prev)) byId.set(c.id, c);
+  }
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  return [...byId.values()]
+    .filter((c) => !c.deleted || commentTime(c) > cutoff)
+    .sort((a, b) => commentTime(b) - commentTime(a));
+}
+
 app.post("/api/db", (req, res) => {
   const { key, value } = req.body;
   if (!key || typeof key !== "string") {
@@ -122,7 +151,7 @@ app.post("/api/db", (req, res) => {
     return res.status(403).json({ error: "This key is private and cannot be synced" });
   }
   const currentDb = loadDb();
-  currentDb[key] = value;
+  currentDb[key] = key === "comments" ? mergeComments(currentDb[key], value) : value;
   saveDb(currentDb);
   res.json({ success: true });
 });

@@ -444,12 +444,26 @@ export default function App() {
           const correspondingNovel = allNovels.find(n => n.id === chap.novelId);
           const novelTitle = correspondingNovel ? correspondingNovel.titleAr : 'الرواية المترجمة';
 
-          // Add a notification toast/alert
+          // Private confirmation for the chapter's translator
           allNotifs.unshift({
             id: `notif-scheduled-publish-${Date.now()}-${chap.id}`,
             userId: correspondingNovel?.translatorId || 'system',
             title: '🎉 نشر تلقائي لفصل مجدول!',
             message: `لقد حان وقت النشر الميلادي المحدد للفصل "${chap.title}" من رواية "${novelTitle}" وتم نشره تلقائياً للقراء الآن!`,
+            type: 'CHAPTER',
+            isRead: false,
+            createdAt: 'الآن',
+            novelId: chap.novelId,
+            chapterId: chap.id
+          });
+
+          // Public "new chapter" announcement for readers — sent at the
+          // scheduled time, not when the chapter was created (no userId =
+          // visible to everyone).
+          allNotifs.unshift({
+            id: `notif-chapter-live-${Date.now()}-${chap.id}`,
+            title: 'فصل جديد صدر!',
+            message: `تم نشر "${chap.title}" من رواية "${novelTitle}" وهو متاح الآن للقراءة!`,
             type: 'CHAPTER',
             isRead: false,
             createdAt: 'الآن',
@@ -776,10 +790,47 @@ export default function App() {
       }
     }
 
+    // Record every in-app screen in the browser history so the back button
+    // walks back through the visited screens instead of leaving the site.
+    // Re-clicking the current screen doesn't stack a duplicate entry.
+    try {
+      const isSameScreen = page === currentPage && JSON.stringify(params) === JSON.stringify(currentParams);
+      if (!isSameScreen) {
+        window.history.pushState({ berryPage: page, berryParams: params }, '');
+      }
+    } catch { /* history API unavailable */ }
+
     setCurrentPage(page);
     setCurrentParams(params);
     window.scrollTo(0, 0);
   };
+
+  // Browser back/forward support: restore the screen saved in the history
+  // entry instead of unloading the whole site.
+  useEffect(() => {
+    // Stamp the entry the visitor is currently on so going back to it
+    // (or refreshing) restores the right screen.
+    try {
+      const cur = restoreLastScreen();
+      window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '');
+    } catch { /* history API unavailable */ }
+
+    const handlePopState = (e: PopStateEvent) => {
+      const s = e.state;
+      if (s && typeof s.berryPage === 'string') {
+        setCurrentPage(s.berryPage);
+        setCurrentParams(s.berryParams ?? null);
+      } else {
+        // A history entry created outside the app (shouldn't normally
+        // happen) — land on the homepage instead of a broken screen.
+        setCurrentPage('home');
+        setCurrentParams(null);
+      }
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Toggle Novel Bookmarks (Mofaddala)
   const handleBookmarkToggle = (novelId: string) => {

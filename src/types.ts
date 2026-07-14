@@ -138,6 +138,12 @@ export interface Comment {
   replies: CommentReply[];
   createdAt: string;
   isSpoiler?: boolean;
+  // Last modification time (likes/replies/deletion). The server merges
+  // concurrent writes per-comment and keeps the newest version.
+  updatedAt?: string;
+  // Tombstone: deleted comments are kept (hidden) so the deletion survives
+  // the server-side merge instead of being resurrected by another device.
+  deleted?: boolean;
 }
 
 export interface Review {
