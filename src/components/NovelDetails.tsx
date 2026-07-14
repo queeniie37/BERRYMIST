@@ -176,14 +176,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     let foundChapters = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
 
-    // Scheduled (future publishAt) chapters are visible only to the owner
-    // and the novel's own translator. The VIEWER decides — never the novel's
-    // publisher, otherwise every visitor would see the owner's scheduled
-    // chapters before their publish time.
-    const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id);
-    if (!isAuthorized) {
-      foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
-    }
+    // Scheduled (future publishAt) chapters never show in the novel's
+    // chapter list — not even for the owner/translator. Until their publish
+    // time arrives they live exclusively in the Activity & Scheduling page
+    // of the translator panel.
+    foundChapters = foundChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
     setChapters(foundChapters);
     setNewChapterNumber('');
 
@@ -206,14 +203,20 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // time arrives (checked every 15s), without re-opening the page.
   useEffect(() => {
     const refreshChapters = () => {
+      // If the novel itself wasn't in the local cache when the page opened
+      // (direct link / first visit before the first server sync), pick it up
+      // now instead of leaving the page blank.
       const allNovels = BerryDatabase.get<Novel[]>('novels', []);
       const foundNovel = allNovels.find(n => n.id === novelId);
+      if (foundNovel) {
+        setNovel(prev => prev ?? foundNovel);
+      }
+
       const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
       let list = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
-      const isAuthorized = currentUser.role === 'OWNER' || currentUser.email?.toLowerCase() === 'berrymist11@gmail.com' || (foundNovel && foundNovel.translatorId === currentUser.id);
-      if (!isAuthorized) {
-        list = list.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
-      }
+      // Scheduled chapters are hidden from the chapter list for everyone
+      // (owner and translator included) until their publish time arrives.
+      list = list.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
       setChapters(prev => {
         // Avoid re-render churn when nothing actually changed
         if (prev.length === list.length && prev.every((p, i) => p.id === list[i].id && p.title === list[i].title)) return prev;
@@ -221,9 +224,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       });
     };
     window.addEventListener('chapters-updated', refreshChapters);
+    window.addEventListener('novels-updated', refreshChapters);
     const timer = setInterval(refreshChapters, 15000);
     return () => {
       window.removeEventListener('chapters-updated', refreshChapters);
+      window.removeEventListener('novels-updated', refreshChapters);
       clearInterval(timer);
     };
   }, [novelId, currentUser]);
