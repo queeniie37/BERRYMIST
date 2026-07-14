@@ -87,10 +87,38 @@ function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: stri
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
+  // Every in-app screen gets its own URL hash (e.g. #/novel?d=...). This is
+  // what makes the browser back/forward buttons walk through visited screens
+  // even after a page reload or on browsers that drop history state objects.
+  const buildScreenHash = (page: string, params: any) => {
+    let h = `#/${page}`;
+    if (params !== null && params !== undefined) {
+      try { h += `?d=${encodeURIComponent(JSON.stringify(params))}`; } catch { /* ignore */ }
+    }
+    return h;
+  };
+  const parseScreenHash = (): { page: string; params: any } | null => {
+    try {
+      const raw = window.location.hash || '';
+      const m = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
+      if (!m) return null;
+      let params: any = null;
+      if (m[2]) {
+        try { params = JSON.parse(decodeURIComponent(m[2])); } catch { params = null; }
+      }
+      return { page: m[1], params };
+    } catch {
+      return null;
+    }
+  };
+
   // Restore the last visited screen after a page refresh so the visitor
   // stays exactly where they were (same novel/chapter) instead of being
-  // thrown back to the homepage.
+  // thrown back to the homepage. The URL hash wins when present (it's the
+  // exact entry the browser is showing); sessionStorage is the fallback.
   const restoreLastScreen = () => {
+    const fromHash = parseScreenHash();
+    if (fromHash) return fromHash;
     try {
       const raw = sessionStorage.getItem('berry_mist_last_page');
       if (raw) {
@@ -790,13 +818,14 @@ export default function App() {
       }
     }
 
-    // Record every in-app screen in the browser history so the back button
-    // walks back through the visited screens instead of leaving the site.
-    // Re-clicking the current screen doesn't stack a duplicate entry.
+    // Record every in-app screen in the browser history (with its own URL
+    // hash) so the back button walks back through the visited screens
+    // instead of leaving the site. Re-clicking the current screen doesn't
+    // stack a duplicate entry.
     try {
       const isSameScreen = page === currentPage && JSON.stringify(params) === JSON.stringify(currentParams);
       if (!isSameScreen) {
-        window.history.pushState({ berryPage: page, berryParams: params }, '');
+        window.history.pushState({ berryPage: page, berryParams: params }, '', buildScreenHash(page, params));
       }
     } catch { /* history API unavailable */ }
 
@@ -812,20 +841,18 @@ export default function App() {
     // (or refreshing) restores the right screen.
     try {
       const cur = restoreLastScreen();
-      window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '');
+      window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '', buildScreenHash(cur.page, cur.params));
     } catch { /* history API unavailable */ }
 
     const handlePopState = (e: PopStateEvent) => {
+      // Prefer the state object; fall back to the entry's URL hash for
+      // browsers/sessions where the state object didn't survive.
       const s = e.state;
-      if (s && typeof s.berryPage === 'string') {
-        setCurrentPage(s.berryPage);
-        setCurrentParams(s.berryParams ?? null);
-      } else {
-        // A history entry created outside the app (shouldn't normally
-        // happen) — land on the homepage instead of a broken screen.
-        setCurrentPage('home');
-        setCurrentParams(null);
-      }
+      const target = (s && typeof s.berryPage === 'string')
+        ? { page: s.berryPage, params: s.berryParams ?? null }
+        : (parseScreenHash() || { page: 'home', params: null });
+      setCurrentPage(target.page);
+      setCurrentParams(target.params);
       window.scrollTo(0, 0);
     };
     window.addEventListener('popstate', handlePopState);
