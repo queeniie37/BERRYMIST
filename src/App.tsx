@@ -977,10 +977,40 @@ export default function App() {
   // except cancelled or pending ones. Interaction (bookmarks, comments, votes) still requires signing in.
   const activeNovels = useMemo(() => novels.filter(n => n.status !== 'CANCELLED' && n.status !== 'PENDING'), [novels]);
 
-  // Filter trending list (sorted by views / popular)
+  // Number of comments per novel (comments on the novel itself + on any of its
+  // chapters). Feeds the trending score. Recomputed live when comments or
+  // chapters change on this or another device.
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const recompute = () => {
+      const allComments = BerryDatabase.get<any[]>('comments', []);
+      const allChapters = BerryDatabase.get<any[]>('chapters', []);
+      const chapterToNovel: Record<string, string> = {};
+      for (const ch of allChapters) if (ch && ch.id) chapterToNovel[ch.id] = ch.novelId;
+      const counts: Record<string, number> = {};
+      for (const c of allComments) {
+        if (!c || c.deleted) continue;
+        const novelId = c.refType === 'NOVEL' ? c.refId : chapterToNovel[c.refId];
+        if (novelId) counts[novelId] = (counts[novelId] || 0) + 1;
+      }
+      setCommentCounts(counts);
+    };
+    recompute();
+    window.addEventListener('comments-updated', recompute);
+    window.addEventListener('chapters-updated', recompute);
+    return () => {
+      window.removeEventListener('comments-updated', recompute);
+      window.removeEventListener('chapters-updated', recompute);
+    };
+  }, []);
+
+  // Trending list: ranked by engagement = number of views + number of
+  // comments, so the busiest novels (most-viewed and most-discussed) surface.
   const trendingNovels = useMemo(() => [...activeNovels]
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 8), [activeNovels]);
+    .map(n => ({ n, score: (n.views || 0) + (commentCounts[n.id] || 0) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(x => x.n), [activeNovels, commentCounts]);
 
   // Latest added chapters list (with new tag)
   const latestChaptersList = useMemo(() => [...activeNovels]
