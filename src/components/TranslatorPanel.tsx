@@ -1227,6 +1227,16 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
               </span>
             </div>
 
+            {/* Permanent rule notice: chapters stay editable for 15 days from
+                their publish date. Always shown at the top of the activity
+                desk so translators/writers know the window. */}
+            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center gap-3">
+              <span className="text-lg shrink-0">⏳</span>
+              <p className="text-[11px] text-blue-200 font-bold leading-relaxed">
+                يمكنك تعديل الفصول خلال 15 يوماً من تاريخ النشر. بعد مرور 15 يوماً يُغلق التعديل والحذف تلقائياً على الفصل.
+              </p>
+            </div>
+
             {chapters.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {chapters.map((chap) => {
