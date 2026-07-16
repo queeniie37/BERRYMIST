@@ -74,6 +74,11 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
   );
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  // When true the chapter text is blurred behind a lock overlay. Triggered by
+  // a screenshot attempt (PrintScreen) or when the window loses focus / is
+  // hidden — the exact moments a snipping tool or screen-capture overlay is
+  // active — so a captured frame shows only blurred, unreadable text.
+  const [screenshotGuard, setScreenshotGuard] = useState(false);
   const [hasPrevChapter, setHasPrevChapter] = useState(false);
   const [hasNextChapter, setHasNextChapter] = useState(false);
   
@@ -301,25 +306,68 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     const blockDrag = (e: DragEvent) => e.preventDefault();
     
     const blockShortcuts = (e: KeyboardEvent) => {
-      // Block Ctrl+P (Print), Ctrl+S (Save), Ctrl+U (View Source)
+      // Block Ctrl+P (Print), Ctrl+S (Save), Ctrl+U (View Source), Ctrl+C
       if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S' || e.key === 'u' || e.key === 'U' || e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
         alert('محتوى الفصول محمي ضد السرقة والنسخ والتحميل بموجب حقوق النشر لمنصة Berry Mist ©');
       }
+      // Windows Snipping Tool (Win+Shift+S) — best effort; the OS usually
+      // grabs this first, but the focus-loss guard below covers that case.
+      if (e.shiftKey && (e.key === 'S' || e.key === 's') && (e.metaKey || e.getModifierState?.('Meta'))) {
+        e.preventDefault();
+        triggerScreenshotGuard();
+      }
     };
+
+    // Briefly blur the page and wipe the clipboard when a screenshot is taken.
+    let guardTimer: ReturnType<typeof setTimeout> | undefined;
+    const triggerScreenshotGuard = () => {
+      setScreenshotGuard(true);
+      // On Windows PrintScreen copies the screen into the clipboard; overwrite
+      // it so the captured image can't simply be pasted.
+      try { navigator.clipboard?.writeText('محتوى محمي بحقوق النشر — Berry Mist ©'); } catch { /* clipboard blocked */ }
+      if (guardTimer) clearTimeout(guardTimer);
+      guardTimer = setTimeout(() => setScreenshotGuard(false), 1400);
+    };
+
+    const onScreenshotKey = (e: KeyboardEvent) => {
+      // PrintScreen usually only surfaces on keyup.
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+        triggerScreenshotGuard();
+      }
+    };
+
+    // A snipping tool / screen-capture overlay steals focus from the page;
+    // switching apps to take a phone-mirrored shot hides it. Blur in both
+    // cases so any capture taken meanwhile is unreadable.
+    const hide = () => setScreenshotGuard(true);
+    const reveal = () => {
+      if (guardTimer) clearTimeout(guardTimer);
+      setScreenshotGuard(false);
+    };
+    const onVisibility = () => { if (document.hidden) hide(); else reveal(); };
 
     document.addEventListener('copy', blockCopy);
     document.addEventListener('cut', blockCut);
     document.addEventListener('contextmenu', blockContextMenu);
     document.addEventListener('dragstart', blockDrag);
     document.addEventListener('keydown', blockShortcuts);
+    document.addEventListener('keyup', onScreenshotKey);
+    window.addEventListener('blur', hide);
+    window.addEventListener('focus', reveal);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
+      if (guardTimer) clearTimeout(guardTimer);
       document.removeEventListener('copy', blockCopy);
       document.removeEventListener('cut', blockCut);
       document.removeEventListener('contextmenu', blockContextMenu);
       document.removeEventListener('dragstart', blockDrag);
       document.removeEventListener('keydown', blockShortcuts);
+      document.removeEventListener('keyup', onScreenshotKey);
+      window.removeEventListener('blur', hide);
+      window.removeEventListener('focus', reveal);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [currentUser]);
 
@@ -720,14 +768,27 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
         </div>
       )}
 
+      {/* Anti-screenshot lock overlay: covers the reader while the window is
+          out of focus / a screenshot was just taken, so a captured frame
+          shows this notice instead of the chapter. Owners are never guarded. */}
+      {currentUser.role !== 'OWNER' && screenshotGuard && (
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-[#0F0B14]/95 backdrop-blur-2xl text-center px-6 select-none">
+          <span className="text-4xl">🔒</span>
+          <p className="text-sm font-extrabold text-white">المحتوى محمي ضد لقطات الشاشة</p>
+          <p className="text-[11px] text-purple-300 max-w-xs leading-relaxed">
+            جميع فصول Berry Mist محمية بحقوق النشر ©. عد إلى نافذة القراءة لمتابعة الفصل.
+          </p>
+        </div>
+      )}
+
       {/* Main Chapter Content Frame */}
       <div
         ref={readerRef}
-        className={`w-full max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 leading-relaxed relative watermarked-text ${currentUser.role !== 'OWNER' ? 'select-none print-protected' : ''}`}
+        className={`w-full max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-16 leading-relaxed relative watermarked-text transition-[filter] duration-150 ${currentUser.role !== 'OWNER' ? 'select-none print-protected' : ''}`}
         data-watermark={`BERRY MIST - ${currentUser.username}`}
-        style={{ 
-          fontSize: `${fontSize}px`, 
-          fontFamily: 
+        style={{
+          fontSize: `${fontSize}px`,
+          fontFamily:
             fontFamily === 'cairo' ? '"Cairo", "Tajawal", sans-serif' :
             fontFamily === 'naskh' ? '"Noto Naskh Arabic", "Amiri", serif' :
             fontFamily === 'tajawal' ? '"Tajawal", sans-serif' :
@@ -738,7 +799,10 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
           fontWeight: fontBold ? 'bold' : 'normal',
           opacity: fontContrast === 'high' ? 1 : fontContrast === 'medium' ? 0.85 : 0.7,
           userSelect: currentUser.role !== 'OWNER' ? 'none' : 'auto',
-          WebkitUserSelect: currentUser.role !== 'OWNER' ? 'none' : 'auto'
+          WebkitUserSelect: currentUser.role !== 'OWNER' ? 'none' : 'auto',
+          // Blur the actual text under the overlay so even a capture that
+          // races the overlay grabs unreadable content.
+          filter: currentUser.role !== 'OWNER' && screenshotGuard ? 'blur(14px)' : 'none'
         }}
       >
         <div className={`mb-8 text-center ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}>
