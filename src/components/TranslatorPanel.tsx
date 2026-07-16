@@ -1679,7 +1679,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   rows={16}
                   value={editChapterContent}
                   onChange={(e) => setEditChapterContent(e.target.value)}
-                  className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white font-sans min-h-[45vh] resize-y"
+                  className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white font-sans text-base leading-8 min-h-[45vh] resize-y"
                 />
               </div>
 

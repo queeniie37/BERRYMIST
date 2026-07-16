@@ -1040,7 +1040,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             contentEditable
             onInput={handleEditorInput}
             placeholder="محتوى الفصل"
-            className="w-full bg-[#13101E] px-4 py-4 text-xs text-white text-right outline-none font-sans min-h-[50vh] overflow-y-auto placeholder-purple-300/40 border border-white/5 rounded-xl empty:before:content-[attr(placeholder)] empty:before:text-purple-300/40 empty:before:pointer-events-none focus:border-violet-500 transition-all [&_img]:max-h-[750px] [&_img]:w-full [&_img]:max-w-[700px] [&_img]:my-6 [&_img]:mx-auto [&_img]:rounded-2xl [&_img]:shadow-[0_10px_35px_rgba(0,0,0,0.6)] [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain [&_img]:bg-black/30 [&_img]:p-1.5 hover:[&_img]:border-violet-500/40 hover:[&_img]:scale-[1.01] [&_img]:transition-all [&_img]:duration-300"
+            className="w-full bg-[#13101E] px-4 py-4 text-base leading-8 text-white text-right outline-none font-sans min-h-[50vh] overflow-y-auto placeholder-purple-300/40 border border-white/5 rounded-xl empty:before:content-[attr(placeholder)] empty:before:text-purple-300/40 empty:before:pointer-events-none focus:border-violet-500 transition-all [&_img]:max-h-[750px] [&_img]:w-full [&_img]:max-w-[700px] [&_img]:my-6 [&_img]:mx-auto [&_img]:rounded-2xl [&_img]:shadow-[0_10px_35px_rgba(0,0,0,0.6)] [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain [&_img]:bg-black/30 [&_img]:p-1.5 hover:[&_img]:border-violet-500/40 hover:[&_img]:scale-[1.01] [&_img]:transition-all [&_img]:duration-300"
           />
         </div>
 
