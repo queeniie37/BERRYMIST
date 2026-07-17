@@ -112,31 +112,31 @@ export default function App() {
     }
   };
 
-  // Restore the last visited screen after a page refresh so the visitor
-  // stays exactly where they were (same novel/chapter) instead of being
-  // thrown back to the homepage. The URL hash wins when present (it's the
-  // exact entry the browser is showing); sessionStorage is the fallback.
+  // Screens that actually exist in the app. Any entry URL pointing anywhere
+  // else (mistyped/stale copied link) must open the homepage instead of a
+  // blank screen.
+  const KNOWN_PAGES = new Set([
+    'home', 'explore', 'suggestions', 'teams', 'notifications', 'profile',
+    'profile-edit', 'novel', 'reader', 'translator-panel', 'admin', 'ads',
+    'contact-us', 'privacy-policy', 'terms-of-service'
+  ]);
+
+  // Decide the first screen for this entry to the site:
+  // - A copied/shared link (URL hash, e.g. #/novel?d=…) opens exactly that
+  //   page — refreshes keep their page the same way because the current
+  //   screen is always stamped into the URL hash.
+  // - Entering the bare domain (no hash) ALWAYS opens the homepage. The old
+  //   sessionStorage fallback could bounce a visitor who typed the domain
+  //   into a previously-used tab back to a random earlier screen.
   const restoreLastScreen = () => {
     const fromHash = parseScreenHash();
-    if (fromHash) return fromHash;
-    try {
-      const raw = sessionStorage.getItem('berry_mist_last_page');
-      if (raw) {
-        const v = JSON.parse(raw);
-        if (v && typeof v.page === 'string') return v;
-      }
-    } catch { /* sessionStorage unavailable */ }
+    if (fromHash && KNOWN_PAGES.has(fromHash.page)) return fromHash;
     return { page: 'home', params: null };
   };
   const [currentPage, setCurrentPage] = useState<string>(() => restoreLastScreen().page); // home, explore, suggestions, teams, profile, novel, reader, translator-panel, admin
   const [currentParams, setCurrentParams] = useState<any>(() => restoreLastScreen().params);
 
-  // Keep the current screen + scroll position saved for refresh restore
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('berry_mist_last_page', JSON.stringify({ page: currentPage, params: currentParams }));
-    } catch { /* ignore */ }
-  }, [currentPage, currentParams]);
+  // Keep the scroll position saved for refresh restore
   useEffect(() => {
     const saveScroll = () => {
       try { sessionStorage.setItem('berry_mist_scroll', String(window.scrollY)); } catch { /* ignore */ }
@@ -852,9 +852,10 @@ export default function App() {
       // Prefer the state object; fall back to the entry's URL hash for
       // browsers/sessions where the state object didn't survive.
       const s = e.state;
-      const target = (s && typeof s.berryPage === 'string')
+      let target = (s && typeof s.berryPage === 'string')
         ? { page: s.berryPage, params: s.berryParams ?? null }
         : (parseScreenHash() || { page: 'home', params: null });
+      if (!KNOWN_PAGES.has(target.page)) target = { page: 'home', params: null };
       setCurrentPage(target.page);
       setCurrentParams(target.params);
       window.scrollTo(0, 0);

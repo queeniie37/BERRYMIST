@@ -13,6 +13,13 @@ RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !https
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+# Canonical host: send www.berrymist.online to the bare berrymist.online so
+# every visitor lands on ONE origin. Accounts, bookmarks, and the reading
+# history live in per-origin browser storage — splitting visitors between www
+# and the bare domain would give them two separate "sites".
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
 # Route the shared-database API to the PHP handler so the site works without a
 # running Node.js server. The client keeps calling /api/db.
 RewriteRule ^api/db/?$ api/db.php [L]
