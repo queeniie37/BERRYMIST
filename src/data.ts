@@ -177,6 +177,29 @@ function storeWrite(fullKey: string, value: string): void {
   }
 }
 
+// Same per-id merge rules as the server (mergeById in server.ts /
+// merge_by_id in api/db.php): records only one side knows are kept, and for
+// records both sides know the newest updatedAt/createdAt wins — ties go to
+// the LOCAL copy so un-stamped counter bumps survive. Server order comes
+// first so the merged result converges byte-for-byte with what the server
+// stores (otherwise ordering differences would trigger endless re-pushes).
+function recordTime(r: any): number {
+  const t = Date.parse(r?.updatedAt || r?.createdAt || '');
+  return Number.isNaN(t) ? 0 : t;
+}
+function mergeRecordsById(serverList: any, localList: any): any[] {
+  const byId = new Map<string, any>();
+  for (const r of Array.isArray(serverList) ? serverList : []) {
+    if (r && typeof r === 'object' && typeof r.id === 'string') byId.set(r.id, r);
+  }
+  for (const r of Array.isArray(localList) ? localList : []) {
+    if (!r || typeof r !== 'object' || typeof r.id !== 'string') continue;
+    const prev = byId.get(r.id);
+    if (!prev || recordTime(r) >= recordTime(prev)) byId.set(r.id, r);
+  }
+  return [...byId.values()];
+}
+
 // Database class handling storage safely with immediate cleanup migration
 export class BerryDatabase {
   // Loads persisted data into the synchronous in-memory cache. MUST complete
@@ -556,9 +579,35 @@ export class BerryDatabase {
           const localValStr = storeRead(`berry_mist_${key}`);
           const serverValStr = JSON.stringify(serverDb[key]);
 
+          // Self-healing sync for the library: never blindly overwrite the
+          // local novels/chapters with the server copy. If this device still
+          // holds records the server lost (wiped by the old overwrite bug on
+          // a not-yet-updated site), merge the two sides and push the result
+          // back up — the owner just opening the site restores the content
+          // for every visitor. Guests only merge locally; pushing recovered
+          // data is reserved for signed-in members' devices.
+          if (key === 'novels' || key === 'chapters') {
+            let localList: any[] = [];
+            try { localList = localValStr ? JSON.parse(localValStr) : []; } catch { localList = []; }
+            const merged = mergeRecordsById(serverDb[key], localList);
+            const mergedStr = JSON.stringify(merged);
+
+            if (mergedStr !== serverValStr) {
+              const u = this.get<{ role?: string } | null>('current_user_data', null);
+              if (u && u.role && u.role !== 'GUEST') {
+                this.pushToServer(key, mergedStr);
+              }
+            }
+            if (mergedStr !== localValStr) {
+              storeWrite(`berry_mist_${key}`, mergedStr);
+              this.dispatchKeyEvent(key);
+            }
+            continue;
+          }
+
           if (localValStr !== serverValStr) {
             storeWrite(`berry_mist_${key}`, serverValStr);
-            
+
             // Dispatch standard custom events so that App.tsx receives updates reactive
             if (key === 'novels') {
               window.dispatchEvent(new Event('novels-updated'));
