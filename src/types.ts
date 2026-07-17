@@ -45,6 +45,8 @@ export interface Novel {
   description: string;
   updatesLink?: string;
   createdAt: string;
+  updatedAt?: string; // Last deliberate modification ISO string — newest wins in the server-side merge
+  deleted?: boolean; // Deletion tombstone — hidden by get('novels'), propagated by the server merge
   downloadAllowed?: boolean; // Managed by Owner
 }
 

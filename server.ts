@@ -152,17 +152,18 @@ function mergeComments(stored: any, incoming: any): any[] {
     .sort((a, b) => commentTime(b) - commentTime(a));
 }
 
-// Chapters used to be synced the naive way too: every client POSTed its whole
-// local array and the server stored it as-is. Any device holding a stale list
-// (a tab open since yesterday, a reader whose 30s view-counter fired before
-// the first sync, another translator publishing) would silently erase every
-// chapter it didn't know about — which is exactly how freshly scheduled
-// chapters kept disappearing. Merge like comments instead: chapters only the
-// server knows about are KEPT, for chapters both sides know the newest
-// version (updatedAt/createdAt) wins, and deletions arrive as tombstones
+// Novels and chapters used to be synced the naive way too: every client
+// POSTed its whole local array and the server stored it as-is. Any device
+// holding a stale list (a tab open since yesterday, a reader whose 30s
+// view-counter fired before the first sync, another translator publishing)
+// would silently erase every record it didn't know about — which is exactly
+// how freshly published novels and scheduled chapters kept disappearing for
+// visitors. Merge like comments instead: records only the server knows about
+// are KEPT, for records both sides know the newest version
+// (updatedAt/createdAt) wins, and deletions arrive as tombstones
 // ({deleted:true}) so they propagate without letting stale clients wipe data;
 // tombstones older than 30 days are purged.
-function mergeChapters(stored: any, incoming: any): any[] {
+function mergeById(stored: any, incoming: any): any[] {
   const storedList = Array.isArray(stored) ? stored : [];
   const incomingList = Array.isArray(incoming) ? incoming : [];
   const byId = new Map<string, any>();
@@ -189,8 +190,8 @@ app.post("/api/db", (req, res) => {
   const currentDb = loadDb();
   if (key === "comments") {
     currentDb[key] = mergeComments(currentDb[key], value);
-  } else if (key === "chapters") {
-    currentDb[key] = mergeChapters(currentDb[key], value);
+  } else if (key === "chapters" || key === "novels") {
+    currentDb[key] = mergeById(currentDb[key], value);
   } else {
     currentDb[key] = value;
   }

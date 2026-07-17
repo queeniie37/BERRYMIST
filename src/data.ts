@@ -299,7 +299,7 @@ export class BerryDatabase {
           // leaving visitors with a blank white screen. Drop entries that
           // aren't novel-shaped and default the fields the UI dereferences.
           const novelsList: Novel[] = (Array.isArray(rawList) ? rawList : [])
-            .filter((n: any) => n && typeof n === 'object' && typeof n.id === 'string')
+            .filter((n: any) => n && typeof n === 'object' && typeof n.id === 'string' && !n.deleted)
             .map((n: any) => ({
               ...n,
               titleAr: typeof n.titleAr === 'string' ? n.titleAr : (typeof n.titleEn === 'string' ? n.titleEn : 'بدون عنوان'),
@@ -461,6 +461,31 @@ export class BerryDatabase {
       return true;
     } catch (e) {
       console.error('Error deleting chapters', e);
+      return false;
+    }
+  }
+
+  // Delete novels by writing tombstones instead of removing them from the
+  // array — same rules as deleteChapters: get('novels') hides tombstones and
+  // the server-side merge propagates the deletion without letting a stale
+  // device resurrect the novel or wipe novels it never knew about.
+  static deleteNovels(novelIds: string[]): boolean {
+    try {
+      const ids = new Set(novelIds);
+      const raw = storeRead('berry_mist_novels');
+      const list = raw ? JSON.parse(raw) : [];
+      const updated = (Array.isArray(list) ? list : []).map((n: any) =>
+        n && ids.has(n.id)
+          ? { ...n, deleted: true, updatedAt: new Date().toISOString() }
+          : n
+      );
+      const serialized = JSON.stringify(updated);
+      storeWrite('berry_mist_novels', serialized);
+      this.dispatchKeyEvent('novels');
+      this.pushToServer('novels', serialized);
+      return true;
+    } catch (e) {
+      console.error('Error deleting novels', e);
       return false;
     }
   }

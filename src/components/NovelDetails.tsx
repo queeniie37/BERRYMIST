@@ -799,9 +799,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             'حذف الرواية نهائياً ⚠️ (تأكيد نهائي 2/2)',
             `تأكيد أخير ومؤكد: هل أنت متأكد تماماً من حذف رواية "${novel.titleAr}" وكافة فصولها وتعليقاتها وبياناتها للأبد؟ لا يمكن التراجع عن هذا الإجراء تحت أي ظرف!`,
             () => {
-              const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-              const updatedNovels = allNovels.filter(n => n.id !== novel.id);
-              BerryDatabase.set('novels', updatedNovels);
+              // Tombstone-delete so the removal propagates through the
+              // server-side novels merge instead of being resurrected (or
+              // wiping unrelated novels) by stale devices.
+              BerryDatabase.deleteNovels([novel.id]);
 
               const allChapters = BerryDatabase.get<any[]>('chapters', []);
               const deletedChaptersList = allChapters.filter(c => c.novelId === novel.id);

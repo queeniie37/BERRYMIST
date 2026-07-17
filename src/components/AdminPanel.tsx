@@ -305,7 +305,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
             () => {
               const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
               const updated = loadedNovels.filter(n => n.id !== novelId);
-              BerryDatabase.set('novels', updated);
+              // Tombstone-delete so the removal propagates through the
+              // server-side novels merge on every device.
+              BerryDatabase.deleteNovels([novelId]);
               setAllNovels(updated);
               setPendingNovels(updated.filter(n => n.status === 'PENDING'));
 
@@ -348,7 +350,10 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     BerryDatabase.set('deleted_novels', remainingDeleted);
     setDeletedNovels(remainingDeleted);
 
+    // Fresh updatedAt so the restored novel outranks its deletion tombstone
+    // in the server-side novels merge.
     const { deletedAt, deletedBy, chapters: savedChapters, ...originalNovel } = target;
+    originalNovel.updatedAt = new Date().toISOString();
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
     BerryDatabase.set('novels', [...allNovels, originalNovel]);
     setAllNovels([...allNovels, originalNovel]);
@@ -481,7 +486,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     const targetNovel = allNovels.find(n => n.id === novelId);
     if (!targetNovel) return;
 
-    const updated = allNovels.map(n => n.id === novelId ? { ...n, status: 'TRANSLATING' as const } : n);
+    // Fresh updatedAt so the approval outranks stale copies in the
+    // server-side novels merge.
+    const updated = allNovels.map(n => n.id === novelId ? { ...n, status: 'TRANSLATING' as const, updatedAt: new Date().toISOString() } : n);
     BerryDatabase.set('novels', updated);
     setPendingNovels(updated.filter(n => n.status === 'PENDING'));
 
@@ -512,9 +519,10 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     const targetNovel = allNovels.find(n => n.id === novelId);
     if (!targetNovel) return;
 
-    // Remove or set as CANCELLED
+    // Remove via tombstone so the rejection propagates through the
+    // server-side novels merge on every device.
     const updated = allNovels.filter(n => n.id !== novelId);
-    BerryDatabase.set('novels', updated);
+    BerryDatabase.deleteNovels([novelId]);
     setPendingNovels(updated.filter(n => n.status === 'PENDING'));
 
     // Notify creator with reject reason
