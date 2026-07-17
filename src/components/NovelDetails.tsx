@@ -703,6 +703,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       content: normalizeChapterText(newChapterContent),
       views: 0,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       isDraft: isScheduled,
       publishAt: newChapterPublishAt || undefined,
       images: imgUrls.length > 0 ? imgUrls : undefined
@@ -805,8 +806,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               const allChapters = BerryDatabase.get<any[]>('chapters', []);
               const deletedChaptersList = allChapters.filter(c => c.novelId === novel.id);
               const deletedChapterIds = deletedChaptersList.map(c => c.id);
-              const updatedChapters = allChapters.filter(c => c.novelId !== novel.id);
-              BerryDatabase.set('chapters', updatedChapters);
+              // Tombstone-delete so the removal propagates through the
+              // server-side chapters merge instead of being resurrected (or
+              // wiping unrelated chapters) by stale devices.
+              BerryDatabase.deleteChapters(deletedChapterIds);
 
               const allReservations = BerryDatabase.get<any[]>('reservations', []);
               const updatedReservations = allReservations.filter(r => r.novelId !== novel.id);
@@ -864,10 +867,11 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
             'حذف الفصل نهائياً ⚠️ (تأكيد نهائي 2/2)',
             `تأكيد أخير ومؤكد: هل أنت متأكد تماماً وبشكل قاطع من حذف الفصل رقم ${chapterNumber} وكافة تعليقاته نهائياً؟ هذا الإجراء لا يمكن التراجع عنه مطلقاً!`,
             () => {
-              // Delete from active chapters
+              // Delete from active chapters (tombstone so the deletion
+              // survives the server-side chapters merge on every device)
               const allChapters = BerryDatabase.get<any[]>('chapters', []);
               const remainingChapters = allChapters.filter(c => c.id !== chapterId);
-              BerryDatabase.set('chapters', remainingChapters);
+              BerryDatabase.deleteChapters([chapterId]);
 
               // Filter local state
               setChapters(prev => prev.filter(c => c.id !== chapterId));

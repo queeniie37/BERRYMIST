@@ -273,6 +273,22 @@ export class BerryDatabase {
         return defaultValue;
       }
 
+      if (key === 'chapters') {
+        // Hide tombstoned (deleted) and malformed chapters everywhere in the
+        // UI. Tombstones stay in storage so the server-side merge propagates
+        // the deletion to every device instead of resurrecting the chapter —
+        // and, crucially, so a stale device can never wipe other people's
+        // freshly published/scheduled chapters.
+        const data = storeRead('berry_mist_chapters');
+        if (data) {
+          const rawList = JSON.parse(data);
+          const list = (Array.isArray(rawList) ? rawList : [])
+            .filter((c: any) => c && typeof c === 'object' && typeof c.id === 'string' && !c.deleted);
+          return list as unknown as T;
+        }
+        return defaultValue;
+      }
+
       if (key === 'novels') {
         const data = storeRead(`berry_mist_novels`);
         if (data) {
@@ -305,7 +321,9 @@ export class BerryDatabase {
               createdAt: typeof n.createdAt === 'string' ? n.createdAt : new Date(0).toISOString()
             }));
           const chapsData = storeRead(`berry_mist_chapters`);
-          const chapsList = chapsData ? JSON.parse(chapsData) as Chapter[] : [];
+          const rawChaps = chapsData ? JSON.parse(chapsData) : [];
+          const chapsList = (Array.isArray(rawChaps) ? rawChaps : [])
+            .filter((c: any) => c && typeof c === 'object' && !c.deleted) as Chapter[];
 
           const updated = novelsList.map(n => {
             let nChaps = chapsList.filter(c => c.novelId === n.id);
@@ -417,6 +435,32 @@ export class BerryDatabase {
       return true;
     } catch (e) {
       console.error('Error deleting comment', e);
+      return false;
+    }
+  }
+
+  // Delete chapters by writing tombstones instead of removing them from the
+  // array. get('chapters') hides tombstones, and the server-side merge keeps
+  // them, so the deletion reaches every device — while a plain removal would
+  // let any stale device "resurrect" the chapter (or worse, wipe chapters it
+  // never knew about, which is how scheduled chapters used to disappear).
+  static deleteChapters(chapterIds: string[]): boolean {
+    try {
+      const ids = new Set(chapterIds);
+      const raw = storeRead('berry_mist_chapters');
+      const list = raw ? JSON.parse(raw) : [];
+      const updated = (Array.isArray(list) ? list : []).map((c: any) =>
+        c && ids.has(c.id)
+          ? { ...c, deleted: true, updatedAt: new Date().toISOString() }
+          : c
+      );
+      const serialized = JSON.stringify(updated);
+      storeWrite('berry_mist_chapters', serialized);
+      this.dispatchKeyEvent('chapters');
+      this.pushToServer('chapters', serialized);
+      return true;
+    } catch (e) {
+      console.error('Error deleting chapters', e);
       return false;
     }
   }

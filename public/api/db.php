@@ -93,6 +93,36 @@ function merge_comments($stored, $incoming) {
     return $merged;
 }
 
+/**
+ * Chapters used to be stored as a whole-array replace: any device holding a
+ * stale list (an old open tab, a reader whose view counter fired before the
+ * first sync, another translator publishing) erased every chapter it didn't
+ * know about — which is how freshly scheduled chapters kept disappearing.
+ * Merge like comments instead: chapters only the server knows about are
+ * KEPT, for chapters both sides know the newest version wins, and deletions
+ * arrive as tombstones ({deleted:true}) so they propagate without letting a
+ * stale client wipe data; tombstones older than 30 days are purged.
+ */
+function merge_chapters($stored, $incoming) {
+    $stored = is_array($stored) ? $stored : array();
+    $incoming = is_array($incoming) ? $incoming : array();
+    $by_id = array();
+    foreach ($stored as $c) {
+        if (is_array($c) && isset($c['id']) && is_string($c['id'])) $by_id[$c['id']] = $c;
+    }
+    foreach ($incoming as $c) {
+        if (!is_array($c) || !isset($c['id']) || !is_string($c['id'])) continue;
+        $prev = isset($by_id[$c['id']]) ? $by_id[$c['id']] : null;
+        if ($prev === null || comment_time($c) >= comment_time($prev)) $by_id[$c['id']] = $c;
+    }
+    $cutoff = (time() - 30 * 24 * 60 * 60) * 1000;
+    $merged = array();
+    foreach ($by_id as $c) {
+        if (empty($c['deleted']) || comment_time($c) > $cutoff) $merged[] = $c;
+    }
+    return $merged;
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'OPTIONS') {
@@ -177,6 +207,8 @@ if ($method === 'POST') {
     $value = isset($body['value']) ? $body['value'] : null;
     if ($key === 'comments') {
         $value = merge_comments(isset($db[$key]) ? $db[$key] : array(), $value);
+    } elseif ($key === 'chapters') {
+        $value = merge_chapters(isset($db[$key]) ? $db[$key] : array(), $value);
     }
     $db[$key] = $value;
     if (!save_db($DB_FILE, $db)) {

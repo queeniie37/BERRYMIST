@@ -56,8 +56,10 @@ export interface Chapter {
   content: string; // Text containing multiple paragraphs
   views: number;
   createdAt: string;
+  updatedAt?: string; // Last modification ISO string — newest wins in the server-side merge
   isDraft: boolean;
   publishAt?: string; // Scheduled datetime ISO string
+  deleted?: boolean; // Deletion tombstone — hidden by get('chapters'), propagated by the server merge
 }
 
 export interface ChapterRevision {

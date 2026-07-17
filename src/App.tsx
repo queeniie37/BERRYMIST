@@ -467,6 +467,10 @@ export default function App() {
         const publishTime = new Date(chap.publishAt);
         if (now >= publishTime) {
           chap.isDraft = false;
+          // Fresh updatedAt so the server-side per-chapter merge treats the
+          // published version as newest — a stale device holding the old
+          // draft copy can no longer roll the publication back.
+          chap.updatedAt = new Date().toISOString();
           dbChanged = true;
 
           const correspondingNovel = allNovels.find(n => n.id === chap.novelId);

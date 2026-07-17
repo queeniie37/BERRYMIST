@@ -283,9 +283,10 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
             'حذف الفصل ونقله للأرشيف (تأكيد نهائي 2/2) ⚠️',
             `تنبيه أخير ومؤكد: هل أنت متأكد تماماً وبشكل قاطع من إزالة هذا الفصل ونقله لسلة المحذوفات؟`,
             () => {
-              // Remove from active chapters
+              // Remove from active chapters (tombstone so the deletion
+              // survives the server-side chapters merge on every device)
               const remainingChapters = allChapters.filter(c => c.id !== chapterId);
-              BerryDatabase.set('chapters', remainingChapters);
+              BerryDatabase.deleteChapters([chapterId]);
 
               // Get original novel title
               const allNovels = BerryDatabase.get<any[]>('novels', []);
@@ -342,8 +343,10 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     // Add back to active chapters
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     
-    // Clean deleted meta
+    // Clean deleted meta; fresh updatedAt so the restore outranks the
+    // deletion tombstone in the server-side chapters merge.
     const { deletedAt, deletedBy, deletedById, ...originalChapter } = chapToRestore;
+    originalChapter.updatedAt = new Date().toISOString();
     BerryDatabase.set('chapters', [...allChapters, originalChapter]);
 
     // Recalculate chapters count for novel
@@ -471,6 +474,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
           ...c,
           title: `الفصل ${editingChapter.number}: ${editChapterTitle}`,
           content: normalizeChapterText(editChapterContent),
+          updatedAt: new Date().toISOString(),
           isDraft: isScheduled,
           publishAt: editChapterPublishAt || undefined,
           images: imgUrls.length > 0 ? imgUrls : undefined

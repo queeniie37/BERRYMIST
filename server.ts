@@ -152,6 +152,32 @@ function mergeComments(stored: any, incoming: any): any[] {
     .sort((a, b) => commentTime(b) - commentTime(a));
 }
 
+// Chapters used to be synced the naive way too: every client POSTed its whole
+// local array and the server stored it as-is. Any device holding a stale list
+// (a tab open since yesterday, a reader whose 30s view-counter fired before
+// the first sync, another translator publishing) would silently erase every
+// chapter it didn't know about — which is exactly how freshly scheduled
+// chapters kept disappearing. Merge like comments instead: chapters only the
+// server knows about are KEPT, for chapters both sides know the newest
+// version (updatedAt/createdAt) wins, and deletions arrive as tombstones
+// ({deleted:true}) so they propagate without letting stale clients wipe data;
+// tombstones older than 30 days are purged.
+function mergeChapters(stored: any, incoming: any): any[] {
+  const storedList = Array.isArray(stored) ? stored : [];
+  const incomingList = Array.isArray(incoming) ? incoming : [];
+  const byId = new Map<string, any>();
+  for (const c of storedList) {
+    if (c && typeof c === "object" && typeof c.id === "string") byId.set(c.id, c);
+  }
+  for (const c of incomingList) {
+    if (!c || typeof c !== "object" || typeof c.id !== "string") continue;
+    const prev = byId.get(c.id);
+    if (!prev || commentTime(c) >= commentTime(prev)) byId.set(c.id, c);
+  }
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  return [...byId.values()].filter((c) => !c.deleted || commentTime(c) > cutoff);
+}
+
 app.post("/api/db", (req, res) => {
   const { key, value } = req.body;
   if (!key || typeof key !== "string") {
@@ -161,7 +187,13 @@ app.post("/api/db", (req, res) => {
     return res.status(403).json({ error: "This key is private and cannot be synced" });
   }
   const currentDb = loadDb();
-  currentDb[key] = key === "comments" ? mergeComments(currentDb[key], value) : value;
+  if (key === "comments") {
+    currentDb[key] = mergeComments(currentDb[key], value);
+  } else if (key === "chapters") {
+    currentDb[key] = mergeChapters(currentDb[key], value);
+  } else {
+    currentDb[key] = value;
+  }
   saveDb(currentDb);
   res.json({ success: true });
 });
