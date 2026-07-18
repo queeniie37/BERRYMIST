@@ -5,13 +5,18 @@
 // plain characters so a chapter always reads exactly like the uploaded
 // original. Inline tags the editor understands (<b>/<i>/<u>/<img>) pass
 // through untouched — the reader's sanitizer handles them.
+//
+// Layout rule: every non-empty line becomes its own paragraph with exactly
+// one blank line before the next. The reader renders each paragraph as a
+// separate block with generous spacing, so chapters always read with wide,
+// comfortable gaps between lines — no matter how the text was pasted.
 export function normalizeChapterText(raw: string): string {
   if (!raw) return '';
-  // Fast path: nothing that looks like structural markup or entities.
-  if (!/<\/?(div|p|br|span)\b|&(nbsp|amp|lt|gt|quot|#39);/i.test(raw)) return raw;
 
-  return (
-    raw
+  let text = raw;
+  // Structural markup or entities pasted along with the text
+  if (/<\/?(div|p|br|span)\b|&(nbsp|amp|lt|gt|quot|#39);/i.test(text)) {
+    text = text
       .replace(/\r\n?/g, '\n')
       // Line-break producing tags
       .replace(/<br\s*\/?>/gi, '\n')
@@ -29,10 +34,15 @@ export function normalizeChapterText(raw: string): string {
       .replace(/&#39;/g, "'")
       .replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>')
-      .replace(/&amp;/gi, '&')
-      // Tidy up: no trailing spaces, at most one blank line in a row
-      .replace(/[ \t]+\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  );
+      .replace(/&amp;/gi, '&');
+  } else {
+    text = text.replace(/\r\n?/g, '\n');
+  }
+
+  // One paragraph per line, always separated by a single blank line.
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join('\n\n');
 }
