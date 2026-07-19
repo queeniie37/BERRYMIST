@@ -1018,10 +1018,37 @@ export default function App() {
     .slice(0, 8)
     .map(x => x.n), [activeNovels, commentCounts]);
 
-  // Latest added chapters list (with new tag)
-  const latestChaptersList = useMemo(() => [...activeNovels]
-    .filter(n => n.chaptersCount > 0)
-    .slice(0, 20), [activeNovels]);
+  // Latest added chapters list (with new tag): one card per novel — never a
+  // duplicate — ordered by the moment its newest chapter became readable
+  // (publishAt for scheduled chapters, createdAt otherwise). Every chapter
+  // added to a novel moves that novel to the front of the list.
+  const latestChaptersList = useMemo(() => {
+    const allChapters = BerryDatabase.get<any[]>('chapters', []);
+    const now = new Date();
+    const lastAddedAt = new Map<string, number>();
+    for (const c of allChapters) {
+      if (c.publishAt && new Date(c.publishAt) > now) continue; // not out yet
+      const t = Date.parse(c.publishAt || c.createdAt || '') || 0;
+      if (t > (lastAddedAt.get(c.novelId) || 0)) lastAddedAt.set(c.novelId, t);
+    }
+    return [...activeNovels]
+      .filter(n => n.chaptersCount > 0)
+      .map(n => ({ ...n, lastChapterAt: lastAddedAt.get(n.id) || 0 }))
+      .sort((a, b) => b.lastChapterAt - a.lastChapterAt)
+      .slice(0, 20);
+  }, [activeNovels]);
+
+  // Honest relative timestamp for the latest-chapters cards
+  const timeAgoLabel = (ts: number): string => {
+    if (!ts) return '';
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return 'منذ لحظات';
+    if (mins < 60) return `منذ ${mins} دقيقة`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `منذ ${hours} ساعة`;
+    const days = Math.floor(hours / 24);
+    return `منذ ${days} يوم`;
+  };
 
   return (
     <div className="relative min-h-screen bg-[#0F0B14] text-purple-100 flex flex-col justify-between selection:bg-violet-600/30">
@@ -1183,7 +1210,7 @@ export default function App() {
                             
                             <div className="flex justify-between items-center mt-2 text-[10px] text-purple-300 border-t border-white/5 pt-2">
                               <span className="font-bold text-violet-300">قراءة الفصل {novel.chaptersCount} ←</span>
-                              <span className="text-purple-400">منذ دقائق</span>
+                              <span className="text-purple-400">{timeAgoLabel(novel.lastChapterAt)}</span>
                             </div>
                           </div>
                         </div>
