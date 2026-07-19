@@ -39,9 +39,10 @@ export const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
 export default function ContactUs({ currentUser, onNavigate }: ContactUsProps) {
   const isOwner = currentUser?.role === 'OWNER';
   
-  // State for the form
-  const [name, setName] = useState(currentUser?.username || '');
-  const [email, setEmail] = useState(currentUser?.email || '');
+  // State for the form. Name and email start EMPTY (no auto-fill from the
+  // logged-in account) so senders type them fresh and send quickly.
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   
