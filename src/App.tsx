@@ -359,12 +359,18 @@ export default function App() {
     };
     syncDb();
 
-    // Poll the backend server database every 2 seconds so new comments and
-    // chapters appear for everyone almost instantly. Unchanged polls cost
+    // Poll the backend server database every second so new chapters and
+    // comments appear for everyone almost instantly. Unchanged polls cost
     // almost nothing: the server answers 304 via the ETag handshake.
     const syncInterval = setInterval(() => {
       syncDb();
-    }, 2000);
+    }, 1000);
+
+    // The moment the visitor returns to the tab, sync immediately instead of
+    // waiting for the next poll tick — newly published chapters show right away.
+    const syncOnReturn = () => { if (!document.hidden) syncDb(); };
+    window.addEventListener('focus', syncOnReturn);
+    document.addEventListener('visibilitychange', syncOnReturn);
 
     // Run automatic reservation expiration check
     checkReservationsExpiration(loadedNovels, loadedSuggestions);
@@ -378,6 +384,8 @@ export default function App() {
     return () => {
       clearInterval(schedulerInterval);
       clearInterval(syncInterval);
+      window.removeEventListener('focus', syncOnReturn);
+      document.removeEventListener('visibilitychange', syncOnReturn);
       document.removeEventListener('error', handleImageError, true);
       window.removeEventListener('ads-updated', handleAdsUpdate);
       window.removeEventListener('notifications-updated', handleNotificationsUpdate);
@@ -388,22 +396,51 @@ export default function App() {
     };
   }, []);
 
-  // SEO & Document Title Dynamic Synchronizer
+  // SEO & Document Title Dynamic Synchronizer.
+  // Besides the tab title, every screen also refreshes the meta description
+  // and OpenGraph/Twitter tags, and novel pages inject Book structured data
+  // (JSON-LD) — so search engines that execute JS (Google) index each novel
+  // and chapter with its real title, description, and cover.
   useEffect(() => {
     let title = `${siteName} | المنصة العربية الفاخرة للروايات المترجمة والمؤلفة`;
-    
+    let description = `منصتك العربية الفاخرة لقراءة وتأليف وترجمة الروايات والقصص الخيالية الحصرية على ${siteName}. فصول جديدة يومياً من روايات كورية وصينية ويابانية مترجمة وروايات عربية مؤلفة.`;
+    let jsonLd: any = null;
+
+    // Trim novel descriptions to a search-friendly snippet length
+    const excerpt = (text: string, max = 160) => {
+      const clean = (text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return clean.length > max ? clean.slice(0, max - 1).trimEnd() + '…' : clean;
+    };
+
     switch (currentPage) {
       case 'home':
         title = `${siteName} | الرئيسية - المنصة العربية الفاخرة للروايات`;
         break;
       case 'explore':
         title = `المكتبة والاستكشاف | تصفح الروايات - ${siteName}`;
+        description = `تصفح مكتبة ${siteName} الكاملة: روايات مترجمة ومؤلفة في الأكشن والفانتازيا والغموض، مصنفة حسب الحالة والتصنيف، مع فصول جديدة تنزل يومياً.`;
         break;
       case 'novel':
         if (currentParams && currentParams.id) {
           const novel = novels.find(n => n.id === currentParams.id);
           if (novel) {
             title = `رواية ${novel.titleAr} (${novel.titleEn}) | ${siteName}`;
+            description = excerpt(`اقرأ رواية ${novel.titleAr} مترجمة بجودة عالية على ${siteName}. ${novel.description || ''}`);
+            jsonLd = {
+              '@context': 'https://schema.org',
+              '@type': 'Book',
+              name: novel.titleAr,
+              alternateName: novel.titleEn || undefined,
+              author: novel.author ? { '@type': 'Person', name: novel.author } : undefined,
+              inLanguage: 'ar',
+              genre: Array.isArray(novel.genres) && novel.genres.length ? novel.genres : undefined,
+              description: excerpt(novel.description || '', 300) || undefined,
+              image: novel.cover && novel.cover.startsWith('http') ? novel.cover : undefined,
+              numberOfPages: novel.chaptersCount || undefined,
+              aggregateRating: novel.rating && novel.ratingCount
+                ? { '@type': 'AggregateRating', ratingValue: novel.rating, ratingCount: novel.ratingCount, bestRating: 5 }
+                : undefined
+            };
           }
         }
         break;
@@ -412,6 +449,7 @@ export default function App() {
           const novel = novels.find(n => n.id === currentParams.novelId);
           if (novel) {
             title = `الفصل ${currentParams.chapterNumber} من رواية ${novel.titleAr} | ${siteName}`;
+            description = excerpt(`اقرأ الفصل ${currentParams.chapterNumber} من رواية ${novel.titleAr} (${novel.titleEn}) مترجماً بجودة عالية وحصرياً على ${siteName}.`);
           }
         }
         break;
@@ -439,8 +477,33 @@ export default function App() {
       default:
         break;
     }
-    
+
     document.title = title;
+
+    // Refresh the description + social-preview meta tags for this screen
+    const setMeta = (selector: string, value: string) => {
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute('content', value);
+    };
+    setMeta('meta[name="title"]', title);
+    setMeta('meta[name="description"]', description);
+    setMeta('meta[property="og:title"]', title);
+    setMeta('meta[property="og:description"]', description);
+    setMeta('meta[property="twitter:title"]', title);
+    setMeta('meta[property="twitter:description"]', description);
+
+    // Inject/replace the per-novel Book structured data
+    const JSONLD_ID = 'dynamic-page-jsonld';
+    const existing = document.getElementById(JSONLD_ID);
+    if (jsonLd) {
+      const script = existing || document.createElement('script');
+      script.id = JSONLD_ID;
+      (script as HTMLScriptElement).type = 'application/ld+json';
+      script.textContent = JSON.stringify(jsonLd);
+      if (!existing) document.head.appendChild(script);
+    } else if (existing) {
+      existing.remove();
+    }
   }, [currentPage, currentParams, novels, siteName]);
 
   // Guest browsers must stay read-only on shared data: never let an anonymous
