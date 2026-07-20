@@ -247,7 +247,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     };
     window.addEventListener('chapters-updated', refreshChapters);
     window.addEventListener('novels-updated', refreshChapters);
-    const timer = setInterval(refreshChapters, 15000);
+    const timer = setInterval(refreshChapters, 5000);
     return () => {
       window.removeEventListener('chapters-updated', refreshChapters);
       window.removeEventListener('novels-updated', refreshChapters);

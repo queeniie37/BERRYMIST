@@ -1,39 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Fragment (#...) URLs were removed: search engines strip fragments, so
+     they all counted as duplicate homepage entries. The SPA's screens are
+     indexed through the dynamic titles/descriptions/JSON-LD set by App.tsx. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://berrymist.online/</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>daily</changefreq>
+    <lastmod>2026-07-19</lastmod>
+    <changefreq>hourly</changefreq>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://berrymist.online/#novels</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://berrymist.online/#reservations</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://berrymist.online/#news</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://berrymist.online/#team</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://berrymist.online/#join</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
   </url>
 </urlset>
