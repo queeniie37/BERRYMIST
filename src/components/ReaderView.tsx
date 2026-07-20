@@ -865,30 +865,9 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
           ))}
         </div>
 
-        {/* Chapter Images Display */}
-        {(chapter as any).images && (chapter as any).images.length > 0 && (
-          <div className={`mt-12 mb-8 ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}>
-            <h4 className="text-center text-xs text-purple-400 font-bold mb-4 flex items-center justify-center gap-1.5 border-t border-b border-white/5 py-3">
-              🖼️ رسومات وتوضيحات الفصل المرفقة
-            </h4>
-            <div className="flex flex-col gap-6 items-center">
-              {(chapter as any).images.map((imgUrl: string, index: number) => (
-                <div key={index} className="relative rounded-2xl overflow-hidden border border-white/10 max-w-full shadow-2xl">
-                  <img 
-                    src={imgUrl} 
-                    alt={`Illustration ${index + 1}`} 
-                    referrerPolicy="no-referrer"
-                    className="max-h-[600px] w-auto object-contain select-none"
-                    onContextMenu={(e) => e.preventDefault()}
-                  />
-                  <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md text-[8px] text-white px-2 py-0.5 rounded font-mono select-none">
-                    صورة {index + 1}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* NOTE: the old "رسومات وتوضيحات الفصل المرفقة" attachments section
+            was removed — chapter images already render inline inside the
+            chapter text, so this section only duplicated every image. */}
 
         {/* Navigation bottom buttons (with correctly inverted arrow icons) */}
         <div className="flex flex-wrap justify-between items-center gap-2 border-t border-white/5 pt-8 mt-12 select-none">
