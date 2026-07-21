@@ -281,6 +281,30 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     };
   }, [novelId, chapterNumber, novel, chapter]);
 
+  // Keep the prev/next navigation LIVE while reading: if a new chapter is
+  // published (or a scheduled one reaches its time) while the reader is on
+  // this page, the "الفصل التالي" button activates immediately — no refresh.
+  useEffect(() => {
+    const refreshNav = () => {
+      const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
+      const list = allChapters
+        .filter(c => c.novelId === novelId)
+        .filter(c => !c.publishAt || new Date(c.publishAt) <= new Date())
+        .sort((a, b) => a.number - b.number);
+      const idx = list.findIndex(c => c.number === chapterNumber);
+      if (idx !== -1) {
+        setHasPrevChapter(idx > 0);
+        setHasNextChapter(idx < list.length - 1);
+      }
+    };
+    window.addEventListener('chapters-updated', refreshNav);
+    const navTimer = setInterval(refreshNav, 5000);
+    return () => {
+      window.removeEventListener('chapters-updated', refreshNav);
+      clearInterval(navTimer);
+    };
+  }, [novelId, chapterNumber]);
+
   // Live-refresh comments: other visitors' comments arrive through the
   // background server sync. Without this listener, anyone who opened the
   // chapter before the first sync completed (e.g. a fresh guest) would

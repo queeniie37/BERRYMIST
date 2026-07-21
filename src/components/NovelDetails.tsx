@@ -683,6 +683,15 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       alert('عذراً، يجب أن يكون رقم الفصل عدداً صحيحاً أكبر من 0!');
       return;
     }
+
+    // Never allow two chapters with the same number in one novel
+    // (get('chapters') already hides tombstoned chapters, so a deleted
+    // chapter's number can be reused).
+    const chaptersNow = BerryDatabase.get<Chapter[]>('chapters', []);
+    if (chaptersNow.some(c => c.novelId === novel.id && c.number === parsedChNum)) {
+      alert(`عذراً، يوجد بالفعل فصل يحمل الرقم ${parsedChNum} في هذه الرواية (منشور أو مجدول)! اختر رقماً مختلفاً.`);
+      return;
+    }
     if (!newChapterTitle.trim()) {
       alert('عذراً، يجب تعبئة عنوان الفصل!');
       return;
@@ -776,13 +785,16 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           chapterId: newChap.id
         }
       : {
+          // Published immediately: notify everyone who bookmarked this novel
+          // (forBookmarkers notifications are shown only on devices whose
+          // local favorites include this novel).
           id: `notif-${Date.now()}`,
-          userId: currentUser.id,
-          title: 'فصل جديد صدر!',
-          message: `تم نشر الفصل ${newChapterNum} من رواية "${novel.titleAr}" بنجاح.`,
+          forBookmarkers: true,
+          title: `نزل فصل جديد من رواية ${novel.titleAr}`,
+          message: `الفصل ${newChapterNum} متاح الآن للقراءة من روايتك المفضلة "${novel.titleAr}". استمتع! 🍇`,
           type: 'CHAPTER' as const,
           isRead: false,
-          createdAt: 'الآن',
+          createdAt: new Date().toISOString(),
           novelId: novel.id,
           chapterId: newChap.id
         };

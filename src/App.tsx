@@ -552,16 +552,18 @@ export default function App() {
             chapterId: chap.id
           });
 
-          // Public "new chapter" announcement for readers — sent at the
-          // scheduled time, not when the chapter was created (no userId =
-          // visible to everyone).
+          // "New chapter" announcement for everyone who bookmarked this
+          // novel — sent at the scheduled time, not when the chapter was
+          // created (forBookmarkers notifications show only on devices
+          // whose local favorites include this novel).
           allNotifs.unshift({
             id: `notif-chapter-live-${Date.now()}-${chap.id}`,
-            title: 'فصل جديد صدر!',
-            message: `تم نشر "${chap.title}" من رواية "${novelTitle}" وهو متاح الآن للقراءة!`,
+            forBookmarkers: true,
+            title: `نزل فصل جديد من رواية ${novelTitle}`,
+            message: `"${chap.title}" متاح الآن للقراءة من روايتك المفضلة "${novelTitle}". استمتع! 🍇`,
             type: 'CHAPTER',
             isRead: false,
-            createdAt: 'الآن',
+            createdAt: new Date().toISOString(),
             novelId: chap.novelId,
             chapterId: chap.id
           });
@@ -1688,7 +1690,13 @@ export default function App() {
                   { id: '1', title: 'فصل جديد متاح!', message: 'الفصل 165 من "بداية بعد النهاية" متوفر الآن للقراءة.', isRead: false, createdAt: 'منذ ١٠ دقائق' },
                   { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
                 ]);
+                // forBookmarkers notifications show only for members whose
+                // local favorites include that novel (bookmarks are per-device).
+                const myBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
                 const userNotifications = rawNotifs.filter(n => {
+                  if (n.forBookmarkers) {
+                    return currentUser.role !== 'GUEST' && !!n.novelId && myBookmarks.includes(n.novelId);
+                  }
                   if (currentUser.role === 'GUEST') {
                     return !n.userId && !n.email;
                   }
