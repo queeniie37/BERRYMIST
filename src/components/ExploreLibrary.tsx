@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Filter, Search, Grid, List, RefreshCw, Layers, Star } from 'lucide-react';
 import { Novel } from '../types';
+import { matchesSearch as matchesSearchQuery } from '../utils/search';
 import NovelCard from './NovelCard';
 
 interface ExploreLibraryProps {
@@ -27,10 +28,9 @@ export default function ExploreLibrary({ novels, bookmarks, onBookmarkToggle, on
   const filteredNovels = useMemo(() => {
     return novels
       .filter((novel) => {
-        const matchesSearch = 
-          novel.titleAr.toLowerCase().includes(search.toLowerCase()) ||
-          novel.titleEn.toLowerCase().includes(search.toLowerCase()) ||
-          novel.author.toLowerCase().includes(search.toLowerCase());
+        // Case-insensitive, Arabic-form-insensitive, and every typed word
+        // matches in any order (see utils/search.ts)
+        const matchesSearch = matchesSearchQuery(search, [novel.titleAr, novel.titleEn, novel.author]);
         
         const matchesGenre = selectedGenre === 'الكل' || novel.genres.includes(selectedGenre);
         
