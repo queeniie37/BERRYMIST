@@ -513,6 +513,19 @@ export class BerryDatabase {
     }
   }
 
+  // Raw stored list for a key, INCLUDING tombstoned (deleted) records —
+  // used by the owner's recovery tools, which must distinguish "record was
+  // deliberately deleted" (tombstone present) from "record was lost".
+  static getRawList(key: string): any[] {
+    try {
+      const raw = storeRead(`berry_mist_${key}`);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
   // Local-only write: never pushed to the shared server database.
   // Used during first-visit initialization so a fresh visitor's empty
   // defaults do not wipe the site's real content for everyone.
