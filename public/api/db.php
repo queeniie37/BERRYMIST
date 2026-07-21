@@ -187,21 +187,36 @@ if ($method === 'POST') {
 
     $db = load_db($DB_FILE);
 
-    // Rotating hourly backup BEFORE applying the write, so the site's data
-    // can always be restored if a bug or a malicious visitor wipes content
+    // Rotating backups BEFORE applying the write, so the site's data can
+    // always be restored if a bug or a malicious visitor wipes content
     // (the API is writable by design — every publish comes from a browser).
-    // Keeps the newest 24 hourly snapshots in api/backups/.
+    // Two tiers in api/backups/, both readable by the owner's recovery tool:
+    //   - hourly  berry_db-YYYYMMDD-HH.json    (newest 48 kept  ≈ 2 days)
+    //   - daily   berry_db-daily-YYYYMMDD.json (newest 30 kept  = 1 month)
     $backupDir = __DIR__ . '/backups';
     if (!is_dir($backupDir)) { @mkdir($backupDir, 0755, true); }
     if (is_dir($backupDir) && file_exists($DB_FILE)) {
-        $stampFile = $backupDir . '/berry_db-' . gmdate('Ymd-H') . '.json';
-        if (!file_exists($stampFile)) {
-            @copy($DB_FILE, $stampFile);
-            $old = glob($backupDir . '/berry_db-*.json');
-            if ($old && count($old) > 24) {
-                sort($old);
-                foreach (array_slice($old, 0, count($old) - 24) as $f) { @unlink($f); }
+        $rotate = function ($files, $keep) {
+            if ($files && count($files) > $keep) {
+                sort($files);
+                foreach (array_slice($files, 0, count($files) - $keep) as $f) { @unlink($f); }
             }
+        };
+
+        $hourFile = $backupDir . '/berry_db-' . gmdate('Ymd-H') . '.json';
+        if (!file_exists($hourFile)) {
+            @copy($DB_FILE, $hourFile);
+            $hourly = glob($backupDir . '/berry_db-*.json');
+            $hourly = array_values(array_filter($hourly ?: array(), function ($f) {
+                return strpos(basename($f), 'daily') === false;
+            }));
+            $rotate($hourly, 48);
+        }
+
+        $dayFile = $backupDir . '/berry_db-daily-' . gmdate('Ymd') . '.json';
+        if (!file_exists($dayFile)) {
+            @copy($DB_FILE, $dayFile);
+            $rotate(glob($backupDir . '/berry_db-daily-*.json'), 30);
         }
     }
 

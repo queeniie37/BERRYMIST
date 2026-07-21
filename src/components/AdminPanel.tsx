@@ -60,13 +60,19 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     const acc = { novels: new Map<string, any>(), chapters: new Map<string, any>() };
     let checked = 0;
     let found = 0;
-    // Hourly snapshot filenames use UTC (gmdate in api/db.php). Scan the
-    // last 14 days; missing hours 404 instantly and cost nothing.
+    // Snapshot filenames use UTC (gmdate in api/db.php). Scan the hourly
+    // snapshots of the last 4 days plus the daily snapshots of the last 45
+    // days; missing files 404 instantly and cost nothing.
     const candidates: string[] = [];
-    for (let h = 0; h < 24 * 14; h++) {
+    for (let h = 0; h < 24 * 4; h++) {
       const d = new Date(Date.now() - h * 3600 * 1000);
       const stamp = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCHours()).padStart(2, '0')}`;
       candidates.push(`/api/backups/berry_db-${stamp}.json`);
+    }
+    for (let day = 0; day < 45; day++) {
+      const d = new Date(Date.now() - day * 24 * 3600 * 1000);
+      const stamp = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+      candidates.push(`/api/backups/berry_db-daily-${stamp}.json`);
     }
     const BATCH = 8;
     for (let i = 0; i < candidates.length; i += BATCH) {
@@ -81,9 +87,9 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
           collectMissingRecords(db, acc);
         } catch { /* unreachable snapshot — skip */ }
       }));
-      setRecoveryProgress(`جاري الفحص… ${Math.min(i + BATCH, candidates.length)} / ${candidates.length} ساعة (نسخ موجودة: ${found})`);
+      setRecoveryProgress(`جاري الفحص… ${Math.min(i + BATCH, candidates.length)} / ${candidates.length} نسخة محتملة (نسخ موجودة: ${found})`);
     }
-    setRecoveryProgress(`اكتمل الفحص: ${found} نسخة احتياطية موجودة من أصل ${checked} ساعة مفحوصة.`);
+    setRecoveryProgress(`اكتمل الفحص: ${found} نسخة احتياطية موجودة من أصل ${checked} نسخة محتملة (ساعيّة + يومية).`);
     setRecoveryFound({ novels: [...acc.novels.values()], chapters: [...acc.chapters.values()] });
     setRecoveryScanning(false);
   };
@@ -2209,8 +2215,8 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                 <div>
                   <h3 className="font-extrabold text-sm text-white">🚑 فحص واستعادة الفصول والروايات المفقودة</h3>
                   <p className="text-[10px] text-purple-400 mt-0.5">
-                    يفحص النسخ الاحتياطية الساعيّة المحفوظة تلقائياً على خادمك (آخر 14 يوماً) بحثاً عن فصول أو روايات
-                    اختفت من قاعدة البيانات، ويستعيدها بضغطة واحدة لتظهر مجدداً لجميع الزوار.
+                    يفحص النسخ الاحتياطية المحفوظة تلقائياً على خادمك (ساعيّة لآخر 48 ساعة + يومية لآخر 30 يوماً)
+                    بحثاً عن فصول أو روايات اختفت من قاعدة البيانات، ويستعيدها بضغطة واحدة لتظهر مجدداً لجميع الزوار.
                     يمكنك أيضاً رفع ملف berry_db.json من نسخة Hostinger الاحتياطية الكاملة.
                   </p>
                 </div>
