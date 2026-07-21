@@ -99,7 +99,13 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
     ]);
 
+    // Notifications flagged forBookmarkers target only visitors who added
+    // that novel to their favorites (bookmarks are stored per-device).
+    const myBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
     const filtered = rawNotifications.filter(n => {
+      if (n.forBookmarkers) {
+        return currentUser.role !== 'GUEST' && !!n.novelId && myBookmarks.includes(n.novelId);
+      }
       if (currentUser.role === 'GUEST') {
         return !n.userId && !n.email;
       }

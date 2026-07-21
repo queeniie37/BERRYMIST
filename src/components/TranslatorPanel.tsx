@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertCircle, Edit, Trash2, Calendar, BookOpen, Eye, RefreshCw, Upload, Image } from 'lucide-react';
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
@@ -61,6 +61,34 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const [editChapterContent, setEditChapterContent] = useState('');
   const [editChapterPublishAt, setEditChapterPublishAt] = useState('');
   const [editChapterImages, setEditChapterImages] = useState('');
+
+  // Rich edit editor (contentEditable): renders embedded images as actual
+  // images instead of a wall of base64 text. lastHtml guards against caret
+  // jumps by only re-writing innerHTML when the content changed externally.
+  const editEditorRef = useRef<HTMLDivElement>(null);
+  const editLastHtmlRef = useRef('');
+  useEffect(() => {
+    if (editingChapter && editEditorRef.current && editChapterContent !== editLastHtmlRef.current) {
+      editEditorRef.current.innerHTML = editChapterContent;
+      editLastHtmlRef.current = editChapterContent;
+    }
+  }, [editingChapter, editChapterContent]);
+
+  const handleEditEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    editLastHtmlRef.current = html;
+    setEditChapterContent(html);
+  };
+
+  const applyEditFormat = (command: 'bold' | 'italic' | 'underline') => {
+    if (editEditorRef.current) {
+      editEditorRef.current.focus();
+      document.execCommand(command, false);
+      const html = editEditorRef.current.innerHTML;
+      editLastHtmlRef.current = html;
+      setEditChapterContent(html);
+    }
+  };
 
   const getMaxScheduleDate = () => {
     const maxDate = new Date();
@@ -407,6 +435,9 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     setEditChapterTitle(chapter.title.split(':').slice(1).join(':').trim() || chapter.title);
     // Legacy chapters may still hold pasted HTML soup — clean it so the
     // editor shows readable text, and the next save persists the clean form.
+    // Reset the last-html guard so the (freshly mounted) rich editor is
+    // seeded even if the content is identical to the previous edit session.
+    editLastHtmlRef.current = '';
     setEditChapterContent(normalizeChapterText(chapter.content));
     setEditChapterPublishAt(chapter.publishAt || '');
     setEditChapterImages(chapter.images ? chapter.images.join(', ') : '');
@@ -444,6 +475,14 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const handleSaveEditChapter = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingChapter) return;
+
+    // The rich editor replaced the required <textarea>; validate manually
+    const plainText = editChapterContent.replace(/<[^>]+>/g, '').trim();
+    const hasImage = /<img\s/i.test(editChapterContent);
+    if (!plainText && !hasImage) {
+      alert('عذراً، لا يمكن حفظ فصل بمحتوى فارغ!');
+      return;
+    }
 
     if (editChapterPublishAt) {
       const publishDate = new Date(editChapterPublishAt);
@@ -1627,63 +1666,37 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   
                   {/* Rich Text Format Helpers */}
                   <div className="flex gap-1">
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        const textarea = document.getElementById('edit-content-textarea') as HTMLTextAreaElement;
-                        if (!textarea) return;
-                        const start = textarea.selectionStart;
-                        const end = textarea.selectionEnd;
-                        const text = textarea.value;
-                        const selected = text.substring(start, end);
-                        const replacement = `<b>${selected || 'نص غامق'}</b>`;
-                        setEditChapterContent(text.substring(0, start) + replacement + text.substring(end));
-                      }} 
+                    <button
+                      type="button"
+                      onClick={() => applyEditFormat('bold')}
                       className="px-2 py-1 bg-white/5 hover:bg-white/15 text-white border border-white/5 rounded-lg text-[9px] font-bold cursor-pointer"
                     >
                       B
                     </button>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        const textarea = document.getElementById('edit-content-textarea') as HTMLTextAreaElement;
-                        if (!textarea) return;
-                        const start = textarea.selectionStart;
-                        const end = textarea.selectionEnd;
-                        const text = textarea.value;
-                        const selected = text.substring(start, end);
-                        const replacement = `<i>${selected || 'نص مائل'}</i>`;
-                        setEditChapterContent(text.substring(0, start) + replacement + text.substring(end));
-                      }} 
+                    <button
+                      type="button"
+                      onClick={() => applyEditFormat('italic')}
                       className="px-2 py-1 bg-white/5 hover:bg-white/15 text-white border border-white/5 rounded-lg text-[9px] italic font-bold cursor-pointer"
                     >
                       I
                     </button>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        const textarea = document.getElementById('edit-content-textarea') as HTMLTextAreaElement;
-                        if (!textarea) return;
-                        const start = textarea.selectionStart;
-                        const end = textarea.selectionEnd;
-                        const text = textarea.value;
-                        const selected = text.substring(start, end);
-                        const replacement = `<u>${selected || 'نص مسطر'}</u>`;
-                        setEditChapterContent(text.substring(0, start) + replacement + text.substring(end));
-                      }} 
+                    <button
+                      type="button"
+                      onClick={() => applyEditFormat('underline')}
                       className="px-2 py-1 bg-white/5 hover:bg-white/15 text-white border border-white/5 rounded-lg text-[9px] underline font-bold cursor-pointer"
                     >
                       U
                     </button>
                   </div>
                 </div>
-                <textarea 
+                {/* Rich editor: renders embedded chapter images as real images
+                    (not a wall of base64 text) while staying fully editable */}
+                <div
+                  ref={editEditorRef}
                   id="edit-content-textarea"
-                  required
-                  rows={16}
-                  value={editChapterContent}
-                  onChange={(e) => setEditChapterContent(e.target.value)}
-                  className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white font-sans text-base leading-8 min-h-[45vh] resize-y"
+                  contentEditable
+                  onInput={handleEditEditorInput}
+                  className="bg-[#1A1625] border border-white/10 focus:border-violet-500 outline-none rounded-xl px-4 py-3 text-white text-right font-sans text-base leading-8 min-h-[45vh] max-h-[65vh] overflow-y-auto [&_img]:max-h-[500px] [&_img]:w-auto [&_img]:max-w-full [&_img]:my-4 [&_img]:mx-auto [&_img]:rounded-2xl [&_img]:shadow-lg [&_img]:border [&_img]:border-white/10 [&_img]:block [&_img]:object-contain"
                 />
               </div>
 
