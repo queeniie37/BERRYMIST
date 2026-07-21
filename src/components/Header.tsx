@@ -3,6 +3,7 @@ import { Search, Bell, Moon, Sun, User as UserIcon, LogOut, Settings, Award, Shi
 import { User, UserRole } from '../types';
 import { DEFAULT_USERS, BerryDatabase } from '../data';
 import { isImageSource, safeEmojiOrFallback } from '../utils/media';
+import { matchesSearch } from '../utils/search';
 import LoginModal from './LoginModal';
 
 interface HeaderProps {
@@ -77,16 +78,13 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       setSearchResults([]);
       return;
     }
-    // All uploaded novels are searchable by every visitor (guests included), except cancelled ones
+    // All uploaded novels are searchable by every visitor (guests included),
+    // except cancelled ones. matchesSearch is case-insensitive, normalizes
+    // Arabic letter forms, and matches every typed word in any order.
     const novels = BerryDatabase.get<any[]>('novels', []);
     const filtered = novels.filter(n => {
       if (n.status === 'CANCELLED') return false;
-      return (
-        n.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.genres.some((g: string) => g.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+      return matchesSearch(searchQuery, [n.titleAr, n.titleEn, n.author, ...(Array.isArray(n.genres) ? n.genres : [])]);
     });
     setSearchResults(filtered);
   }, [searchQuery]);
