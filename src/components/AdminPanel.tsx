@@ -27,6 +27,102 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [rejectReason, setRejectReason] = useState<{ [novelId: string]: string }>({});
   const [deletedNovels, setDeletedNovels] = useState<any[]>([]);
   const [deletedChapters, setDeletedChapters] = useState<any[]>([]);
+
+  // ----- Lost-content recovery tool (owner) -----
+  // Scans the server's hourly berry_db backups (api/backups/) — or a manually
+  // uploaded berry_db.json from a Hostinger account backup — for chapters and
+  // novels that are missing from the current database, and restores them.
+  const [recoveryScanning, setRecoveryScanning] = useState(false);
+  const [recoveryProgress, setRecoveryProgress] = useState('');
+  const [recoveryFound, setRecoveryFound] = useState<{ novels: any[]; chapters: any[] } | null>(null);
+
+  // Compare a candidate DB (from a backup) against the current raw lists and
+  // return every non-tombstoned record whose id is entirely absent today.
+  // Ids that exist as tombstones were deliberately deleted — respect that.
+  const collectMissingRecords = (backupDb: any, acc: { novels: Map<string, any>; chapters: Map<string, any> }) => {
+    const currentNovelIds = new Set(BerryDatabase.getRawList('novels').map((n: any) => n?.id));
+    const currentChapterIds = new Set(BerryDatabase.getRawList('chapters').map((c: any) => c?.id));
+    for (const n of Array.isArray(backupDb?.novels) ? backupDb.novels : []) {
+      if (n && typeof n.id === 'string' && !n.deleted && !currentNovelIds.has(n.id) && !acc.novels.has(n.id)) {
+        acc.novels.set(n.id, n);
+      }
+    }
+    for (const c of Array.isArray(backupDb?.chapters) ? backupDb.chapters : []) {
+      if (c && typeof c.id === 'string' && !c.deleted && !currentChapterIds.has(c.id) && !acc.chapters.has(c.id)) {
+        acc.chapters.set(c.id, c);
+      }
+    }
+  };
+
+  const handleScanBackups = async () => {
+    setRecoveryScanning(true);
+    setRecoveryFound(null);
+    const acc = { novels: new Map<string, any>(), chapters: new Map<string, any>() };
+    let checked = 0;
+    let found = 0;
+    // Hourly snapshot filenames use UTC (gmdate in api/db.php). Scan the
+    // last 14 days; missing hours 404 instantly and cost nothing.
+    const candidates: string[] = [];
+    for (let h = 0; h < 24 * 14; h++) {
+      const d = new Date(Date.now() - h * 3600 * 1000);
+      const stamp = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCHours()).padStart(2, '0')}`;
+      candidates.push(`/api/backups/berry_db-${stamp}.json`);
+    }
+    const BATCH = 8;
+    for (let i = 0; i < candidates.length; i += BATCH) {
+      const batch = candidates.slice(i, i + BATCH);
+      await Promise.all(batch.map(async (url) => {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          checked++;
+          if (!res.ok) return;
+          const db = await res.json();
+          found++;
+          collectMissingRecords(db, acc);
+        } catch { /* unreachable snapshot — skip */ }
+      }));
+      setRecoveryProgress(`جاري الفحص… ${Math.min(i + BATCH, candidates.length)} / ${candidates.length} ساعة (نسخ موجودة: ${found})`);
+    }
+    setRecoveryProgress(`اكتمل الفحص: ${found} نسخة احتياطية موجودة من أصل ${checked} ساعة مفحوصة.`);
+    setRecoveryFound({ novels: [...acc.novels.values()], chapters: [...acc.chapters.values()] });
+    setRecoveryScanning(false);
+  };
+
+  const handleRecoveryFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const db = JSON.parse(String(reader.result || '{}'));
+        const acc = { novels: new Map<string, any>(), chapters: new Map<string, any>() };
+        collectMissingRecords(db, acc);
+        setRecoveryFound({ novels: [...acc.novels.values()], chapters: [...acc.chapters.values()] });
+        setRecoveryProgress(`تم فحص الملف "${file.name}".`);
+      } catch {
+        alert('تعذر قراءة الملف — تأكد أنه ملف berry_db.json صالح.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleRestoreRecovered = () => {
+    if (!recoveryFound || (recoveryFound.novels.length === 0 && recoveryFound.chapters.length === 0)) return;
+    const now = new Date().toISOString();
+    if (recoveryFound.novels.length > 0) {
+      const rawNovels = BerryDatabase.getRawList('novels');
+      const restored = recoveryFound.novels.map(n => ({ ...n, deleted: undefined, updatedAt: now }));
+      BerryDatabase.set('novels', [...rawNovels, ...restored]);
+    }
+    if (recoveryFound.chapters.length > 0) {
+      const rawChapters = BerryDatabase.getRawList('chapters');
+      const restored = recoveryFound.chapters.map(c => ({ ...c, deleted: undefined, updatedAt: now }));
+      BerryDatabase.set('chapters', [...rawChapters, ...restored]);
+    }
+    alert(`تمت الاستعادة بنجاح! ✅\nروايات: ${recoveryFound.novels.length} • فصول: ${recoveryFound.chapters.length}\nجاري نشرها الآن لجميع الزوار عبر المزامنة.`);
+    setRecoveryFound(null);
+    setRecoveryProgress('');
+  };
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -2104,6 +2200,72 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                   مرحباً يا مالك الموقع. تظهر هنا كافة الروايات والفصول التي تم حذفها من قبل المترجمين أو المشرفين. تبقى المواد هنا بشكل آمن، ويمكنك استعادتها بكامل فصولها وبياناتها بضغطة زر واحدة أو حذفها بشكل نهائي وقاطع من قواعد البيانات.
                 </p>
               </div>
+            </div>
+
+            {/* ===== Lost-content recovery tool ===== */}
+            <div className="p-6 bg-[#1A1625] rounded-3xl border border-amber-500/20 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-4">
+                <RefreshCw className="text-amber-400" size={20} />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">🚑 فحص واستعادة الفصول والروايات المفقودة</h3>
+                  <p className="text-[10px] text-purple-400 mt-0.5">
+                    يفحص النسخ الاحتياطية الساعيّة المحفوظة تلقائياً على خادمك (آخر 14 يوماً) بحثاً عن فصول أو روايات
+                    اختفت من قاعدة البيانات، ويستعيدها بضغطة واحدة لتظهر مجدداً لجميع الزوار.
+                    يمكنك أيضاً رفع ملف berry_db.json من نسخة Hostinger الاحتياطية الكاملة.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleScanBackups}
+                  disabled={recoveryScanning}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${recoveryScanning ? 'bg-white/5 text-purple-400 cursor-wait' : 'bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white cursor-pointer shadow-lg shadow-amber-500/10'}`}
+                >
+                  <RefreshCw size={14} className={recoveryScanning ? 'animate-spin' : ''} />
+                  <span>{recoveryScanning ? 'جاري فحص النسخ الاحتياطية…' : 'فحص النسخ الاحتياطية للخادم الآن'}</span>
+                </button>
+
+                <div className="relative overflow-hidden">
+                  <button type="button" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer">
+                    <Upload size={14} />
+                    <span>رفع ملف berry_db.json يدوياً</span>
+                  </button>
+                  <input type="file" accept=".json,application/json" onChange={handleRecoveryFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </div>
+              </div>
+
+              {recoveryProgress && (
+                <p className="text-[10px] text-amber-300 font-bold mt-3">{recoveryProgress}</p>
+              )}
+
+              {recoveryFound && (
+                (recoveryFound.novels.length === 0 && recoveryFound.chapters.length === 0) ? (
+                  <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl text-xs text-green-300 font-bold">
+                    لا توجد أي فصول أو روايات مفقودة مقارنةً بالنسخ المفحوصة — قاعدة بياناتك الحالية مكتملة. ✅
+                  </div>
+                ) : (
+                  <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex flex-col gap-3">
+                    <p className="text-xs text-amber-200 font-extrabold">
+                      عُثر على محتوى مفقود: {recoveryFound.novels.length} رواية و {recoveryFound.chapters.length} فصلاً غير موجودة حالياً!
+                    </p>
+                    <div className="max-h-[200px] overflow-y-auto flex flex-col gap-1 text-[10px] text-purple-200">
+                      {recoveryFound.novels.map(n => (
+                        <span key={n.id}>📕 رواية مفقودة: <b className="text-white">{n.titleAr || n.id}</b></span>
+                      ))}
+                      {recoveryFound.chapters.map(c => (
+                        <span key={c.id}>📄 فصل مفقود: <b className="text-white">{c.title || `فصل ${c.number}`}</b> <span className="text-purple-400">(رواية: {String(c.novelId).slice(0, 24)})</span></span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={handleRestoreRecovered}
+                      className="self-start px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 text-white rounded-xl text-xs font-bold cursor-pointer shadow-lg shadow-green-500/10"
+                    >
+                      استرجاع كل المحتوى المفقود الآن ↩️
+                    </button>
+                  </div>
+                )
+              )}
             </div>
 
             {/* Grid layout for Deleted Novels & Chapters */}
