@@ -24,14 +24,20 @@ RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 # running Node.js server. The client keeps calling /api/db.
 RewriteRule ^api/db/?$ api/db.php [L]
 
+# Member account API (register / login / profile) -> PHP handler.
+RewriteRule ^api/auth/?$ api/auth.php [L]
+
 # Single-page app fallback: serve index.html for any path that is not a real
 # file or directory, so deep links and refreshes don't 404.
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [L]
 
-# Never expose the shared data file directly to the public.
+# Never expose the shared data file or the member accounts file directly.
 <Files "berry_db.json">
+  Require all denied
+</Files>
+<Files "berry_users.json">
   Require all denied
 </Files>
 

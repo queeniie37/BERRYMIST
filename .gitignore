@@ -10,3 +10,7 @@ coverage/
 # runtime shared database (created by the server/PHP)
 berry_db.json
 **/berry_db.json
+
+# runtime member accounts file (holds emails + password hashes — never commit)
+berry_users.json
+**/berry_users.json
