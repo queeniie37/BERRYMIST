@@ -360,11 +360,14 @@ export default function App() {
     };
     syncDb();
 
-    // Poll the backend server database every second so new chapters and
-    // comments appear for everyone almost instantly. Unchanged polls cost
-    // almost nothing: the server answers 304 via the ETag handshake.
+    // Poll the backend database once a second so new chapters and comments
+    // appear for everyone almost instantly. Unchanged polls cost almost
+    // nothing (the server answers 304 via ETag). Background tabs are SKIPPED
+    // — a reader who left a tab open in another app stops hitting the server,
+    // which keeps the shared host healthy under global traffic; they get an
+    // immediate sync the moment they return to the tab.
     const syncInterval = setInterval(() => {
-      syncDb();
+      if (!document.hidden) syncDb();
     }, 1000);
 
     // The moment the visitor returns to the tab, sync immediately instead of
