@@ -3,6 +3,7 @@ import { LogIn, UserPlus, X, Shield, Mail, Lock, User as UserIcon } from 'lucide
 import { User, UserRole } from '../types';
 import { BerryDatabase, DEFAULT_USERS } from '../data';
 import { hashPassword, verifyOwnerLogin } from '../utils/auth';
+import { registerAccountOnServer, loginAccountOnServer } from '../utils/accounts';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         return;
       }
 
+      const passwordHash = await hashPassword(password);
       const newUser: User & { password?: string; passwordHash?: string } = {
         id: `user-${Date.now()}`,
         username: username,
@@ -64,16 +66,32 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`,
         bio: 'قارئ شغوف وعضو جديد في عائلة بيري ميست الفاخرة.',
         // Store only a salted hash — never the plaintext password
-        passwordHash: await hashPassword(password)
+        passwordHash
       };
 
-      BerryDatabase.set('users_db', [...usersDb, newUser]);
-      BerryDatabase.set('current_user_data', newUser);
+      // Register on the shared server so this account works on every device.
+      const serverRes = await registerAccountOnServer(newUser);
+      if (serverRes.error === 'exists') {
+        setError('البريد الإلكتروني مسجل بالفعل على المنصة. يرجى تسجيل الدخول.');
+        return;
+      }
+      if (serverRes.error === 'reserved') {
+        setError('هذا البريد الإلكتروني محجوز لمالك المنصة.');
+        return;
+      }
+      // On success take the server's id; on network failure keep the local
+      // account (offline-friendly) — it will register on the next sign-in.
+      const finalUser = serverRes.ok
+        ? { ...newUser, ...serverRes.user, passwordHash }
+        : newUser;
+
+      BerryDatabase.set('users_db', [...usersDb, finalUser]);
+      BerryDatabase.set('current_user_data', finalUser);
       BerryDatabase.set('current_role', 'MEMBER');
 
       setSuccess('تم إنشاء الحساب بنجاح كقارئ! 👤');
       setTimeout(() => {
-        onLoginSuccess(newUser);
+        onLoginSuccess(finalUser);
         onClose();
       }, 1500);
 
@@ -97,16 +115,38 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         return;
       }
 
-      // Check in user database (hashed). Accounts created before hashing
-      // still hold a plaintext `password` — verify once, then migrate them
-      // to `passwordHash` and remove the plaintext permanently.
       const inputHash = await hashPassword(password);
+
+      // 1) Try the shared server first, so an account registered on ANY device
+      //    signs in here. The server returns the public profile (no hash); we
+      //    keep the hash locally so profile updates can re-authenticate.
+      const serverLogin = await loginAccountOnServer(email.toLowerCase(), inputHash);
+      if (serverLogin.ok && serverLogin.user) {
+        const user = { ...serverLogin.user, passwordHash: inputHash };
+        // Mirror into local users_db so the account also works offline later.
+        const existingIdx = usersDb.findIndex(u => u.email?.toLowerCase() === email.toLowerCase());
+        if (existingIdx === -1) usersDb.push(user); else usersDb[existingIdx] = { ...usersDb[existingIdx], ...user };
+        BerryDatabase.set('users_db', usersDb);
+        BerryDatabase.set('current_user_data', user);
+        BerryDatabase.set('current_role', user.role || 'MEMBER');
+        setSuccess(`أهلاً بك مجدداً، ${user.username}! ✨`);
+        setTimeout(() => { onLoginSuccess(user); onClose(); }, 1500);
+        return;
+      }
+
+      // 2) Fall back to the local database (legacy/offline accounts). Accounts
+      //    created before hashing still hold a plaintext `password` — verify
+      //    once, then migrate to `passwordHash` and drop the plaintext.
       const userIndex = usersDb.findIndex(u =>
         u.email.toLowerCase() === email.toLowerCase() &&
         (u.passwordHash === inputHash || (u.password && u.password === password))
       );
       if (userIndex === -1) {
-        setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+        // Only override the "wrong credentials" message when the server
+        // explicitly rejected them; a network error shouldn't imply that.
+        setError(serverLogin.error === 'network'
+          ? 'تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت وحاول مجدداً.'
+          : 'البريد الإلكتروني أو كلمة المرور غير صحيحة.');
         return;
       }
       let user = usersDb[userIndex];
@@ -116,6 +156,9 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         usersDb[userIndex] = user;
         BerryDatabase.set('users_db', usersDb);
       }
+      // Push this legacy local account up to the server so it works everywhere
+      // from now on (best-effort; ignored if it already exists there).
+      registerAccountOnServer(user);
 
       BerryDatabase.set('current_user_data', user);
       BerryDatabase.set('current_role', user.role);

@@ -205,6 +205,72 @@ app.post("/api/db", (req, res) => {
   res.json({ success: true });
 });
 
+// ---- Member account API (mirrors api/auth.php) ----
+// Accounts live in a SEPARATE file that /api/db never serves, and only the
+// public user object (password hash stripped) is ever returned.
+const USERS_FILE = path.join(process.cwd(), "berry_users.json");
+const OWNER_EMAIL = "berrymist11@gmail.com";
+function loadUsers(): any[] {
+  if (fs.existsSync(USERS_FILE)) {
+    try { const d = JSON.parse(fs.readFileSync(USERS_FILE, "utf-8")); if (Array.isArray(d)) return d; } catch { /* corrupt — treat as empty */ }
+  }
+  return [];
+}
+function saveUsers(data: any[]) {
+  try { fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), "utf-8"); } catch (e) { console.error("Error writing users file:", e); }
+}
+function publicUser(u: any) {
+  const { passwordHash, password, ...rest } = u || {};
+  return rest;
+}
+
+app.post("/api/auth", (req, res) => {
+  const body = req.body || {};
+  const action = body.action;
+  const users = loadUsers();
+
+  if (action === "register") {
+    const acc = body.account && typeof body.account === "object" ? { ...body.account } : {};
+    const email = (acc.email || "").toString().trim().toLowerCase();
+    const username = (acc.username || "").toString().trim();
+    const hash = (acc.passwordHash || "").toString();
+    if (!email || !username || !hash) return res.status(400).json({ error: "missing_fields" });
+    if (email === OWNER_EMAIL) return res.status(403).json({ error: "reserved" });
+    if (users.some((u) => (u.email || "").toLowerCase() === email)) return res.status(409).json({ error: "exists" });
+    acc.email = email;
+    acc.role = "MEMBER";
+    if (!acc.id) acc.id = `user-${Date.now()}`;
+    if (!acc.createdAt) acc.createdAt = new Date().toISOString();
+    users.push(acc);
+    saveUsers(users);
+    return res.json({ user: publicUser(acc) });
+  }
+
+  if (action === "login") {
+    const email = (body.email || "").toString().trim().toLowerCase();
+    const hash = (body.passwordHash || "").toString();
+    if (!email || !hash) return res.status(400).json({ error: "missing_fields" });
+    const u = users.find((x) => (x.email || "").toLowerCase() === email && x.passwordHash === hash);
+    if (!u) return res.status(401).json({ error: "invalid" });
+    return res.json({ user: publicUser(u) });
+  }
+
+  if (action === "update") {
+    const email = (body.email || "").toString().trim().toLowerCase();
+    const hash = (body.passwordHash || "").toString();
+    const profile = body.profile && typeof body.profile === "object" ? body.profile : {};
+    const idx = users.findIndex((x) => (x.email || "").toLowerCase() === email && x.passwordHash === hash);
+    if (idx === -1) return res.status(401).json({ error: "invalid" });
+    for (const f of ["username", "avatar", "bio", "banner", "customStatus"]) {
+      if (Object.prototype.hasOwnProperty.call(profile, f)) users[idx][f] = profile[f];
+    }
+    saveUsers(users);
+    return res.json({ user: publicUser(users[idx]) });
+  }
+
+  return res.status(400).json({ error: "unknown_action" });
+});
+
 // Mount Vite or static assets depending on environment
 async function setupServer() {
   if (process.env.NODE_ENV !== "production") {

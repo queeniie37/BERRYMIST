@@ -80,4 +80,5 @@ jobs:
           # Also keep the hourly server-side backups between deploys.
           exclude: |
             **/berry_db.json
+            **/berry_users.json
             **/backups/**

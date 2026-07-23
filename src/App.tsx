@@ -10,6 +10,7 @@ import { DEFAULT_USERS, BerryDatabase } from './data';
 import { isImageSource, safeEmojiOrFallback, compressImageFile } from './utils/media';
 import { getUserBadges } from './utils/badges';
 import { upsertSelfInDirectory } from './utils/directory';
+import { updateAccountOnServer } from './utils/accounts';
 
 // Component imports
 import Header from './components/Header';
@@ -861,6 +862,23 @@ export default function App() {
       }
     }
     
+    // Keep this member's public directory entry in step so the owner's panel
+    // and their comments show the new avatar/username everywhere.
+    upsertSelfInDirectory(updatedUser);
+
+    // Push the profile to the server account so it follows the reader to every
+    // device on their next sign-in (best-effort; owner account isn't on the
+    // server, and offline just skips it).
+    const pwHash = (updatedUser as any).passwordHash;
+    if (currentUser.role !== 'OWNER' && pwHash && updatedUser.email) {
+      updateAccountOnServer(updatedUser.email.toLowerCase(), pwHash, {
+        username: updatedUser.username,
+        avatar: updatedUser.avatar,
+        bio: updatedUser.bio,
+        banner: updatedUser.banner
+      });
+    }
+
     window.dispatchEvent(new Event('user-updated'));
     alert('تم حفظ وتحديث بيانات ملفك الشخصي بنجاح ونشرها حياً في الموقع! 🎉');
     // Editing happens on its own dedicated page — return to the profile
