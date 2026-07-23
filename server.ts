@@ -190,8 +190,14 @@ app.post("/api/db", (req, res) => {
   const currentDb = loadDb();
   if (key === "comments") {
     currentDb[key] = mergeComments(currentDb[key], value);
-  } else if (key === "chapters" || key === "novels") {
+  } else if (key === "chapters" || key === "novels" || key === "contact_messages") {
     currentDb[key] = mergeById(currentDb[key], value);
+  } else if (key === "user_directory") {
+    // Public profile directory: merge per-user keys so one member updating
+    // their profile can never wipe another member's entry.
+    const stored = currentDb[key] && typeof currentDb[key] === "object" ? currentDb[key] : {};
+    const incoming = value && typeof value === "object" ? value : {};
+    currentDb[key] = { ...stored, ...incoming };
   } else {
     currentDb[key] = value;
   }

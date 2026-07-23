@@ -223,8 +223,14 @@ if ($method === 'POST') {
     $value = isset($body['value']) ? $body['value'] : null;
     if ($key === 'comments') {
         $value = merge_comments(isset($db[$key]) ? $db[$key] : array(), $value);
-    } elseif ($key === 'chapters' || $key === 'novels') {
+    } elseif ($key === 'chapters' || $key === 'novels' || $key === 'contact_messages') {
         $value = merge_by_id(isset($db[$key]) ? $db[$key] : array(), $value);
+    } elseif ($key === 'user_directory') {
+        // Public profile directory: merge per-user keys so one member
+        // updating their profile can never wipe another member's entry.
+        $stored = isset($db[$key]) && is_array($db[$key]) ? $db[$key] : array();
+        $incoming = is_array($value) ? $value : array();
+        $value = array_merge($stored, $incoming);
     }
     $db[$key] = $value;
     if (!save_db($DB_FILE, $db)) {

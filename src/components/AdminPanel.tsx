@@ -20,7 +20,10 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
   const [activeReservations, setActiveReservations] = useState<Reservation[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [translatorRequests, setTranslatorRequests] = useState<TranslatorRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'reports' | 'edit-requests' | 'points' | 'badges' | 'trash'>('novels');
+  const [activeTab, setActiveTab] = useState<'novels' | 'reservations' | 'logs' | 'translator_requests' | 'settings' | 'users' | 'user-comments' | 'reports' | 'edit-requests' | 'points' | 'badges' | 'trash'>('novels');
+  // Member-comments browser: selected member + search filter
+  const [commentsUserFilter, setCommentsUserFilter] = useState('');
+  const [selectedCommentsUser, setSelectedCommentsUser] = useState<{ id?: string; username: string; avatar?: string; role?: string } | null>(null);
   // Badges tab: selected catalog badge per member + a version bump to re-render after grant/revoke
   const [badgeSelections, setBadgeSelections] = useState<{ [userId: string]: string }>({});
   const [badgesVersion, setBadgesVersion] = useState(0);
@@ -969,7 +972,14 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
           <span>إدارة رتب الأعضاء 👤</span>
           {activeTab === 'users' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
         </button>
-        <button 
+        <button
+          onClick={() => setActiveTab('user-comments')}
+          className={`pb-3 px-6 relative transition-colors ${activeTab === 'user-comments' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <span>تعليقات الأعضاء 💬</span>
+          {activeTab === 'user-comments' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 to-berry-500 rounded-full" />}
+        </button>
+        <button
           onClick={() => setActiveTab('reports')}
           className={`pb-3 px-6 relative transition-colors ${activeTab === 'reports' ? 'text-white' : 'hover:text-white'}`}
         >
@@ -1941,6 +1951,154 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
             </div>
           </div>
         )}
+
+        {/* TAB: Member comments browser */}
+        {activeTab === 'user-comments' && (() => {
+          // All members: the synced public directory (every member across all
+          // devices) merged with any locally-known accounts, deduped by id/username.
+          const directory = BerryDatabase.get<Record<string, any>>('user_directory', {});
+          const usersDb = BerryDatabase.get<any[]>('users_db', []);
+          const byKey = new Map<string, any>();
+          const addMember = (m: any) => {
+            if (!m || !m.username) return;
+            const key = (m.id || m.username).toString();
+            if (!byKey.has(key)) byKey.set(key, m);
+          };
+          Object.values(directory || {}).forEach((d: any) => addMember({ id: d.id, username: d.username, avatar: d.avatar, role: d.role }));
+          usersDb.forEach((u: any) => addMember({ id: u.id, username: u.username, avatar: u.avatar, role: u.role }));
+          let members = [...byKey.values()];
+          const q = commentsUserFilter.trim().toLowerCase();
+          if (q) members = members.filter(m => (m.username || '').toLowerCase().includes(q));
+          members.sort((a, b) => (a.username || '').localeCompare(b.username || '', 'ar'));
+
+          // Lookups for turning a comment's refId into a readable location.
+          const allNovels = BerryDatabase.get<any[]>('novels', []);
+          const allChapters = BerryDatabase.get<any[]>('chapters', []);
+          const novelById: Record<string, any> = {};
+          allNovels.forEach(n => { if (n && n.id) novelById[n.id] = n; });
+          const chapterById: Record<string, any> = {};
+          allChapters.forEach(c => { if (c && c.id) chapterById[c.id] = c; });
+          const locationLabel = (c: any): string => {
+            if (c.refType === 'NOVEL') {
+              const n = novelById[c.refId];
+              return n ? `رواية «${n.titleAr}»` : 'رواية (محذوفة)';
+            }
+            const ch = chapterById[c.refId];
+            if (ch) {
+              const n = novelById[ch.novelId];
+              return `الفصل ${ch.number} من رواية «${n ? n.titleAr : '؟'}»`;
+            }
+            return 'فصل (محذوف)';
+          };
+
+          // Every comment (and reply) authored by the selected member,
+          // matched by author name, newest first.
+          const allComments = BerryDatabase.get<any[]>('comments', []);
+          let userItems: any[] = [];
+          if (selectedCommentsUser) {
+            const uname = selectedCommentsUser.username;
+            for (const c of allComments) {
+              if (!c || typeof c !== 'object') continue;
+              if (c.authorName === uname) {
+                userItems.push({ kind: 'تعليق', content: c.content, createdAt: c.createdAt, location: locationLabel(c), isSpoiler: c.isSpoiler, likes: c.likes });
+              }
+              for (const r of Array.isArray(c.replies) ? c.replies : []) {
+                if (r && r.authorName === uname) {
+                  userItems.push({ kind: 'رد', content: r.content, createdAt: r.createdAt, location: locationLabel(c), isSpoiler: r.isSpoiler });
+                }
+              }
+            }
+            userItems.sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0));
+          }
+
+          return (
+            <div className="flex flex-col gap-6 text-right animate-in fade-in duration-300">
+              <div className="p-6 bg-[#1A1625] rounded-3xl border border-white/5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-48 h-48 bg-violet-600/5 rounded-full blur-[60px]" />
+                <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-2">
+                  <MessageSquare className="text-violet-400" size={20} />
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white">تعليقات الأعضاء 💬</h3>
+                    <p className="text-[10px] text-purple-400 mt-0.5">اختر عضواً لعرض كل تعليقاته وردوده على أي رواية أو فصل، بنصها كما كُتب تماماً.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Members list */}
+                <div className="lg:col-span-5 flex flex-col gap-3">
+                  <input
+                    type="text"
+                    value={commentsUserFilter}
+                    onChange={(e) => setCommentsUserFilter(e.target.value)}
+                    placeholder="ابحث باسم العضو…"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                  />
+                  <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
+                    {members.length === 0 ? (
+                      <div className="p-8 text-center bg-white/[0.02] border border-dashed border-white/5 rounded-2xl text-xs text-purple-400">
+                        لا يوجد أعضاء مسجلون بعد.
+                      </div>
+                    ) : members.map((m) => (
+                      <button
+                        key={(m.id || m.username)}
+                        onClick={() => setSelectedCommentsUser(m)}
+                        className={`p-3 rounded-2xl flex items-center gap-3 text-right transition-all border cursor-pointer ${selectedCommentsUser && selectedCommentsUser.username === m.username ? 'bg-violet-600/15 border-violet-500/40' : 'bg-white/[0.02] border-white/5 hover:border-violet-500/20'}`}
+                      >
+                        <img src={m.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${m.username}`} alt={m.username} className="w-9 h-9 rounded-lg object-cover border border-white/10 bg-black/20 shrink-0" referrerPolicy="no-referrer" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{m.username}</div>
+                          <div className="text-[9px] text-purple-400">{m.role === 'OWNER' ? 'المالك 👑' : m.role === 'TRANSLATOR' || m.role === 'WRITER' ? 'مترجم/كاتب ✍️' : m.role === 'SUPERVISOR' ? 'مشرف 🛡️' : 'قارئ 👤'}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selected member's comments */}
+                <div className="lg:col-span-7">
+                  {!selectedCommentsUser ? (
+                    <div className="p-12 text-center bg-white/[0.02] border border-dashed border-white/5 rounded-2xl text-xs text-purple-400">
+                      اختر عضواً من القائمة لعرض تعليقاته. 👉
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      <div className="p-4 bg-[#14101D] border border-white/5 rounded-2xl flex items-center justify-between">
+                        <span className="text-xs font-bold text-white flex items-center gap-2">
+                          <img src={selectedCommentsUser.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${selectedCommentsUser.username}`} alt={selectedCommentsUser.username} className="w-8 h-8 rounded-lg object-cover border border-white/10" referrerPolicy="no-referrer" />
+                          تعليقات «{selectedCommentsUser.username}»
+                        </span>
+                        <span className="text-[10px] bg-violet-500/15 text-violet-300 px-3 py-1 rounded-full font-bold">{userItems.length} تعليقاً/رداً</span>
+                      </div>
+
+                      {userItems.length === 0 ? (
+                        <div className="p-10 text-center bg-white/[0.02] border border-dashed border-white/5 rounded-2xl text-xs text-purple-400">
+                          لم يكتب هذا العضو أي تعليقات بعد.
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
+                          {userItems.map((it, idx) => (
+                            <div key={idx} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold text-violet-300">{it.location}</span>
+                                <div className="flex items-center gap-2">
+                                  {it.kind === 'رد' && <span className="text-[9px] bg-blue-500/15 text-blue-300 px-2 py-0.5 rounded-full font-bold">رد</span>}
+                                  {it.isSpoiler && <span className="text-[9px] bg-red-500/15 text-red-300 px-2 py-0.5 rounded-full font-bold">حرق أحداث</span>}
+                                  <span className="text-[9px] text-purple-400 font-mono">{it.createdAt ? new Date(it.createdAt).toLocaleString('ar-EG', { numberingSystem: 'latn' }) : ''}</span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-purple-100 leading-relaxed whitespace-pre-wrap break-words">{it.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* TAB: Offensive Comment Reports */}
         {activeTab === 'reports' && (
