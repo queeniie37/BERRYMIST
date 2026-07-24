@@ -97,12 +97,19 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
       { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
     ]);
 
-    // Notifications flagged forBookmarkers target only visitors who added
-    // that novel to their favorites (bookmarks are stored per-device).
+    // Notifications flagged forBookmarkers target only members who added that
+    // novel to their favorites, and only for chapters published AFTER they
+    // added it — never chapters that already existed before. Bookmarks and
+    // their timestamps are stored per-device.
     const myBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+    const bookmarkedAt = BerryDatabase.get<Record<string, string>>('bookmarks_at', {});
     const filtered = rawNotifications.filter(n => {
       if (n.forBookmarkers) {
-        return currentUser.role !== 'GUEST' && !!n.novelId && myBookmarks.includes(n.novelId);
+        if (currentUser.role === 'GUEST' || !n.novelId || !myBookmarks.includes(n.novelId)) return false;
+        const since = bookmarkedAt[n.novelId];
+        const notifTime = Date.parse(n.createdAt || '');
+        if (since && !Number.isNaN(notifTime)) return notifTime >= Date.parse(since);
+        return true;
       }
       if (currentUser.role === 'GUEST') {
         return !n.userId && !n.email;
