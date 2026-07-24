@@ -114,7 +114,17 @@ function merge_by_id($stored, $incoming) {
     foreach ($incoming as $c) {
         if (!is_array($c) || !isset($c['id']) || !is_string($c['id'])) continue;
         $prev = isset($by_id[$c['id']]) ? $by_id[$c['id']] : null;
-        if ($prev === null || comment_time($c) >= comment_time($prev)) $by_id[$c['id']] = $c;
+        if ($prev === null) {
+            $by_id[$c['id']] = $c;
+        } else {
+            // Newest version wins, but views are monotonic — keep the higher
+            // count so a stale array push can't reset views raised by readers.
+            $winner = comment_time($c) >= comment_time($prev) ? $c : $prev;
+            $pv = isset($prev['views']) ? (int)$prev['views'] : 0;
+            $cv = isset($c['views']) ? (int)$c['views'] : 0;
+            $winner['views'] = max($pv, $cv);
+            $by_id[$c['id']] = $winner;
+        }
     }
     $cutoff = (time() - 30 * 24 * 60 * 60) * 1000;
     $merged = array();

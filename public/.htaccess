@@ -27,19 +27,26 @@ RewriteRule ^api/db/?$ api/db.php [L]
 # Member account API (register / login / profile) -> PHP handler.
 RewriteRule ^api/auth/?$ api/auth.php [L]
 
+# Atomic view-count increment -> PHP handler.
+RewriteRule ^api/view/?$ api/view.php [L]
+
 # Single-page app fallback: serve index.html for any path that is not a real
 # file or directory, so deep links and refreshes don't 404.
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [L]
 
-# Never expose the shared data file or the member accounts file directly.
+# Never expose the shared data file, the member accounts file, or the
+# runtime lock/temp files directly.
 <Files "berry_db.json">
   Require all denied
 </Files>
 <Files "berry_users.json">
   Require all denied
 </Files>
+<FilesMatch "berry_db\.json\.(lock|tmp).*">
+  Require all denied
+</FilesMatch>
 
 # Sensible caching for built assets (they are content-hashed by Vite).
 <IfModule mod_headers.c>
