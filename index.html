@@ -79,7 +79,24 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Instant paint before the app bundle loads, so visitors (and users
+           arriving from search) never see a blank white page while opening. -->
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0F0B14;color:#C4B5FD;font-family:system-ui,Segoe UI,Tahoma,sans-serif;text-align:center;padding:24px">
+        <div style="font-size:56px;line-height:1">🍇</div>
+        <h1 style="margin:0;font-size:22px;color:#fff;font-weight:800">بيري ميست — Berry Mist</h1>
+        <p style="margin:0;max-width:520px;font-size:14px;color:#A78BDA;line-height:1.9">المنصة العربية الفاخرة لقراءة وترجمة وتأليف الروايات والقصص الخيالية الحصرية. استكشف روايات كورية وصينية ويابانية مترجمة وروايات عربية مؤلفة بفصول تصدر أولاً بأول.</p>
+        <div style="width:34px;height:34px;border:3px solid rgba(139,92,246,.25);border-top-color:#8B5CF6;border-radius:50%;animation:berrySpin .8s linear infinite"></div>
+        <style>@keyframes berrySpin{to{transform:rotate(360deg)}}</style>
+      </div>
+    </div>
+    <noscript>
+      <div style="max-width:640px;margin:40px auto;padding:24px;font-family:system-ui,Tahoma,sans-serif;color:#1A1625;line-height:1.9;text-align:right" dir="rtl">
+        <h1>بيري ميست — Berry Mist | منصة الروايات المترجمة والمؤلفة</h1>
+        <p>بيري ميست منصة عربية فاخرة لقراءة وترجمة وتأليف الروايات والقصص الخيالية والأكشن والفانتازيا. نوفر روايات كورية وصينية ويابانية مترجمة بجودة عالية إضافة إلى روايات عربية أصلية، مع فصول جديدة تُنشر باستمرار.</p>
+        <p>يتطلب هذا الموقع تفعيل JavaScript في المتصفح لعرض المكتبة الكاملة والفصول. الرجاء تفعيله ثم إعادة تحميل الصفحة.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

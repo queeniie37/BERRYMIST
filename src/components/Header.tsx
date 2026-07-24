@@ -98,11 +98,17 @@ export default function Header({ currentUser, onRoleChange, onNavigate, currentP
     ]);
 
     // Notifications flagged forBookmarkers target only visitors who added
-    // that novel to their favorites (bookmarks are stored per-device).
+    // that novel to their favorites (bookmarks are stored per-device), and
+    // only for chapters released AFTER they favorited it.
     const myBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+    const myBookmarkTimes = BerryDatabase.get<Record<string, number>>('bookmark_times', {});
     const filtered = rawNotifications.filter(n => {
       if (n.forBookmarkers) {
-        return currentUser.role !== 'GUEST' && !!n.novelId && myBookmarks.includes(n.novelId);
+        if (currentUser.role === 'GUEST' || !n.novelId || !myBookmarks.includes(n.novelId)) return false;
+        const since = myBookmarkTimes[n.novelId];
+        if (typeof since !== 'number') return false;
+        const releasedAt = Date.parse(n.createdAt || '');
+        return Number.isNaN(releasedAt) ? true : releasedAt >= since;
       }
       if (currentUser.role === 'GUEST') {
         return !n.userId && !n.email;
