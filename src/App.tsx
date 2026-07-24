@@ -11,6 +11,7 @@ import { isImageSource, safeEmojiOrFallback, compressImageFile } from './utils/m
 import { getUserBadges } from './utils/badges';
 import { upsertSelfInDirectory } from './utils/directory';
 import { updateAccountOnServer } from './utils/accounts';
+import { slugify } from './utils/slug';
 
 // Component imports
 import Header from './components/Header';
@@ -88,29 +89,87 @@ function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: stri
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
-  // Every in-app screen gets its own URL hash (e.g. #/novel?d=...). This is
-  // what makes the browser back/forward buttons walk through visited screens
-  // even after a page reload or on browsers that drop history state objects.
-  const buildScreenHash = (page: string, params: any) => {
-    let h = `#/${page}`;
-    if (params !== null && params !== undefined) {
-      try { h += `?d=${encodeURIComponent(JSON.stringify(params))}`; } catch { /* ignore */ }
-    }
-    return h;
+  // Every in-app screen gets its own clean, readable URL hash so links are
+  // organised by page name, novel name and chapter number — e.g.
+  //   #/library
+  //   #/novel/سيد-الظلال
+  //   #/novel/سيد-الظلال/chapter-5
+  // The hash also makes the browser back/forward buttons walk through visited
+  // screens, even after a reload or on browsers that drop history state.
+
+  // page key  <->  URL segment (novel/reader are handled specially below)
+  const PAGE_TO_SEGMENT: Record<string, string> = {
+    home: '', explore: 'library', suggestions: 'suggestions', teams: 'teams',
+    notifications: 'notifications', profile: 'profile', 'profile-edit': 'profile/edit',
+    'translator-panel': 'translator', admin: 'admin', ads: 'ads',
+    'contact-us': 'contact', 'privacy-policy': 'privacy', 'terms-of-service': 'terms'
   };
+  const SEGMENT_TO_PAGE: Record<string, string> = Object.fromEntries(
+    Object.entries(PAGE_TO_SEGMENT).map(([p, s]) => [s, p])
+  );
+
+  // The readable novel-name segment for a URL. Uses whatever novel record is
+  // known (loaded list); falls back to a stored slug or the raw id so a link
+  // can always be built even before the library has synced.
+  const novelSlug = (novelId: string, fallbackSlug?: string): string => {
+    const n = novels.find(nv => nv.id === novelId);
+    if (n) return slugify(n.titleAr) || slugify(n.titleEn) || novelId;
+    return fallbackSlug || novelId;
+  };
+
+  const buildScreenHash = (page: string, params: any) => {
+    if (page === 'novel' && params) {
+      return `#/novel/${novelSlug(params.id, params.slug)}`;
+    }
+    if (page === 'reader' && params) {
+      return `#/novel/${novelSlug(params.novelId, params.slug)}/chapter-${params.chapterNumber}`;
+    }
+    const seg = PAGE_TO_SEGMENT[page];
+    return seg === '' ? '#/' : `#/${seg ?? page}`;
+  };
+
   const parseScreenHash = (): { page: string; params: any } | null => {
     try {
       const raw = window.location.hash || '';
-      const m = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
-      if (!m) return null;
-      let params: any = null;
-      if (m[2]) {
-        try { params = JSON.parse(decodeURIComponent(m[2])); } catch { params = null; }
+      if (!raw || raw === '#' || raw === '#/') return { page: 'home', params: null };
+
+      // Backward compatibility: the old encoded format #/page?d=<json>
+      const legacy = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
+      if (legacy && legacy[2] !== undefined) {
+        let params: any = null;
+        try { params = JSON.parse(decodeURIComponent(legacy[2])); } catch { params = null; }
+        return { page: legacy[1], params };
       }
-      return { page: m[1], params };
+
+      const path = raw.replace(/^#\/?/, '');
+      const segs = path.split('/').filter(Boolean).map(s => decodeURIComponent(s));
+
+      // Novel + reader: #/novel/<slug>[/chapter-<n>]
+      if (segs[0] === 'novel' && segs[1]) {
+        const slug = segs[1];
+        const chapterSeg = segs[2] || '';
+        const chMatch = chapterSeg.match(/^chapter-(\d+)$/);
+        if (chMatch) {
+          return { page: 'reader', params: { slug, chapterNumber: Number(chMatch[1]) } };
+        }
+        return { page: 'novel', params: { slug } };
+      }
+
+      // profile/edit
+      if (segs[0] === 'profile' && segs[1] === 'edit') return { page: 'profile-edit', params: null };
+
+      const page = SEGMENT_TO_PAGE[segs[0]] || segs[0] || 'home';
+      return { page, params: null };
     } catch {
       return null;
     }
+  };
+
+  // Resolve a novel id from a URL slug once the library is available.
+  const findNovelIdBySlug = (slug?: string): string | undefined => {
+    if (!slug) return undefined;
+    const n = novels.find(nv => slugify(nv.titleAr) === slug || slugify(nv.titleEn) === slug);
+    return n?.id;
   };
 
   // Screens that actually exist in the app. Any entry URL pointing anywhere
@@ -951,6 +1010,20 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // When a novel/reader screen was entered from a slug URL (shared link or
+  // refresh), fill in the concrete novel id as soon as the library syncs, so
+  // the page, its bookmark state, and chapter navigation all resolve.
+  useEffect(() => {
+    if (!currentParams || !currentParams.slug) return;
+    if (currentPage === 'novel' && !currentParams.id) {
+      const nid = findNovelIdBySlug(currentParams.slug);
+      if (nid) setCurrentParams((p: any) => ({ ...p, id: nid }));
+    } else if (currentPage === 'reader' && !currentParams.novelId) {
+      const nid = findNovelIdBySlug(currentParams.slug);
+      if (nid) setCurrentParams((p: any) => ({ ...p, novelId: nid }));
+    }
+  }, [currentPage, currentParams, novels]);
+
   // Toggle Novel Bookmarks (Mofaddala)
   const handleBookmarkToggle = (novelId: string) => {
     if (currentUser.role === 'GUEST') {
@@ -1057,7 +1130,9 @@ export default function App() {
   // when chapter numbers are non-contiguous (e.g. after deletions).
   const handleReaderNavigateChapter = (direction: 'next' | 'prev') => {
     if (currentPage !== 'reader' || !currentParams) return;
-    const { novelId, chapterNumber } = currentParams;
+    const { chapterNumber } = currentParams;
+    const novelId = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
+    if (!novelId) return;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const chaptersOfNovel = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
 
@@ -1364,28 +1439,48 @@ export default function App() {
         )}
 
         {/* ==================== SCREEN 3: NOVEL PROFILE DETAILS ==================== */}
-        {currentPage === 'novel' && currentParams && (
-          <NovelDetails 
-            novelId={currentParams.id}
-            currentUser={currentUser}
-            onBack={() => handleNavigate('explore')}
-            onReadChapter={handleReadChapter}
-            isBookmarked={bookmarks.includes(currentParams.id)}
-            onBookmarkToggle={handleBookmarkToggle}
-            autoOpenAddChapter={currentParams.autoOpenAddChapter}
-          />
-        )}
+        {currentPage === 'novel' && currentParams && (() => {
+          const nid = currentParams.id || findNovelIdBySlug(currentParams.slug);
+          if (!nid) {
+            return (
+              <div className="w-full text-center py-20 text-purple-400">
+                <p className="text-sm font-semibold">جاري تحميل الرواية...</p>
+              </div>
+            );
+          }
+          return (
+            <NovelDetails
+              novelId={nid}
+              currentUser={currentUser}
+              onBack={() => handleNavigate('explore')}
+              onReadChapter={handleReadChapter}
+              isBookmarked={bookmarks.includes(nid)}
+              onBookmarkToggle={handleBookmarkToggle}
+              autoOpenAddChapter={currentParams.autoOpenAddChapter}
+            />
+          );
+        })()}
 
         {/* ==================== SCREEN 4: READ CHAPTERS VIEWPORT ==================== */}
-        {currentPage === 'reader' && currentParams && (
-          <ReaderView 
-            novelId={currentParams.novelId}
-            chapterNumber={currentParams.chapterNumber}
-            currentUser={currentUser}
-            onBack={() => handleNavigate('novel', { id: currentParams.novelId })}
-            onNavigateChapter={handleReaderNavigateChapter}
-          />
-        )}
+        {currentPage === 'reader' && currentParams && (() => {
+          const nid = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
+          if (!nid) {
+            return (
+              <div className="w-full text-center py-20 text-purple-400">
+                <p className="text-sm font-semibold">جاري تحميل الفصل...</p>
+              </div>
+            );
+          }
+          return (
+            <ReaderView
+              novelId={nid}
+              chapterNumber={currentParams.chapterNumber}
+              currentUser={currentUser}
+              onBack={() => handleNavigate('novel', { id: nid })}
+              onNavigateChapter={handleReaderNavigateChapter}
+            />
+          );
+        })()}
 
         {/* ==================== SCREEN 5: TRANSLATORS CLAIMS / SUGGESTIONS LIST ==================== */}
         {currentPage === 'suggestions' && (
