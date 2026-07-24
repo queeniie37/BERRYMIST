@@ -788,7 +788,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           // Published immediately: notify everyone who bookmarked this novel
           // (forBookmarkers notifications are shown only on devices whose
           // local favorites include this novel).
-          id: `notif-${Date.now()}`,
+          id: `notif-${Date.now()}-bm`,
           forBookmarkers: true,
           title: `نزل فصل جديد من رواية ${novel.titleAr}`,
           message: `الفصل ${newChapterNum} متاح الآن للقراءة من روايتك المفضلة "${novel.titleAr}". استمتع! 🍇`,
@@ -798,7 +798,24 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           novelId: novel.id,
           chapterId: newChap.id
         };
-    BerryDatabase.set('notifications', [...allNotifs, newNotif]);
+
+    // Record for the novel's translator too (a confirmation they can see in
+    // their notifications), in addition to the bookmarkers announcement.
+    const notifsToAdd: any[] = [newNotif];
+    if (!isScheduled && novel.translatorId) {
+      notifsToAdd.push({
+        id: `notif-${Date.now()}-tr`,
+        userId: novel.translatorId,
+        title: 'تم نشر فصلك الجديد ✅',
+        message: `تم نشر الفصل ${newChapterNum} من روايتك "${novel.titleAr}" للقراء بنجاح، ووصل إشعار لكل من أضافها لمفضلته.`,
+        type: 'CHAPTER' as const,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        novelId: novel.id,
+        chapterId: newChap.id
+      });
+    }
+    BerryDatabase.set('notifications', [...allNotifs, ...notifsToAdd]);
 
     if (isScheduled) {
       alert(`📅 تمت جدولة الفصل ${newChapterNum} بنجاح! لن يظهر للقراء إلا في ${new Date(newChapterPublishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}، ويمكنك متابعته من صفحة الأنشطة والجدولة.`);

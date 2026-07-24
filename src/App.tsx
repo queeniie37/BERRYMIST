@@ -959,12 +959,25 @@ export default function App() {
       return;
     }
 
-    const updated = bookmarks.includes(novelId) 
-      ? bookmarks.filter(id => id !== novelId) 
-      : [...bookmarks, novelId];
-    
+    const isAdding = !bookmarks.includes(novelId);
+    const updated = isAdding
+      ? [...bookmarks, novelId]
+      : bookmarks.filter(id => id !== novelId);
+
     setBookmarks(updated);
     BerryDatabase.set('bookmarks', updated);
+
+    // Remember WHEN each novel was favorited so the notifications center can
+    // show only chapters published AFTER the reader added it — never the
+    // chapters that already existed before they bookmarked it. Stored
+    // per-device (like bookmarks). setLocal avoids any server sync.
+    const bookmarkedAt = BerryDatabase.get<Record<string, string>>('bookmarks_at', {});
+    if (isAdding) {
+      bookmarkedAt[novelId] = new Date().toISOString();
+    } else {
+      delete bookmarkedAt[novelId];
+    }
+    BerryDatabase.setLocal('bookmarks_at', bookmarkedAt);
 
     // Update novel bookmarksCount
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
@@ -1714,9 +1727,16 @@ export default function App() {
                 // forBookmarkers notifications show only for members whose
                 // local favorites include that novel (bookmarks are per-device).
                 const myBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+                const bookmarkedAt = BerryDatabase.get<Record<string, string>>('bookmarks_at', {});
                 const userNotifications = rawNotifs.filter(n => {
                   if (n.forBookmarkers) {
-                    return currentUser.role !== 'GUEST' && !!n.novelId && myBookmarks.includes(n.novelId);
+                    // Only for members who favorited this novel, and only for
+                    // chapters published AFTER they added it (never earlier ones).
+                    if (currentUser.role === 'GUEST' || !n.novelId || !myBookmarks.includes(n.novelId)) return false;
+                    const since = bookmarkedAt[n.novelId];
+                    const notifTime = Date.parse(n.createdAt || '');
+                    if (since && !Number.isNaN(notifTime)) return notifTime >= Date.parse(since);
+                    return true; // legacy bookmark without a timestamp — show it
                   }
                   if (currentUser.role === 'GUEST') {
                     return !n.userId && !n.email;
