@@ -319,24 +319,37 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     return () => window.removeEventListener('comments-updated', refresh);
   }, [chapter]);
 
-  // Views are only counted if reader spends > 30 seconds
+  // A view is counted only when the reader spends more than 30 seconds on the
+  // chapter, and only ONCE per chapter per device (a re-read never re-counts).
+  // The increment happens atomically on the SERVER (POST /api/view) — not by
+  // pushing a whole novels/chapters array — so concurrent readers each add
+  // exactly one view instead of overwriting each other's count. The authoritative
+  // number arrives back through the normal sync; we also bump the local view
+  // optimistically so the reader sees it immediately.
   useEffect(() => {
     if (!novelId || !chapterNumber) return;
 
-    const timer = setTimeout(() => {
-      const allNovels = BerryDatabase.get<Novel[]>('novels', []);
-      const updatedNovels = allNovels.map(n => n.id === novelId ? { ...n, views: n.views + 1 } : n);
-      BerryDatabase.set('novels', updatedNovels);
-      setNovel(prev => prev && prev.id === novelId ? { ...prev, views: prev.views + 1 } : prev);
-
-      const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
-      const updatedChapters = allChapters.map(c => 
-        (c.novelId === novelId && c.number === chapterNumber) 
-          ? { ...c, views: (c.views || 0) + 1 } 
-          : c
+    const timer = setTimeout(async () => {
+      const chap = BerryDatabase.get<Chapter[]>('chapters', []).find(
+        c => c.novelId === novelId && c.number === chapterNumber
       );
-      BerryDatabase.set('chapters', updatedChapters);
+      const dedupKey = chap ? chap.id : `${novelId}-ch${chapterNumber}`;
+      const counted = BerryDatabase.get<string[]>('viewed_chapters', []);
+      if (counted.includes(dedupKey)) return; // already counted on this device
+      BerryDatabase.setLocal('viewed_chapters', [...counted, dedupKey]);
+
+      // Optimistic local bump (React state only — never pushed, so it can't
+      // clobber another reader's count; the server value overwrites it on sync)
+      setNovel(prev => prev && prev.id === novelId ? { ...prev, views: (prev.views || 0) + 1 } : prev);
       setChapter(prev => prev && prev.novelId === novelId && prev.number === chapterNumber ? { ...prev, views: (prev.views || 0) + 1 } : prev);
+
+      try {
+        await fetch('/api/view', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ novelId, chapterId: chap ? chap.id : undefined })
+        });
+      } catch { /* offline — the view just isn't counted this time */ }
     }, 30000); // 30 seconds
 
     return () => clearTimeout(timer);

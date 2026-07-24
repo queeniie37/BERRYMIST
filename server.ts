@@ -163,6 +163,16 @@ function mergeComments(stored: any, incoming: any): any[] {
 // (updatedAt/createdAt) wins, and deletions arrive as tombstones
 // ({deleted:true}) so they propagate without letting stale clients wipe data;
 // tombstones older than 30 days are purged.
+// View counts are monotonic — they only ever go up. When two versions of the
+// same novel/chapter meet in a merge, keep the HIGHER views so a stale array
+// push (e.g. a translator editing a chapter with an old views value) can never
+// reset a count that concurrent readers raised. Newest wins for everything else.
+function mergeRecord(prev: any, incoming: any): any {
+  const winner = commentTime(incoming) >= commentTime(prev) ? incoming : prev;
+  const maxViews = Math.max(Number(prev?.views) || 0, Number(incoming?.views) || 0);
+  return { ...winner, views: maxViews };
+}
+
 function mergeById(stored: any, incoming: any): any[] {
   const storedList = Array.isArray(stored) ? stored : [];
   const incomingList = Array.isArray(incoming) ? incoming : [];
@@ -173,7 +183,7 @@ function mergeById(stored: any, incoming: any): any[] {
   for (const c of incomingList) {
     if (!c || typeof c !== "object" || typeof c.id !== "string") continue;
     const prev = byId.get(c.id);
-    if (!prev || commentTime(c) >= commentTime(prev)) byId.set(c.id, c);
+    byId.set(c.id, prev ? mergeRecord(prev, c) : c);
   }
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   return [...byId.values()].filter((c) => !c.deleted || commentTime(c) > cutoff);
@@ -202,6 +212,23 @@ app.post("/api/db", (req, res) => {
     currentDb[key] = value;
   }
   saveDb(currentDb);
+  res.json({ success: true });
+});
+
+// Atomic view increment. The reader's browser calls this ONCE after 30s on a
+// chapter (deduped per device). Incrementing on the server — rather than the
+// client pushing a whole novels/chapters array — means concurrent readers each
+// add exactly one view instead of overwriting each other's count.
+app.post("/api/view", (req, res) => {
+  const { novelId, chapterId } = req.body || {};
+  const db = loadDb();
+  if (Array.isArray(db.novels) && novelId) {
+    db.novels = db.novels.map((n: any) => (n && n.id === novelId ? { ...n, views: (Number(n.views) || 0) + 1 } : n));
+  }
+  if (Array.isArray(db.chapters) && chapterId) {
+    db.chapters = db.chapters.map((c: any) => (c && c.id === chapterId ? { ...c, views: (Number(c.views) || 0) + 1 } : c));
+  }
+  saveDb(db);
   res.json({ success: true });
 });
 

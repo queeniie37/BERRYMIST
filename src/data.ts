@@ -195,7 +195,12 @@ function mergeRecordsById(serverList: any, localList: any): any[] {
   for (const r of Array.isArray(localList) ? localList : []) {
     if (!r || typeof r !== 'object' || typeof r.id !== 'string') continue;
     const prev = byId.get(r.id);
-    if (!prev || recordTime(r) >= recordTime(prev)) byId.set(r.id, r);
+    if (!prev) { byId.set(r.id, r); continue; }
+    // Newest wins, but views are monotonic — keep the higher count so a stale
+    // local copy never lowers a view count the server already raised.
+    const winner = recordTime(r) >= recordTime(prev) ? r : prev;
+    const maxViews = Math.max(Number(prev?.views) || 0, Number(r?.views) || 0);
+    byId.set(r.id, { ...winner, views: maxViews });
   }
   return [...byId.values()];
 }
