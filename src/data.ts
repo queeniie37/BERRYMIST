@@ -107,7 +107,10 @@ const PRIVATE_LOCAL_KEYS = new Set([
   'current_user_data',
   'current_role',
   'bookmarks',
-  'reading_history'
+  'reading_history',
+  // When (per device) each novel was added to favorites, so a reader only sees
+  // chapter notifications for releases published after they favorited it.
+  'bookmark_times'
 ]);
 
 // ---------------------------------------------------------------------------

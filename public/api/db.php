@@ -18,7 +18,7 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
 // Per-user / private keys must never be stored in or served from the shared DB.
-$PRIVATE_KEYS = ['users_db', 'current_user_data', 'current_role', 'bookmarks', 'reading_history'];
+$PRIVATE_KEYS = ['users_db', 'current_user_data', 'current_role', 'bookmarks', 'reading_history', 'bookmark_times'];
 
 // Keep the data file OUTSIDE the web root would be ideal, but next to this
 // script is the most reliable writable location on shared hosting.

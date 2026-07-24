@@ -313,7 +313,22 @@ export default function App() {
     setNovels(databaseNeedsSave ? repairedNovels : loadedNovels);
     setNews(BerryDatabase.get<News[]>('news', []));
     setSuggestions(loadedSuggestions);
-    setBookmarks(BerryDatabase.get<string[]>('bookmarks', []));
+    const loadedBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+    setBookmarks(loadedBookmarks);
+    // Backfill favorite timestamps for novels favorited before this feature
+    // existed, so from now on their new chapters notify — without surfacing
+    // chapters that were released before the reader ever favorited them.
+    const loadedBookmarkTimes = BerryDatabase.get<Record<string, number>>('bookmark_times', {});
+    let bookmarkTimesChanged = false;
+    loadedBookmarks.forEach(id => {
+      if (typeof loadedBookmarkTimes[id] !== 'number') {
+        loadedBookmarkTimes[id] = Date.now();
+        bookmarkTimesChanged = true;
+      }
+    });
+    if (bookmarkTimesChanged) {
+      BerryDatabase.setLocal('bookmark_times', loadedBookmarkTimes);
+    }
     setReadingHistory(BerryDatabase.get<any[]>('reading_history', []));
     setTeams(BerryDatabase.get<Team[]>('teams', []));
 
@@ -959,12 +974,23 @@ export default function App() {
       return;
     }
 
-    const updated = bookmarks.includes(novelId) 
-      ? bookmarks.filter(id => id !== novelId) 
+    const wasBookmarked = bookmarks.includes(novelId);
+    const updated = wasBookmarked
+      ? bookmarks.filter(id => id !== novelId)
       : [...bookmarks, novelId];
-    
+
     setBookmarks(updated);
     BerryDatabase.set('bookmarks', updated);
+
+    // Remember WHEN this novel was favorited so the reader only ever sees
+    // chapter notifications for chapters released after this moment.
+    const bookmarkTimes = BerryDatabase.get<Record<string, number>>('bookmark_times', {});
+    if (wasBookmarked) {
+      delete bookmarkTimes[novelId];
+    } else {
+      bookmarkTimes[novelId] = Date.now();
+    }
+    BerryDatabase.setLocal('bookmark_times', bookmarkTimes);
 
     // Update novel bookmarksCount
     const allNovels = BerryDatabase.get<Novel[]>('novels', []);
@@ -1712,11 +1738,17 @@ export default function App() {
                   { id: '2', title: 'موافقة على روايتك', message: 'تمت الموافقة على رواية "عودة ملك الظلال" ونشرها بنجاح.', isRead: true, createdAt: 'منذ ساعة' }
                 ]);
                 // forBookmarkers notifications show only for members whose
-                // local favorites include that novel (bookmarks are per-device).
+                // local favorites include that novel (bookmarks are per-device),
+                // and only for chapters released AFTER they favorited it.
                 const myBookmarks = BerryDatabase.get<string[]>('bookmarks', []);
+                const myBookmarkTimes = BerryDatabase.get<Record<string, number>>('bookmark_times', {});
                 const userNotifications = rawNotifs.filter(n => {
                   if (n.forBookmarkers) {
-                    return currentUser.role !== 'GUEST' && !!n.novelId && myBookmarks.includes(n.novelId);
+                    if (currentUser.role === 'GUEST' || !n.novelId || !myBookmarks.includes(n.novelId)) return false;
+                    const since = myBookmarkTimes[n.novelId];
+                    if (typeof since !== 'number') return false;
+                    const releasedAt = Date.parse(n.createdAt || '');
+                    return Number.isNaN(releasedAt) ? true : releasedAt >= since;
                   }
                   if (currentUser.role === 'GUEST') {
                     return !n.userId && !n.email;
