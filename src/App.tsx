@@ -1125,17 +1125,42 @@ export default function App() {
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const now = new Date();
     const lastAddedAt = new Map<string, number>();
+    // Chapters are ordered by their number, so the newest chapter of a novel is
+    // always its HIGHEST published number (adding 100 after 1000 keeps 1000 the
+    // latest). Never derive it from the chapter count, which breaks the moment
+    // numbering has gaps.
+    const highestNumber = new Map<string, number>();
     for (const c of allChapters) {
       if (c.publishAt && new Date(c.publishAt) > now) continue; // not out yet
       const t = Date.parse(c.publishAt || c.createdAt || '') || 0;
       if (t > (lastAddedAt.get(c.novelId) || 0)) lastAddedAt.set(c.novelId, t);
+      if (typeof c.number === 'number' && Number.isFinite(c.number)) {
+        if (c.number > (highestNumber.get(c.novelId) ?? -Infinity)) highestNumber.set(c.novelId, c.number);
+      }
     }
     return [...activeNovels]
       .filter(n => n.chaptersCount > 0)
-      .map(n => ({ ...n, lastChapterAt: lastAddedAt.get(n.id) || 0 }))
+      .map(n => ({
+        ...n,
+        lastChapterAt: lastAddedAt.get(n.id) || 0,
+        latestChapterNumber: highestNumber.get(n.id) ?? n.chaptersCount,
+      }))
       .sort((a, b) => b.lastChapterAt - a.lastChapterAt)
       .slice(0, 20);
   }, [activeNovels]);
+
+  // First/last published chapter number of a novel, for "start reading" and
+  // "read the latest chapter" links that must never assume chapter 1 exists
+  // or that the count equals the highest number.
+  const getChapterBounds = (novelId: string) => {
+    const now = new Date();
+    const numbers = BerryDatabase.get<any[]>('chapters', [])
+      .filter(c => c.novelId === novelId && typeof c.number === 'number' && Number.isFinite(c.number))
+      .filter(c => !(c.publishAt && new Date(c.publishAt) > now))
+      .map(c => c.number as number);
+    if (numbers.length === 0) return { first: 1, last: 1 };
+    return { first: Math.min(...numbers), last: Math.max(...numbers) };
+  };
 
   // Honest relative timestamp for the latest-chapters cards
   const timeAgoLabel = (ts: number): string => {
@@ -1236,7 +1261,7 @@ export default function App() {
                 {/* Cinematic Slider */}
                 <HeroSlider 
                   featuredNovels={activeNovels.slice(0, 3)}
-                  onStartReading={(id) => handleReadChapter(id, 1)}
+                  onStartReading={(id) => handleReadChapter(id, getChapterBounds(id).first)}
                   onViewDetails={(id) => handleNavigate('novel', { id })}
                 />
 
@@ -1289,7 +1314,7 @@ export default function App() {
                       {latestChaptersList.map((novel) => (
                         <div 
                           key={novel.id}
-                          onClick={() => handleReadChapter(novel.id, novel.chaptersCount)}
+                          onClick={() => handleReadChapter(novel.id, novel.latestChapterNumber)}
                           className="p-4 bg-[#14101D] hover:bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex gap-4 cursor-pointer transition-all hover:-translate-y-0.5 group relative"
                         >
                           {/* Purple "جديد" (New) ribbon badge as requested in specs */}
@@ -1308,7 +1333,7 @@ export default function App() {
                             </div>
                             
                             <div className="flex justify-between items-center mt-2 text-[10px] text-purple-300 border-t border-white/5 pt-2">
-                              <span className="font-bold text-violet-300">قراءة الفصل {novel.chaptersCount} ←</span>
+                              <span className="font-bold text-violet-300">قراءة الفصل {novel.latestChapterNumber} ←</span>
                               <span className="text-purple-400">{timeAgoLabel(novel.lastChapterAt)}</span>
                             </div>
                           </div>
