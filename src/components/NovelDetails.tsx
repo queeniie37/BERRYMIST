@@ -159,6 +159,27 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     }
   }, [showAddChapterForm]);
 
+  // After publishing/scheduling a chapter, land on the chapter list header
+  // ("إجمالي الفصول المنشورة") instead of wherever the long editor left the
+  // page scrolled — the author wants to see the chapter they just added.
+  const chaptersSectionRef = useRef<HTMLDivElement>(null);
+  const returnToChaptersRef = useRef(false);
+
+  useEffect(() => {
+    if (showAddChapterForm || !returnToChaptersRef.current) return;
+    returnToChaptersRef.current = false;
+    // Wait for the novel page to paint before measuring the section position.
+    const id = window.setTimeout(() => {
+      const el = chaptersSectionRef.current;
+      if (!el) return;
+      // Offset clears the sticky site header AND the tab bar sitting just above
+      // the toolbar, so the author lands on a fully readable chapter list.
+      const top = el.getBoundingClientRect().top + window.scrollY - 170;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }, 60);
+    return () => window.clearTimeout(id);
+  }, [showAddChapterForm, chapters.length]);
+
   useEffect(() => {
     if (showAddChapterForm) {
       if (editorRef.current && newChapterContent !== lastHtmlRef.current) {
@@ -830,6 +851,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       alert(`تم نشر الفصل ${newChapterNum} بنجاح وهو متاح الآن لجميع القراء! 🎉`);
     }
 
+    // Return to the chapter list (and scroll to its header) instead of leaving
+    // the author at the bottom of the page they were just editing.
+    setActiveTab('chapters');
+    returnToChaptersRef.current = true;
     setShowAddChapterForm(false);
     setNewChapterTitle('');
     setNewChapterContent('');
@@ -1503,8 +1528,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {/* TAB 2: Chapters List */}
           {activeTab === 'chapters' && (
             <div className="flex flex-col gap-4">
-              {/* Toolbar */}
-              <div className="flex flex-wrap justify-between items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+              {/* Toolbar — landing spot after publishing a chapter */}
+              <div ref={chaptersSectionRef} className="flex flex-wrap justify-between items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 scroll-mt-28">
                 <span className="text-xs text-purple-300 font-semibold">إجمالي الفصول المنشورة: {chapters.length} فصلاً</span>
 
                 <div className="flex flex-wrap items-center gap-2">
