@@ -168,16 +168,22 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   useEffect(() => {
     if (showAddChapterForm || !returnToChaptersRef.current) return;
     returnToChaptersRef.current = false;
-    // Wait for the novel page to paint before measuring the section position.
-    const id = window.setTimeout(() => {
+    const scrollToChapters = (behavior: ScrollBehavior) => {
       const el = chaptersSectionRef.current;
       if (!el) return;
       // Offset clears the sticky site header AND the tab bar sitting just above
       // the toolbar, so the author lands on a fully readable chapter list.
       const top = el.getBoundingClientRect().top + window.scrollY - 170;
-      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    }, 60);
-    return () => window.clearTimeout(id);
+      window.scrollTo({ top: Math.max(0, top), behavior });
+    };
+    // First pass once the novel page has painted, then a silent correction in
+    // case the cover image finishing loading shifted the layout underneath.
+    const first = window.setTimeout(() => scrollToChapters('smooth'), 60);
+    const correction = window.setTimeout(() => scrollToChapters('auto'), 600);
+    return () => {
+      window.clearTimeout(first);
+      window.clearTimeout(correction);
+    };
   }, [showAddChapterForm, chapters.length]);
 
   useEffect(() => {
@@ -992,9 +998,15 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
         
         {/* Section Title with File Icon and Cancel Button */}
         <div className="flex items-center justify-between mb-8">
-          <button 
+          <button
             type="button"
-            onClick={() => setShowAddChapterForm(false)}
+            onClick={() => {
+              // Same landing as publishing: return to the chapter list header
+              // instead of the bottom of the page the editor was scrolled to.
+              setActiveTab('chapters');
+              returnToChaptersRef.current = true;
+              setShowAddChapterForm(false);
+            }}
             className="px-4 py-2 bg-white/5 hover:bg-white/10 text-purple-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
           >
             <span>✕ إلغاء والعودة للرواية</span>
