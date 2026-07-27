@@ -801,6 +801,19 @@ export default function App() {
     .filter(n => n.chaptersCount > 0)
     .slice(0, 20), [activeNovels]);
 
+  // Real first/last chapter numbers of a novel. Chapters are ordered by their
+  // number, so the newest chapter is always the highest number (e.g. 1000 stays
+  // last even if 100 or 200 are added afterwards). Never derive these from the
+  // chapter count, which breaks as soon as numbering has gaps.
+  const getChapterBounds = (novelId: string) => {
+    const numbers = BerryDatabase.get<any[]>('chapters', [])
+      .filter(c => c.novelId === novelId)
+      .map(c => c.number)
+      .filter(n => typeof n === 'number' && Number.isFinite(n));
+    if (numbers.length === 0) return { first: 1, last: 1 };
+    return { first: Math.min(...numbers), last: Math.max(...numbers) };
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0F0B14] text-purple-100 flex flex-col justify-between selection:bg-violet-600/30">
       
@@ -888,7 +901,7 @@ export default function App() {
                 {/* Cinematic Slider */}
                 <HeroSlider 
                   featuredNovels={activeNovels.slice(0, 3)}
-                  onStartReading={(id) => handleReadChapter(id, 1)}
+                  onStartReading={(id) => handleReadChapter(id, getChapterBounds(id).first)}
                   onViewDetails={(id) => handleNavigate('novel', { id })}
                 />
 
@@ -971,9 +984,9 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {latestChaptersList.map((novel) => (
-                        <div 
+                        <div
                           key={novel.id}
-                          onClick={() => handleReadChapter(novel.id, novel.chaptersCount)}
+                          onClick={() => handleReadChapter(novel.id, getChapterBounds(novel.id).last)}
                           className="p-4 bg-[#14101D] hover:bg-[#1A1625] border border-white/5 hover:border-violet-500/20 rounded-2xl flex gap-4 cursor-pointer transition-all hover:-translate-y-0.5 group relative"
                         >
                           {/* Purple "جديد" (New) ribbon badge as requested in specs */}
@@ -992,7 +1005,7 @@ export default function App() {
                             </div>
                             
                             <div className="flex justify-between items-center mt-2 text-[10px] text-purple-300 border-t border-white/5 pt-2">
-                              <span className="font-bold text-violet-300">قراءة الفصل {novel.chaptersCount} ←</span>
+                              <span className="font-bold text-violet-300">قراءة الفصل {getChapterBounds(novel.id).last} ←</span>
                               <span className="text-purple-400">منذ دقائق</span>
                             </div>
                           </div>

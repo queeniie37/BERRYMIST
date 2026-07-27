@@ -32,6 +32,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
   // Add chapter simulator state
   const [showAddChapterForm, setShowAddChapterForm] = useState(false);
+  const [newChapterNumber, setNewChapterNumber] = useState('');
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [newChapterContent, setNewChapterContent] = useState('');
   const [newChapterImages, setNewChapterImages] = useState('');
@@ -373,12 +374,29 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     setNewChapterImages(updated.join(', '));
   };
 
+  // Next chapter number = highest existing number + 1 (never the chapter count,
+  // so gaps like 1, 100, 1000 keep growing correctly instead of colliding).
+  const nextChapterNumber = chapters.length > 0
+    ? Math.max(...chapters.map(c => c.number)) + 1
+    : 1;
+
   // Translator: Create Chapter handler
   const handleCreateChapter = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChapterTitle || !newChapterContent) return;
 
-    const newChapterNum = chapters.length + 1;
+    // Use the number the author typed, otherwise continue after the highest one
+    const requestedNum = newChapterNumber.trim() === '' ? nextChapterNumber : Number(newChapterNumber);
+    if (!Number.isFinite(requestedNum) || !Number.isInteger(requestedNum) || requestedNum < 1) {
+      alert('رقم الفصل يجب أن يكون رقماً صحيحاً أكبر من صفر.');
+      return;
+    }
+    if (chapters.some(c => c.number === requestedNum)) {
+      alert(`الفصل رقم ${requestedNum} موجود بالفعل في هذه الرواية. اختر رقماً آخر.`);
+      return;
+    }
+    const newChapterNum = requestedNum;
+
     const imgUrls = newChapterImages.split(',')
       .map(url => url.trim())
       .filter(url => url.length > 0);
@@ -443,6 +461,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     BerryDatabase.set('notifications', [...allNotifs, newNotif]);
 
     setShowAddChapterForm(false);
+    setNewChapterNumber('');
     setNewChapterTitle('');
     setNewChapterContent('');
     setNewChapterImages('');
@@ -600,8 +619,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {/* Interactive Actions Pane */}
           <div className="flex flex-wrap gap-3 mt-6">
             {chapters.length > 0 ? (
-              <button 
-                onClick={() => onReadChapter(novel.id, 1)}
+              <button
+                onClick={() => onReadChapter(novel.id, Math.min(...chapters.map(c => c.number)))}
                 className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-violet-500/10 cursor-pointer"
               >
                 <span>ابدأ القراءة الأولى</span>
@@ -746,16 +765,32 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               {showAddChapterForm && (
                 <form onSubmit={handleCreateChapter} className="p-5 rounded-2xl bg-violet-950/10 border border-violet-500/20 text-right flex flex-col gap-4 animate-in slide-in-from-top-2 duration-300">
                   <h4 className="font-bold text-xs text-violet-300">محرر ترجمة الفصول السريع لـ {novel.titleAr}</h4>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
-                      value={newChapterTitle}
-                      onChange={(e) => setNewChapterTitle(e.target.value)}
-                      className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-purple-200">رقم الفصل</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder={`${nextChapterNumber}`}
+                        value={newChapterNumber}
+                        onChange={(e) => setNewChapterNumber(e.target.value)}
+                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white font-mono"
+                        dir="ltr"
+                      />
+                      <span className="text-[9px] text-purple-400">اتركه فارغاً ليأخذ الرقم {nextChapterNumber} تلقائياً</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-purple-200">عنوان الفصل الجديد</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="عنوان الفصل (مثال: بداية الملحمة واللقاء الأول)"
+                        value={newChapterTitle}
+                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                        className="bg-[#1A1625] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-violet-500 text-white"
+                      />
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center mb-1">

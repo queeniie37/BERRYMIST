@@ -57,7 +57,14 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
         novelTitle: n ? n.titleAr : 'رواية غير معروفة'
       };
     });
-    setChapters(chaptersWithNovelInfo.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    // Group by novel, then order by chapter number descending so the highest
+    // number is always treated as the latest chapter (1000 stays above 100/200
+    // regardless of when each was actually written).
+    setChapters(chaptersWithNovelInfo.sort((a, b) => {
+      const titleCompare = (a.novelTitle || '').localeCompare(b.novelTitle || '', 'ar');
+      if (titleCompare !== 0) return titleCompare;
+      return b.number - a.number;
+    }));
 
     // 2. Load deleted chapters
     const allDeleted = BerryDatabase.get<any[]>('deleted_chapters', []);
