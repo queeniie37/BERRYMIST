@@ -119,6 +119,13 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   const [contentHistory, setContentHistory] = useState<string[]>(['']);
   const [historyIdx, setHistoryIdx] = useState(0);
 
+  // Suggested number for a new chapter: highest existing number + 1, so
+  // numbering always keeps growing (after 1000 the next suggestion is 1001,
+  // never the chapter count).
+  const suggestedChapterNumber = chapters.length > 0
+    ? Math.max(...chapters.map(c => c.number)) + 1
+    : 1;
+
   const getMaxScheduleDate = () => {
     const maxDate = new Date();
     maxDate.setMonth(maxDate.getMonth() + 2); // 2 months from now
@@ -991,18 +998,29 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
 
         {/* 2. Chapter Number */}
         <div className="flex flex-col gap-1 w-full mb-4 text-right">
-          <div className="flex justify-end items-center mb-1 text-[11px] text-purple-400">
+          <div className="flex justify-between items-center mb-1 text-[11px] text-purple-400">
+            <button
+              type="button"
+              onClick={() => setNewChapterNumber(suggestedChapterNumber)}
+              className="text-[10px] text-violet-400 hover:text-white font-bold cursor-pointer transition-colors"
+              title="استخدام الرقم التالي تلقائياً"
+            >
+              الرقم المقترح: {suggestedChapterNumber} ↩
+            </button>
             <span>رقم الفصل</span>
           </div>
-          <input 
+          <input
             type="number"
             required
             min="1"
-            placeholder="مثال: 5"
+            placeholder={`مثال: ${suggestedChapterNumber}`}
             value={newChapterNumber}
             onChange={(e) => setNewChapterNumber(e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full bg-[#13101E] border border-white/5 hover:border-white/10 rounded-xl px-4 py-3.5 text-xs text-white text-right outline-none focus:border-violet-500 font-sans placeholder-purple-300/40 font-mono"
           />
+          <span className="text-[9px] text-purple-400 mt-1">
+            الفصول تُرتّب دائماً حسب الرقم — الرقم الأكبر هو الفصل الأحدث دائماً.
+          </span>
         </div>
 
         {/* 3. Chapter Title */}
@@ -1304,8 +1322,8 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           {/* Interactive Actions Pane */}
           <div className="flex flex-wrap gap-3 mt-6">
             {chapters.length > 0 ? (
-              <button 
-                onClick={() => onReadChapter(novel.id, 1)}
+              <button
+                onClick={() => onReadChapter(novel.id, Math.min(...chapters.map(c => c.number)))}
                 className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-violet-500/10 cursor-pointer"
               >
                 <span>ابدأ القراءة الأولى</span>
