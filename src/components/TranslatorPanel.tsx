@@ -3,7 +3,7 @@ import { FileText, Plus, CheckCircle, Flame, Clock, Award, Check, Layers, AlertC
 import { Novel, Suggestion, Reservation, User } from '../types';
 import { BerryDatabase, COVER_IMAGES } from '../data';
 import { compressImageFile } from '../utils/media';
-import { normalizeChapterText } from '../utils/text';
+import { normalizeChapterText, chapterTextToEditorHtml } from '../utils/text';
 import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -69,7 +69,10 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
   const editLastHtmlRef = useRef('');
   useEffect(() => {
     if (editingChapter && editEditorRef.current && editChapterContent !== editLastHtmlRef.current) {
-      editEditorRef.current.innerHTML = editChapterContent;
+      // Seed as block HTML so stored line breaks and blank lines between
+      // paragraphs show as real gaps — the same layout as the published
+      // chapter — instead of collapsing into one run of text.
+      editEditorRef.current.innerHTML = chapterTextToEditorHtml(editChapterContent);
       editLastHtmlRef.current = editChapterContent;
     }
   }, [editingChapter, editChapterContent]);

@@ -110,6 +110,26 @@ export function normalizeChapterText(raw: string): string {
     .trim();
 }
 
+// Seed the rich contentEditable editor from stored chapter text WITHOUT
+// losing the line layout. Stored content is plain text with '\n' line breaks
+// (and '\n\n' blank lines between paragraphs). Assigning that straight to
+// innerHTML collapses every newline into a single space, so the blank lines a
+// translator sees in the published chapter vanished when they reopened it to
+// edit. Wrap each line in its own block — and every empty line in an empty
+// block — so the editor shows the exact same line breaks and blank-line gaps
+// as the published chapter. Lines may already carry inline markup (<b>, <i>,
+// <img>) from normalizeChapterText; that passes through untouched.
+export function chapterTextToEditorHtml(text: string): string {
+  if (!text) return '';
+  // Already editor/block HTML (legacy value) — leave it as the editor's own.
+  if (/<(div|p|br)\b/i.test(text)) return text;
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => (line.trim() === '' ? '<div><br></div>' : `<div>${line}</div>`))
+    .join('');
+}
+
 // First-attach formatting for the add-chapter editor: spread pasted text so
 // every non-empty line is followed by one visible blank line. Returns HTML
 // for a contenteditable editor (<div>line</div><div><br></div>…). Applied
