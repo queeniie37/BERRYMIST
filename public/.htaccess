@@ -30,6 +30,20 @@ RewriteRule ^api/auth/?$ api/auth.php [L]
 # Atomic view-count increment -> PHP handler.
 RewriteRule ^api/view/?$ api/view.php [L]
 
+# Instant search-engine notification when a chapter is published -> PHP.
+RewriteRule ^api/indexnow/?$ api/indexnow.php [L]
+
+# Always-current sitemap, generated from the live database so a chapter
+# published a minute ago is already listed.
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
+# Novel and chapter pages are server-rendered so their real title and text
+# are in the FIRST response. Search engines that don't run JavaScript (Bing,
+# Yandex, Naver, DuckDuckGo, and every social preview bot) could not see any
+# chapter otherwise, because the app paints them only after JS runs.
+RewriteRule ^novel/[^/]+/chapter-[0-9]+/?$ api/prerender.php [L,QSA]
+RewriteRule ^novel/[^/]+/?$ api/prerender.php [L,QSA]
+
 # Single-page app fallback: serve index.html for any path that is not a real
 # file or directory, so deep links and refreshes don't 404.
 RewriteCond %{REQUEST_FILENAME} !-f

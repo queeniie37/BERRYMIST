@@ -12,6 +12,7 @@ import { getUserBadges } from './utils/badges';
 import { upsertSelfInDirectory } from './utils/directory';
 import { updateAccountOnServer } from './utils/accounts';
 import { slugify } from './utils/slug';
+import { notifySearchEngines } from './utils/seo';
 
 // Component imports
 import Header from './components/Header';
@@ -117,49 +118,63 @@ export default function App() {
     return fallbackSlug || novelId;
   };
 
-  const buildScreenHash = (page: string, params: any) => {
+  // Screens live at REAL paths (/novel/<slug>/chapter-3), not URL fragments.
+  // Search engines discard everything after a '#', so while the app used
+  // fragment links every novel and every chapter looked like one single
+  // homepage URL and none of them could be indexed. Real paths give each
+  // chapter its own address that crawlers (and shared links) can reach; the
+  // server serves the app for any path, so deep links and refreshes work.
+  const buildScreenUrl = (page: string, params: any) => {
     if (page === 'novel' && params) {
-      return `#/novel/${novelSlug(params.id, params.slug)}`;
+      return `/novel/${novelSlug(params.id, params.slug)}`;
     }
     if (page === 'reader' && params) {
-      return `#/novel/${novelSlug(params.novelId, params.slug)}/chapter-${params.chapterNumber}`;
+      return `/novel/${novelSlug(params.novelId, params.slug)}/chapter-${params.chapterNumber}`;
     }
     const seg = PAGE_TO_SEGMENT[page];
-    return seg === '' ? '#/' : `#/${seg ?? page}`;
+    return seg === '' ? '/' : `/${seg ?? page}`;
   };
 
-  const parseScreenHash = (): { page: string; params: any } | null => {
+  // Turn "/novel/<slug>/chapter-3" (or the fragment form of the same) into a
+  // screen + params.
+  const parseScreenPath = (path: string): { page: string; params: any } | null => {
+    const segs = path.split('/').filter(Boolean).map(s => {
+      try { return decodeURIComponent(s); } catch { return s; }
+    });
+    if (!segs.length) return { page: 'home', params: null };
+
+    // Novel + reader: /novel/<slug>[/chapter-<n>]
+    if (segs[0] === 'novel' && segs[1]) {
+      const slug = segs[1];
+      const chMatch = (segs[2] || '').match(/^chapter-(\d+)$/);
+      if (chMatch) {
+        return { page: 'reader', params: { slug, chapterNumber: Number(chMatch[1]) } };
+      }
+      return { page: 'novel', params: { slug } };
+    }
+
+    if (segs[0] === 'profile' && segs[1] === 'edit') return { page: 'profile-edit', params: null };
+
+    const page = SEGMENT_TO_PAGE[segs[0]] || segs[0] || 'home';
+    return { page, params: null };
+  };
+
+  const parseScreenUrl = (): { page: string; params: any } | null => {
     try {
+      // Links copied or bookmarked before the move to real paths still carry
+      // a fragment; keep honouring them so no shared link ever breaks.
       const raw = window.location.hash || '';
-      if (!raw || raw === '#' || raw === '#/') return { page: 'home', params: null };
-
-      // Backward compatibility: the old encoded format #/page?d=<json>
-      const legacy = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
-      if (legacy && legacy[2] !== undefined) {
-        let params: any = null;
-        try { params = JSON.parse(decodeURIComponent(legacy[2])); } catch { params = null; }
-        return { page: legacy[1], params };
-      }
-
-      const path = raw.replace(/^#\/?/, '');
-      const segs = path.split('/').filter(Boolean).map(s => decodeURIComponent(s));
-
-      // Novel + reader: #/novel/<slug>[/chapter-<n>]
-      if (segs[0] === 'novel' && segs[1]) {
-        const slug = segs[1];
-        const chapterSeg = segs[2] || '';
-        const chMatch = chapterSeg.match(/^chapter-(\d+)$/);
-        if (chMatch) {
-          return { page: 'reader', params: { slug, chapterNumber: Number(chMatch[1]) } };
+      if (raw && raw !== '#' && raw !== '#/') {
+        // The oldest encoded format: #/page?d=<json>
+        const legacy = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
+        if (legacy && legacy[2] !== undefined) {
+          let params: any = null;
+          try { params = JSON.parse(decodeURIComponent(legacy[2])); } catch { params = null; }
+          return { page: legacy[1], params };
         }
-        return { page: 'novel', params: { slug } };
+        return parseScreenPath(raw.replace(/^#\/?/, ''));
       }
-
-      // profile/edit
-      if (segs[0] === 'profile' && segs[1] === 'edit') return { page: 'profile-edit', params: null };
-
-      const page = SEGMENT_TO_PAGE[segs[0]] || segs[0] || 'home';
-      return { page, params: null };
+      return parseScreenPath(window.location.pathname || '/');
     } catch {
       return null;
     }
@@ -182,15 +197,16 @@ export default function App() {
   ]);
 
   // Decide the first screen for this entry to the site:
-  // - A copied/shared link (URL hash, e.g. #/novel?d=…) opens exactly that
-  //   page — refreshes keep their page the same way because the current
-  //   screen is always stamped into the URL hash.
-  // - Entering the bare domain (no hash) ALWAYS opens the homepage. The old
+  // - A copied/shared link (e.g. /novel/<slug>/chapter-3, or an older
+  //   #/novel?d=… fragment) opens exactly that page — refreshes keep their
+  //   page the same way because the current screen is always stamped into
+  //   the URL.
+  // - Entering the bare domain ALWAYS opens the homepage. The old
   //   sessionStorage fallback could bounce a visitor who typed the domain
   //   into a previously-used tab back to a random earlier screen.
   const restoreLastScreen = () => {
-    const fromHash = parseScreenHash();
-    if (fromHash && KNOWN_PAGES.has(fromHash.page)) return fromHash;
+    const fromUrl = parseScreenUrl();
+    if (fromUrl && KNOWN_PAGES.has(fromUrl.page)) return fromUrl;
     return { page: 'home', params: null };
   };
   const [currentPage, setCurrentPage] = useState<string>(() => restoreLastScreen().page); // home, explore, suggestions, teams, profile, novel, reader, translator-panel, admin
@@ -630,6 +646,11 @@ export default function App() {
             novelId: chap.novelId,
             chapterId: chap.id
           });
+
+          // A scheduled chapter becomes a real, readable page only now — so
+          // this is the moment to push it to the search engines, exactly as
+          // an immediately-published chapter does.
+          notifySearchEngines({ novelId: chap.novelId, chapterNumber: chap.number });
         }
       }
       return chap;
@@ -975,7 +996,7 @@ export default function App() {
     try {
       const isSameScreen = page === currentPage && JSON.stringify(params) === JSON.stringify(currentParams);
       if (!isSameScreen) {
-        window.history.pushState({ berryPage: page, berryParams: params }, '', buildScreenHash(page, params));
+        window.history.pushState({ berryPage: page, berryParams: params }, '', buildScreenUrl(page, params));
       }
     } catch { /* history API unavailable */ }
 
@@ -991,7 +1012,7 @@ export default function App() {
     // (or refreshing) restores the right screen.
     try {
       const cur = restoreLastScreen();
-      window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '', buildScreenHash(cur.page, cur.params));
+      window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '', buildScreenUrl(cur.page, cur.params));
     } catch { /* history API unavailable */ }
 
     const handlePopState = (e: PopStateEvent) => {
@@ -1000,7 +1021,7 @@ export default function App() {
       const s = e.state;
       let target = (s && typeof s.berryPage === 'string')
         ? { page: s.berryPage, params: s.berryParams ?? null }
-        : (parseScreenHash() || { page: 'home', params: null });
+        : (parseScreenUrl() || { page: 'home', params: null });
       if (!KNOWN_PAGES.has(target.page)) target = { page: 'home', params: null };
       setCurrentPage(target.page);
       setCurrentParams(target.params);

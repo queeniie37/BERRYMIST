@@ -4,6 +4,7 @@ import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } f
 import { BerryDatabase } from '../data';
 import { compressImageFile } from '../utils/media';
 import { normalizeChapterText, spreadPlainTextLines } from '../utils/text';
+import { notifySearchEngines } from '../utils/seo';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -854,6 +855,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     if (isScheduled) {
       alert(`📅 تمت جدولة الفصل ${newChapterNum} بنجاح! لن يظهر للقراء إلا في ${new Date(newChapterPublishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}، ويمكنك متابعته من صفحة الأنشطة والجدولة.`);
     } else {
+      // Live now: push the new chapter's URL to the search engines straight
+      // away instead of waiting for them to re-crawl on their own. A
+      // scheduled chapter is announced later, when it actually goes live.
+      notifySearchEngines({ novelId: novel.id, chapterNumber: newChapterNum });
       alert(`تم نشر الفصل ${newChapterNum} بنجاح وهو متاح الآن لجميع القراء! 🎉`);
     }
 
