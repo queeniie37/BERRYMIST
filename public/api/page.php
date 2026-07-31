@@ -106,7 +106,7 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
         }
         if ($novel !== null) {
             $status = isset($novel['status']) ? $novel['status'] : '';
-            $isPublic = ($status !== 'CANCELLED' && $status !== 'PENDING');
+            $isPublic = ($status !== 'CANCELLED' && $status !== 'PENDING' && $status !== 'PENDING_APPROVAL');
             $titleEn = isset($novel['titleEn']) ? $novel['titleEn'] : '';
             $titleAr = isset($novel['titleAr']) ? $novel['titleAr'] : '';
             $display = $titleAr !== '' ? $titleAr : $titleEn;

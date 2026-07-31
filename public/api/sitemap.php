@@ -77,7 +77,7 @@ if (file_exists($DB_FILE)) {
         foreach ($db['novels'] as $n) {
             if (!is_array($n)) continue;
             $status = isset($n['status']) ? $n['status'] : '';
-            if ($status === 'CANCELLED' || $status === 'PENDING') continue;
+            if ($status === 'CANCELLED' || $status === 'PENDING' || $status === 'PENDING_APPROVAL') continue;
             $slug = novel_slug($n);
             if ($slug === '') continue;
 

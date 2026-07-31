@@ -65,7 +65,7 @@ if (file_exists($DB_FILE)) {
             foreach ($db['novels'] as $n) {
                 if (!is_array($n) || empty($n['id'])) continue;
                 $status = isset($n['status']) ? $n['status'] : '';
-                if ($status === 'CANCELLED' || $status === 'PENDING') continue;
+                if ($status === 'CANCELLED' || $status === 'PENDING' || $status === 'PENDING_APPROVAL') continue;
                 $novels[$n['id']] = $n;
             }
         }
