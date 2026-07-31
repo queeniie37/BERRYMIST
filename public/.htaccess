@@ -30,10 +30,39 @@ RewriteRule ^api/auth/?$ api/auth.php [L]
 # Atomic view-count increment -> PHP handler.
 RewriteRule ^api/view/?$ api/view.php [L]
 
-# Single-page app fallback: serve index.html for any path that is not a real
-# file or directory, so deep links and refreshes don't 404.
+# Sitemap: /sitemap.xml (the location crawlers check by default) is served by
+# the live generator, so it always lists every novel AND chapter — a static
+# file went stale the moment a chapter was published.
+RewriteRule ^sitemap\.xml$ api/sitemap.php [L]
+RewriteRule ^api/sitemap\.php$ api/sitemap.php [L]
+
+# RSS feed of the newest chapters, for readers and aggregators.
+RewriteRule ^feed\.xml$ api/feed.php [L]
+RewriteRule ^api/feed/?$ api/feed.php [L]
+
+# Instant "this URL is new" push to search engines when a chapter is published.
+RewriteRule ^api/indexnow/?$ api/indexnow.php [L]
+
+# Novel and chapter pages are prerendered by PHP: the same index.html is served
+# (so the app boots as usual) but with the real title/description/canonical and
+# the chapter text already in the HTML. Without this, search engines would only
+# ever see the empty single-page-app shell and a new chapter could take days to
+# be indexed — or never rank at all.
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^novel/.+$ api/page.php [L]
+
+# Single-page app fallback: serve index.html for any path that is not a real
+# file or directory, so deep links and refreshes don't 404.
+# File-like paths (anything ending in a real extension) are EXCLUDED from the
+# SPA fallback: a missing .html/.txt/.xml must return an honest 404 instead of
+# the app shell. Returning the shell made every missing file look like a valid
+# page — that is what makes Google report "the verification file contains
+# incorrect content" instead of simply "not found", and search engines treat
+# such soft-404s as a site-wide quality problem.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !\.(html?|txt|xml|json|js|mjs|css|map|php|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|pdf|zip)$ [NC]
 RewriteRule ^ index.html [L]
 
 # Never expose the shared data file, the member accounts file, or the

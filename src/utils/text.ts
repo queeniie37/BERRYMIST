@@ -143,3 +143,4 @@ export function spreadPlainTextLines(text: string): string {
     .filter((l) => l.length > 0);
   return lines.map((l) => `<div>${escapeText(l)}</div>`).join('<div><br></div>');
 }
+

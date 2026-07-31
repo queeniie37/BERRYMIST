@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
 
+# Live sitemap: regenerated on every request, so newly published chapters are
+# listed immediately.
 Sitemap: https://berrymist.online/sitemap.xml

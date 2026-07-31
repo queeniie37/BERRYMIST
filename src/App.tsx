@@ -89,13 +89,16 @@ function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: stri
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
-  // Every in-app screen gets its own clean, readable URL hash so links are
-  // organised by page name, novel name and chapter number — e.g.
-  //   #/library
-  //   #/novel/سيد-الظلال
-  //   #/novel/سيد-الظلال/chapter-5
-  // The hash also makes the browser back/forward buttons walk through visited
-  // screens, even after a reload or on browsers that drop history state.
+  // Every in-app screen gets its own clean, readable URL so links are organised
+  // by page name, novel name and chapter number — e.g.
+  //   /library
+  //   /novel/سيد-الظلال
+  //   /novel/سيد-الظلال/chapter-5
+  // These are REAL paths, not "#" fragments: everything after a "#" never
+  // reaches the server, so search engines saw every screen as the bare
+  // homepage and no novel or chapter could ever be indexed. The host's SPA
+  // fallback serves index.html for these paths, and legacy "#/..." links are
+  // still understood and upgraded.
 
   // page key  <->  URL segment (novel/reader are handled specially below)
   const PAGE_TO_SEGMENT: Record<string, string> = {
@@ -105,7 +108,7 @@ export default function App() {
     'contact-us': 'contact', 'privacy-policy': 'privacy', 'terms-of-service': 'terms'
   };
   const SEGMENT_TO_PAGE: Record<string, string> = Object.fromEntries(
-    Object.entries(PAGE_TO_SEGMENT).map(([p, s]) => [s, p])
+    Object.entries(PAGE_TO_SEGMENT).map(([p, seg]) => [seg, p])
   );
 
   // The readable novel-name segment for a URL. Uses whatever novel record is
@@ -119,39 +122,42 @@ export default function App() {
 
   const buildScreenHash = (page: string, params: any) => {
     if (page === 'novel' && params) {
-      return `#/novel/${novelSlug(params.id, params.slug)}`;
+      return `/novel/${encodeURIComponent(novelSlug(params.id, params.slug))}`;
     }
     if (page === 'reader' && params) {
-      return `#/novel/${novelSlug(params.novelId, params.slug)}/chapter-${params.chapterNumber}`;
+      return `/novel/${encodeURIComponent(novelSlug(params.novelId, params.slug))}/chapter-${params.chapterNumber}`;
     }
     const seg = PAGE_TO_SEGMENT[page];
-    return seg === '' ? '#/' : `#/${seg ?? page}`;
+    return seg === '' ? '/' : `/${seg ?? page}`;
   };
 
   const parseScreenHash = (): { page: string; params: any } | null => {
     try {
-      const raw = window.location.hash || '';
-      if (!raw || raw === '#' || raw === '#/') return { page: 'home', params: null };
-
-      // Backward compatibility: the old encoded format #/page?d=<json>
-      const legacy = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
-      if (legacy && legacy[2] !== undefined) {
-        let params: any = null;
-        try { params = JSON.parse(decodeURIComponent(legacy[2])); } catch { params = null; }
-        return { page: legacy[1], params };
+      // Prefer the real path; fall back to the legacy "#/..." form so links
+      // shared or bookmarked before this change still open the right screen.
+      const hash = window.location.hash || '';
+      let raw = '';
+      if (hash.startsWith('#/')) {
+        // Legacy encoded format #/page?d=<json>
+        const legacy = hash.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
+        if (legacy && legacy[2] !== undefined) {
+          let params: any = null;
+          try { params = JSON.parse(decodeURIComponent(legacy[2])); } catch { params = null; }
+          return { page: legacy[1], params };
+        }
+        raw = hash.replace(/^#\/?/, '');
+      } else {
+        raw = (window.location.pathname || '').replace(/^\/+/, '').replace(/\/+$/, '');
       }
+      if (!raw) return { page: 'home', params: null };
 
-      const path = raw.replace(/^#\/?/, '');
-      const segs = path.split('/').filter(Boolean).map(s => decodeURIComponent(s));
+      const segs = raw.split('/').filter(Boolean).map(seg => { try { return decodeURIComponent(seg); } catch { return seg; } });
 
-      // Novel + reader: #/novel/<slug>[/chapter-<n>]
+      // Novel + reader: /novel/<slug>[/chapter-<n>]
       if (segs[0] === 'novel' && segs[1]) {
         const slug = segs[1];
-        const chapterSeg = segs[2] || '';
-        const chMatch = chapterSeg.match(/^chapter-(\d+)$/);
-        if (chMatch) {
-          return { page: 'reader', params: { slug, chapterNumber: Number(chMatch[1]) } };
-        }
+        const chMatch = (segs[2] || '').match(/^chapter-(\d+)$/);
+        if (chMatch) return { page: 'reader', params: { slug, chapterNumber: Number(chMatch[1]) } };
         return { page: 'novel', params: { slug } };
       }
 
@@ -212,6 +218,32 @@ export default function App() {
   }, []);
 
   const [novels, setNovels] = useState<Novel[]>([]);
+
+  // When a novel/reader link is opened directly (or pasted/shared), the URL
+  // only carries the readable novel-name slug. Once the novels list has loaded,
+  // backfill the concrete novel id into the current params so the rest of the
+  // app -- which still keys off ids -- keeps working unchanged.
+  useEffect(() => {
+    if (!novels.length || !currentParams) return;
+    if (currentPage === 'novel' && currentParams.slug && !currentParams.id) {
+      const id = findNovelIdBySlug(currentParams.slug);
+      if (id) setCurrentParams((prev: any) => ({ ...prev, id }));
+    } else if (currentPage === 'reader' && currentParams.slug && !currentParams.novelId) {
+      const novelId = findNovelIdBySlug(currentParams.slug);
+      if (novelId) setCurrentParams((prev: any) => ({ ...prev, novelId }));
+    }
+
+    // A legacy "#/novel?d={id}" link is rewritten at mount, before the novels
+    // list exists, so it lands on /novel/<id>. Once the titles are known,
+    // upgrade the address bar to the readable slug that the canonical tag and
+    // the sitemap both use, instead of leaving two URLs for the same page.
+    if (currentPage === 'novel' || currentPage === 'reader') {
+      const clean = buildScreenHash(currentPage, currentParams);
+      if (clean && window.location.pathname !== clean) {
+        try { window.history.replaceState({ berryPage: currentPage, berryParams: currentParams }, '', clean); } catch { /* ignore */ }
+      }
+    }
+  }, [novels, currentPage, currentParams]);
   const [news, setNews] = useState<News[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -261,7 +293,7 @@ export default function App() {
 
   // Footer dynamic values
   const [footerDesc, setFooterDesc] = useState(() => BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
-  const [footerEmail, setFooterEmail] = useState(() => BerryDatabase.get<string>('footer_email', 'support@berrymist.com'));
+  const [footerEmail, setFooterEmail] = useState(() => BerryDatabase.get<string>('footer_email', 'support@berrymist.online'));
   const [footerSupport, setFooterSupport] = useState(() => BerryDatabase.get<string>('footer_support_text', 'عبر تذكرة الديسكورد الرسمية بالأسفل'));
   const [footerCommunityText, setFooterCommunityText] = useState(() => BerryDatabase.get<string>('footer_community_text', 'انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها قبل الجميع حياً!'));
   
@@ -321,7 +353,7 @@ export default function App() {
 
     const handleFooterUpdate = () => {
       setFooterDesc(BerryDatabase.get<string>('footer_description', 'منصة عربية رائدة تعنى بترجمة، اقتراح وقراءة الروايات الخفيفة وروايات الفانتازيا والويب المظلمة بأعلى دقة ومعايير حماية وجمالية بصرية فخمة للغاية.'));
-      setFooterEmail(BerryDatabase.get<string>('footer_email', 'support@berrymist.com'));
+      setFooterEmail(BerryDatabase.get<string>('footer_email', 'support@berrymist.online'));
       setFooterSupport(BerryDatabase.get<string>('footer_support_text', 'عبر تذكرة الديسكورد الرسمية بالأسفل'));
       setFooterCommunityText(BerryDatabase.get<string>('footer_community_text', 'انضم لعائلتنا الروائية الكبرى لتصلك إشعارات الفصول فور صدورها قبل الجميع حياً!'));
       setFooterSocials(BerryDatabase.get<any[]>('footer_socials', defaultSocialLinks));
@@ -484,8 +516,9 @@ export default function App() {
         description = `تصفح مكتبة ${siteName} الكاملة: روايات مترجمة ومؤلفة في الأكشن والفانتازيا والغموض، مصنفة حسب الحالة والتصنيف، مع فصول جديدة تنزل يومياً.`;
         break;
       case 'novel':
-        if (currentParams && currentParams.id) {
-          const novel = novels.find(n => n.id === currentParams.id);
+        if (currentParams) {
+          const nid = currentParams.id || findNovelIdBySlug(currentParams.slug);
+          const novel = novels.find(n => n.id === nid);
           if (novel) {
             title = `رواية ${novel.titleAr} (${novel.titleEn}) | ${siteName}`;
             description = excerpt(`اقرأ رواية ${novel.titleAr} مترجمة بجودة عالية على ${siteName}. ${novel.description || ''}`);
@@ -508,8 +541,9 @@ export default function App() {
         }
         break;
       case 'reader':
-        if (currentParams && currentParams.novelId) {
-          const novel = novels.find(n => n.id === currentParams.novelId);
+        if (currentParams) {
+          const nid = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
+          const novel = novels.find(n => n.id === nid);
           if (novel) {
             title = `الفصل ${currentParams.chapterNumber} من رواية ${novel.titleAr} | ${siteName}`;
             description = excerpt(`اقرأ الفصل ${currentParams.chapterNumber} من رواية ${novel.titleAr} (${novel.titleEn}) مترجماً بجودة عالية وحصرياً على ${siteName}.`);
@@ -567,6 +601,19 @@ export default function App() {
     } else if (existing) {
       existing.remove();
     }
+
+    // Canonical + social URL: the real crawlable path for this screen, so
+    // shared links and search results point at one address per page.
+    const pageUrl = `https://berrymist.online${buildScreenHash(currentPage, currentParams)}`;
+    setMeta('meta[property="og:url"]', pageUrl);
+    setMeta('meta[property="twitter:url"]', pageUrl);
+    let canonicalEl = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonicalEl) {
+      canonicalEl = document.createElement('link');
+      canonicalEl.rel = 'canonical';
+      document.head.appendChild(canonicalEl);
+    }
+    canonicalEl.href = pageUrl;
   }, [currentPage, currentParams, novels, siteName]);
 
   // Guest browsers must stay read-only on shared data: never let an anonymous
@@ -1131,6 +1178,7 @@ export default function App() {
   const handleReaderNavigateChapter = (direction: 'next' | 'prev') => {
     if (currentPage !== 'reader' || !currentParams) return;
     const { chapterNumber } = currentParams;
+    // A directly-opened reader link carries only the slug until backfill runs.
     const novelId = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
     if (!novelId) return;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
@@ -1486,6 +1534,7 @@ export default function App() {
           );
         })()}
 
+        {/* 
         {/* ==================== SCREEN 4: READ CHAPTERS VIEWPORT ==================== */}
         {currentPage === 'reader' && currentParams && (() => {
           const nid = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
