@@ -6,6 +6,7 @@ import { isImageSource, safeEmojiOrFallback, compressImageFile } from '../utils/
 import { getAllTranslatorsPoints, crownTranslator, getCrownedTranslatorId, getCurrentMonthKey } from '../utils/points';
 import { BADGE_CATALOG, getUserBadges, grantBadge, revokeBadge } from '../utils/badges';
 import { UserDirectory } from '../utils/directory';
+import { chapterNum } from '../utils/chapters';
 import ConfirmModal from './ConfirmModal';
 import { DEFAULT_CONTACT_SETTINGS, ContactSettings } from './ContactUs';
 
@@ -1986,7 +1987,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
             const ch = chapterById[c.refId];
             if (ch) {
               const n = novelById[ch.novelId];
-              return `الفصل ${ch.number} من رواية «${n ? n.titleAr : '؟'}»`;
+              return `الفصل ${chapterNum(ch)} من رواية «${n ? n.titleAr : '؟'}»`;
             }
             return 'فصل (محذوف)';
           };
@@ -2418,7 +2419,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                         <span key={n.id}>📕 رواية مفقودة: <b className="text-white">{n.titleAr || n.id}</b></span>
                       ))}
                       {recoveryFound.chapters.map(c => (
-                        <span key={c.id}>📄 فصل مفقود: <b className="text-white">{c.title || `فصل ${c.number}`}</b> <span className="text-purple-400">(رواية: {String(c.novelId).slice(0, 24)})</span></span>
+                        <span key={c.id}>📄 فصل مفقود: <b className="text-white">{c.title || `فصل ${chapterNum(c)}`}</b> <span className="text-purple-400">(رواية: {String(c.novelId).slice(0, 24)})</span></span>
                       ))}
                     </div>
                     <button
@@ -2504,7 +2505,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                             </span>
                             <span className="text-xs font-bold text-white truncate">{chap.title}</span>
                           </div>
-                          <span className="text-[9px] text-purple-400 block">رقم الفصل: {chap.number}</span>
+                          <span className="text-[9px] text-purple-400 block">رقم الفصل: {chapterNum(chap)}</span>
                         </div>
 
                         <div className="flex flex-wrap justify-between items-center text-[9px] text-purple-400 border-t border-white/5 pt-2 gap-1">

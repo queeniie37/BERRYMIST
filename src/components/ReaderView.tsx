@@ -4,6 +4,7 @@ import { Chapter, Novel, User, Comment, CommentReply, Report } from '../types';
 import { BerryDatabase } from '../data';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import { normalizeChapterText } from '../utils/text';
+import { byChapterNumberAsc, chapterNum, isChapterNumber } from '../utils/chapters';
 
 // Chapter text is author-provided. Escape all HTML, then re-allow only the
 // simple formatting tags the chapter editor can produce (<b>, <i>, <u>, <img>) so a
@@ -198,13 +199,13 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     novelChapters = novelChapters.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
 
     // Sort chapters by number ascending
-    novelChapters.sort((a, b) => a.number - b.number);
+    novelChapters.sort(byChapterNumberAsc);
 
-    const currentIndex = novelChapters.findIndex(c => c.number === chapterNumber);
+    const currentIndex = novelChapters.findIndex(c => isChapterNumber(c, chapterNumber));
     setHasPrevChapter(currentIndex > 0);
     setHasNextChapter(currentIndex !== -1 && currentIndex < novelChapters.length - 1);
 
-    const foundChapter = novelChapters.find(c => c.number === chapterNumber);
+    const foundChapter = novelChapters.find(c => isChapterNumber(c, chapterNumber));
     if (foundChapter) {
       setChapter(foundChapter);
       
@@ -258,8 +259,8 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       const novelChapters = allChapters
         .filter(c => c.novelId === novelId)
         .filter(c => !c.publishAt || new Date(c.publishAt) <= new Date())
-        .sort((a, b) => a.number - b.number);
-      const currentIndex = novelChapters.findIndex(c => c.number === chapterNumber);
+        .sort(byChapterNumberAsc);
+      const currentIndex = novelChapters.findIndex(c => isChapterNumber(c, chapterNumber));
       if (currentIndex !== -1) {
         setHasPrevChapter(currentIndex > 0);
         setHasNextChapter(currentIndex < novelChapters.length - 1);
@@ -290,8 +291,8 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       const list = allChapters
         .filter(c => c.novelId === novelId)
         .filter(c => !c.publishAt || new Date(c.publishAt) <= new Date())
-        .sort((a, b) => a.number - b.number);
-      const idx = list.findIndex(c => c.number === chapterNumber);
+        .sort(byChapterNumberAsc);
+      const idx = list.findIndex(c => isChapterNumber(c, chapterNumber));
       if (idx !== -1) {
         setHasPrevChapter(idx > 0);
         setHasNextChapter(idx < list.length - 1);
@@ -331,7 +332,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
     const timer = setTimeout(async () => {
       const chap = BerryDatabase.get<Chapter[]>('chapters', []).find(
-        c => c.novelId === novelId && c.number === chapterNumber
+        c => c.novelId === novelId && isChapterNumber(c, chapterNumber)
       );
       const dedupKey = chap ? chap.id : `${novelId}-ch${chapterNumber}`;
       const counted = BerryDatabase.get<string[]>('viewed_chapters', []);
@@ -341,7 +342,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       // Optimistic local bump (React state only — never pushed, so it can't
       // clobber another reader's count; the server value overwrites it on sync)
       setNovel(prev => prev && prev.id === novelId ? { ...prev, views: (prev.views || 0) + 1 } : prev);
-      setChapter(prev => prev && prev.novelId === novelId && prev.number === chapterNumber ? { ...prev, views: (prev.views || 0) + 1 } : prev);
+      setChapter(prev => prev && prev.novelId === novelId && isChapterNumber(prev, chapterNumber) ? { ...prev, views: (prev.views || 0) + 1 } : prev);
 
       try {
         await fetch('/api/view', {
@@ -561,7 +562,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       targetId: reportingComment.id,
       targetName: `${reportingComment.authorName}: ${reportingComment.content}`,
       reason: reportReason,
-      details: `رواية: ${novel.titleAr} • الفصل ${chapter.number}${reportDetails ? ` - التفاصيل: ${reportDetails}` : ''}`,
+      details: `رواية: ${novel.titleAr} • الفصل ${chapterNum(chapter)}${reportDetails ? ` - التفاصيل: ${reportDetails}` : ''}`,
       reportedBy: currentUser.role === 'GUEST' ? 'زائر' : currentUser.username,
       status: 'PENDING',
       createdAt: new Date().toISOString()
@@ -646,7 +647,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
         <div className="text-center min-w-0">
           <h4 className={`font-extrabold text-xs truncate max-w-[140px] sm:max-w-md mx-auto ${isLightTheme ? 'text-neutral-950' : 'text-white'}`}>{novel.titleAr}</h4>
-          <span className={`text-[10px] mt-0.5 block font-bold truncate max-w-[140px] sm:max-w-md mx-auto ${isLightTheme ? 'text-neutral-500' : 'text-purple-400'}`}>الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim()}</span>
+          <span className={`text-[10px] mt-0.5 block font-bold truncate max-w-[140px] sm:max-w-md mx-auto ${isLightTheme ? 'text-neutral-500' : 'text-purple-400'}`}>الفصل {chapterNum(chapter)}: {chapter.title.split(':').slice(1).join(':').trim()}</span>
         </div>
 
         {/* Customizer triggers */}
@@ -886,7 +887,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       >
         <div className={`mb-8 text-center ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}>
           <h2 className="text-xl md:text-3xl font-extrabold tracking-tight border-b border-white/5 pb-4">
-            الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+            الفصل {chapterNum(chapter)}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
           </h2>
           <span className="text-xs text-purple-400 mt-2 block">حقوق الترجمة والنشر محفوظة لمنصة Berry Mist وللمترجم: {novel.translatorName}</span>
         </div>

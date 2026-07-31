@@ -4,6 +4,7 @@ import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } f
 import { BerryDatabase } from '../data';
 import { compressImageFile } from '../utils/media';
 import { normalizeChapterText, spreadPlainTextLines } from '../utils/text';
+import { byChapterNumberAsc, chapterNum } from '../utils/chapters';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -123,7 +124,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
   // numbering always keeps growing (after 1000 the next suggestion is 1001,
   // never the chapter count).
   const suggestedChapterNumber = chapters.length > 0
-    ? Math.max(...chapters.map(c => c.number)) + 1
+    ? Math.max(...chapters.map(c => chapterNum(c))) + 1
     : 1;
 
   const getMaxScheduleDate = () => {
@@ -228,7 +229,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     }
 
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
-    let foundChapters = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
+    let foundChapters = allChapters.filter(c => c.novelId === novelId).sort(byChapterNumberAsc);
 
     // Scheduled (future publishAt) chapters never show in the novel's
     // chapter list — not even for the owner/translator. Until their publish
@@ -269,7 +270,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       }
 
       const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
-      let list = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
+      let list = allChapters.filter(c => c.novelId === novelId).sort(byChapterNumberAsc);
       // Scheduled chapters are hidden from the chapter list for everyone
       // (owner and translator included) until their publish time arrives.
       list = list.filter(c => !c.publishAt || new Date(c.publishAt) <= new Date());
@@ -557,7 +558,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     if (reportingComment.refType === 'CHAPTER') {
       const ch = allChapters.find(c => c.id === reportingComment.refId);
       if (ch) {
-        chapterNumStr = `الفصل ${ch.number}`;
+        chapterNumStr = `الفصل ${chapterNum(ch)}`;
         const n = allNovels.find(nv => nv.id === ch.novelId);
         if (n) {
           novelTitle = n.titleAr;
@@ -722,7 +723,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     // (get('chapters') already hides tombstoned chapters, so a deleted
     // chapter's number can be reused).
     const chaptersNow = BerryDatabase.get<Chapter[]>('chapters', []);
-    if (chaptersNow.some(c => c.novelId === novel.id && c.number === parsedChNum)) {
+    if (chaptersNow.some(c => c.novelId === novel.id && chapterNum(c) === parsedChNum)) {
       alert(`عذراً، يوجد بالفعل فصل يحمل الرقم ${parsedChNum} في هذه الرواية (منشور أو مجدول)! اختر رقماً مختلفاً.`);
       return;
     }
@@ -774,7 +775,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
     const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
     const updatedChaps = [...allChapters, newChap];
     BerryDatabase.set('chapters', updatedChaps);
-    const novelChaps = updatedChaps.filter(c => c.novelId === novel.id).sort((a, b) => a.number - b.number);
+    const novelChaps = updatedChaps.filter(c => c.novelId === novel.id).sort(byChapterNumberAsc);
     setChapters(novelChaps);
     setNewChapterNumber('');
 
@@ -1360,7 +1361,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
           <div className="flex flex-wrap gap-3 mt-6">
             {chapters.length > 0 ? (
               <button
-                onClick={() => onReadChapter(novel.id, Math.min(...chapters.map(c => c.number)))}
+                onClick={() => onReadChapter(novel.id, Math.min(...chapters.map(c => chapterNum(c))))}
                 className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-violet-500/10 cursor-pointer"
               >
                 <span>ابدأ القراءة الأولى</span>
@@ -1577,12 +1578,12 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
               {/* Grid of Chapters (ordered by the ascending/descending toggle) */}
               {chapters.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {[...chapters].sort((a, b) => chaptersAscending ? a.number - b.number : b.number - a.number).map((chapter) => {
-                    const isRead = readChapters.some(rc => rc.novelId === novel.id && rc.chapterNumber === chapter.number);
+                  {[...chapters].sort((a, b) => chaptersAscending ? byChapterNumberAsc(a, b) : byChapterNumberAsc(b, a)).map((chapter) => {
+                    const isRead = readChapters.some(rc => rc.novelId === novel.id && rc.chapterNumber === chapterNum(chapter));
                     return (
                       <div
                         key={chapter.id}
-                        onClick={() => onReadChapter(novel.id, chapter.number)}
+                        onClick={() => onReadChapter(novel.id, chapterNum(chapter))}
                         className={`group p-4 rounded-2xl flex items-center justify-between gap-2 cursor-pointer transition-all text-right border ${
                           isRead
                             ? 'bg-violet-900/15 border-violet-500/40 hover:bg-violet-900/25 hover:border-violet-400'
@@ -1591,7 +1592,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                       >
                         <div className="min-w-0">
                           <h4 className={`font-bold text-xs transition-colors truncate ${isRead ? 'text-violet-300 group-hover:text-violet-200' : 'text-purple-100 group-hover:text-violet-400'}`}>
-                            الفصل {chapter.number}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+                            الفصل {chapterNum(chapter)}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
                             {isRead && (
                               <span className="mr-2 text-[9px] bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-normal">
                                 تمت القراءة ✔️
@@ -1611,10 +1612,10 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                             <button
                               onClick={(e) => { 
                                 e.stopPropagation(); 
-                                handleDeleteChapterByOwner(chapter.id, chapter.number); 
+                                handleDeleteChapterByOwner(chapter.id, chapterNum(chapter)); 
                               }}
                               className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
-                              title={`حذف الفصل ${chapter.number} نهائياً`}
+                              title={`حذف الفصل ${chapterNum(chapter)} نهائياً`}
                             >
                               <Trash2 size={13} />
                             </button>

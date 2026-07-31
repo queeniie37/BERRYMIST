@@ -5,6 +5,7 @@ import { BerryDatabase, COVER_IMAGES } from '../data';
 import { compressImageFile } from '../utils/media';
 import { normalizeChapterText, chapterTextToEditorHtml } from '../utils/text';
 import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
+import { chapterNum } from '../utils/chapters';
 import ConfirmModal from './ConfirmModal';
 
 interface TranslatorPanelProps {
@@ -514,7 +515,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       if (c.id === editingChapter.id) {
         return {
           ...c,
-          title: `الفصل ${editingChapter.number}: ${editChapterTitle}`,
+          title: `الفصل ${chapterNum(editingChapter)}: ${editChapterTitle}`,
           content: normalizeChapterText(editChapterContent),
           updatedAt: new Date().toISOString(),
           isDraft: isScheduled,

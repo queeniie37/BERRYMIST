@@ -69,6 +69,23 @@ function clip($t, $limit) {
     return strlen($t) > $limit ? substr($t, 0, $limit) . '…' : $t;
 }
 
+// A JSON-LD block is written INSIDE a <script> element, so the encoder must
+// never be allowed to emit a literal "</script>" — a novel title or author
+// name containing one would close the tag early and everything after it would
+// run as page script. JSON_HEX_TAG escapes < and > as \u003C / \u003E, which
+// is still valid JSON that search engines parse normally, and JSON_HEX_AMP
+// does the same for &. (JSON_UNESCAPED_SLASHES is deliberately NOT used here.)
+function json_ld_encode($data) {
+    return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
+}
+
+// preg_replace() treats $1 / \1 in the REPLACEMENT string as backreferences,
+// so a title containing "$1" (or a stray backslash) came out mangled. Escape
+// those two characters so the replacement is always taken literally.
+function rep_literal($s) {
+    return str_replace(array('\\', '$'), array('\\\\', '\$'), $s);
+}
+
 // ---- Which screen was requested? -----------------------------------------
 $reqPath = parse_url(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/', PHP_URL_PATH);
 $segs = array_values(array_filter(explode('/', trim((string)$reqPath, '/')), 'strlen'));
@@ -160,7 +177,7 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                     );
                     if ($published) { $ld['datePublished'] = gmdate('c', strtotime($published)); }
                     if ($author !== '') { $ld['author'] = array('@type' => 'Person', 'name' => $author); }
-                    $jsonLd = json_encode($ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $jsonLd = json_ld_encode($ld);
 
                     // Previous/next links give crawlers a path through every chapter.
                     $prev = null; $next = null;
@@ -206,7 +223,7 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                         'ratingValue' => isset($novel['rating']) ? $novel['rating'] : 0,
                         'ratingCount' => (int)$novel['ratingCount'], 'bestRating' => 5);
                 }
-                $jsonLd = json_encode($ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $jsonLd = json_ld_encode($ld);
 
                 // Link every chapter so crawlers can reach them from the novel page.
                 $links = '';
@@ -233,15 +250,15 @@ $titleEsc = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
 $descEsc = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
 $canonEsc = htmlspecialchars($canonical, ENT_QUOTES, 'UTF-8');
 
-$html = preg_replace('#<title>.*?</title>#is', '<title>' . $titleEsc . '</title>', $html, 1);
-$html = preg_replace('#<meta\s+name="description"\s+content="[^"]*"\s*/?>#i', '<meta name="description" content="' . $descEsc . '" />', $html, 1);
-$html = preg_replace('#<meta\s+property="og:title"\s+content="[^"]*"\s*/?>#i', '<meta property="og:title" content="' . $titleEsc . '" />', $html, 1);
-$html = preg_replace('#<meta\s+property="og:description"\s+content="[^"]*"\s*/?>#i', '<meta property="og:description" content="' . $descEsc . '" />', $html, 1);
-$html = preg_replace('#<meta\s+property="og:url"\s+content="[^"]*"\s*/?>#i', '<meta property="og:url" content="' . $canonEsc . '" />', $html, 1);
-$html = preg_replace('#<meta\s+property="twitter:title"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:title" content="' . $titleEsc . '" />', $html, 1);
-$html = preg_replace('#<meta\s+property="twitter:description"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:description" content="' . $descEsc . '" />', $html, 1);
-$html = preg_replace('#<meta\s+property="twitter:url"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:url" content="' . $canonEsc . '" />', $html, 1);
-$html = preg_replace('#<link\s+rel="canonical"[^>]*>#i', '<link rel="canonical" href="' . $canonEsc . '" />', $html, 1);
+$html = preg_replace('#<title>.*?</title>#is', '<title>' . rep_literal($titleEsc) . '</title>', $html, 1);
+$html = preg_replace('#<meta\s+name="description"\s+content="[^"]*"\s*/?>#i', '<meta name="description" content="' . rep_literal($descEsc) . '" />', $html, 1);
+$html = preg_replace('#<meta\s+property="og:title"\s+content="[^"]*"\s*/?>#i', '<meta property="og:title" content="' . rep_literal($titleEsc) . '" />', $html, 1);
+$html = preg_replace('#<meta\s+property="og:description"\s+content="[^"]*"\s*/?>#i', '<meta property="og:description" content="' . rep_literal($descEsc) . '" />', $html, 1);
+$html = preg_replace('#<meta\s+property="og:url"\s+content="[^"]*"\s*/?>#i', '<meta property="og:url" content="' . rep_literal($canonEsc) . '" />', $html, 1);
+$html = preg_replace('#<meta\s+property="twitter:title"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:title" content="' . rep_literal($titleEsc) . '" />', $html, 1);
+$html = preg_replace('#<meta\s+property="twitter:description"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:description" content="' . rep_literal($descEsc) . '" />', $html, 1);
+$html = preg_replace('#<meta\s+property="twitter:url"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:url" content="' . rep_literal($canonEsc) . '" />', $html, 1);
+$html = preg_replace('#<link\s+rel="canonical"[^>]*>#i', '<link rel="canonical" href="' . rep_literal($canonEsc) . '" />', $html, 1);
 
 if ($jsonLd) {
     $html = str_replace('</head>', '  <script type="application/ld+json">' . $jsonLd . "</script>\n  </head>", $html);

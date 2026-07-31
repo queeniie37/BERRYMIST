@@ -131,7 +131,12 @@ app.get("/api/db", (req, res) => {
 // merge; tombstones older than 30 days are purged.
 function commentTime(c: any): number {
   const t = Date.parse(c?.updatedAt || c?.createdAt || "");
-  return Number.isNaN(t) ? 0 : t;
+  if (Number.isNaN(t)) return 0;
+  // A timestamp far in the FUTURE would win every merge forever, so no later
+  // legitimate edit could ever overwrite it (and a tombstone stamped year 9999
+  // would keep a record deleted permanently). Real clock drift is small, so
+  // clamp anything more than a day ahead to now.
+  return Math.min(t, Date.now() + 24 * 60 * 60 * 1000);
 }
 
 function mergeComments(stored: any, incoming: any): any[] {
@@ -251,6 +256,19 @@ function publicUser(u: any) {
   return rest;
 }
 
+function clampProgress(raw: any, min: number, max: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+}
+// Same field ceilings the PHP endpoint enforces, so a browser cannot push an
+// unbounded value into the accounts file through either server.
+function clipField(field: string, value: any): any {
+  if (typeof value !== "string") return value;
+  const max = field === "avatar" || field === "banner" ? 1_500_000 : field === "bio" ? 1000 : field === "username" ? 40 : 300;
+  return value.length > max ? value.slice(0, max) : value;
+}
+
 app.post("/api/auth", (req, res) => {
   const body = req.body || {};
   const action = body.action;
@@ -264,13 +282,26 @@ app.post("/api/auth", (req, res) => {
     if (!email || !username || !hash) return res.status(400).json({ error: "missing_fields" });
     if (email === OWNER_EMAIL) return res.status(403).json({ error: "reserved" });
     if (users.some((u) => (u.email || "").toLowerCase() === email)) return res.status(409).json({ error: "exists" });
-    acc.email = email;
-    acc.role = "MEMBER";
-    if (!acc.id) acc.id = `user-${Date.now()}`;
-    if (!acc.createdAt) acc.createdAt = new Date().toISOString();
-    users.push(acc);
+    // Store only known account fields — the raw request body used to be saved
+    // as-is, so a crafted request could plant arbitrary properties on a member
+    // record. Registration is also the migration path for accounts created
+    // before this endpoint existed, so earned progress travels with them.
+    const takenId = !acc.id || users.some((u) => u.id === acc.id);
+    const account = {
+      id: takenId ? `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : acc.id,
+      username: clipField("username", username),
+      email,
+      role: "MEMBER",
+      xp: clampProgress(acc.xp, 0, 100_000_000),
+      level: clampProgress(acc.level, 1, 1000),
+      avatar: typeof acc.avatar === "string" ? clipField("avatar", acc.avatar) : "",
+      bio: typeof acc.bio === "string" ? clipField("bio", acc.bio) : "",
+      passwordHash: hash,
+      createdAt: typeof acc.createdAt === "string" ? acc.createdAt : new Date().toISOString(),
+    };
+    users.push(account);
     saveUsers(users);
-    return res.json({ user: publicUser(acc) });
+    return res.json({ user: publicUser(account) });
   }
 
   if (action === "login") {
@@ -289,7 +320,7 @@ app.post("/api/auth", (req, res) => {
     const idx = users.findIndex((x) => (x.email || "").toLowerCase() === email && x.passwordHash === hash);
     if (idx === -1) return res.status(401).json({ error: "invalid" });
     for (const f of ["username", "avatar", "bio", "banner", "customStatus"]) {
-      if (Object.prototype.hasOwnProperty.call(profile, f)) users[idx][f] = profile[f];
+      if (Object.prototype.hasOwnProperty.call(profile, f)) users[idx][f] = clipField(f, profile[f]);
     }
     saveUsers(users);
     return res.json({ user: publicUser(users[idx]) });

@@ -12,6 +12,7 @@ import { getUserBadges } from './utils/badges';
 import { upsertSelfInDirectory } from './utils/directory';
 import { updateAccountOnServer } from './utils/accounts';
 import { slugify } from './utils/slug';
+import { byChapterNumberAsc, isChapterNumber, chapterNum, hasChapterNumber } from './utils/chapters';
 
 // Component imports
 import Header from './components/Header';
@@ -1182,20 +1183,25 @@ export default function App() {
     const novelId = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
     if (!novelId) return;
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
-    const chaptersOfNovel = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
+    const chaptersOfNovel = allChapters.filter(c => c.novelId === novelId).sort(byChapterNumberAsc);
 
     let nextNum = chapterNumber;
-    const currentIndex = chaptersOfNovel.findIndex(c => c.number === chapterNumber);
+    const currentIndex = chaptersOfNovel.findIndex(c => isChapterNumber(c, chapterNumber));
     if (currentIndex !== -1) {
       if (direction === 'next' && currentIndex < chaptersOfNovel.length - 1) {
-        nextNum = chaptersOfNovel[currentIndex + 1].number;
+        nextNum = chapterNum(chaptersOfNovel[currentIndex + 1]);
       } else if (direction === 'prev' && currentIndex > 0) {
-        nextNum = chaptersOfNovel[currentIndex - 1].number;
+        nextNum = chapterNum(chaptersOfNovel[currentIndex - 1]);
       }
-    } else if (direction === 'next') {
-      nextNum = Math.min(chapterNumber + 1, chaptersOfNovel.length);
     } else {
-      nextNum = Math.max(chapterNumber - 1, 1);
+      // The current number isn't in the list (chapter deleted, or the novel
+      // uses sparse numbering like 80 -> 100 -> 1000). Move to the nearest
+      // EXISTING chapter in that direction instead of guessing a number --
+      // guessing used to land on a chapter that does not exist.
+      const nearest = direction === 'next'
+        ? chaptersOfNovel.find(c => chapterNum(c) > chapterNumber)
+        : [...chaptersOfNovel].reverse().find(c => chapterNum(c) < chapterNumber);
+      if (nearest) nextNum = chapterNum(nearest);
     }
 
     handleNavigate('reader', { novelId, chapterNumber: nextNum });
@@ -1257,8 +1263,8 @@ export default function App() {
       if (c.publishAt && new Date(c.publishAt) > now) continue; // not out yet
       const t = Date.parse(c.publishAt || c.createdAt || '') || 0;
       if (t > (lastAddedAt.get(c.novelId) || 0)) lastAddedAt.set(c.novelId, t);
-      if (typeof c.number === 'number' && Number.isFinite(c.number)) {
-        if (c.number > (highestNumber.get(c.novelId) ?? -Infinity)) highestNumber.set(c.novelId, c.number);
+      if (hasChapterNumber(c) && chapterNum(c) > (highestNumber.get(c.novelId) ?? -Infinity)) {
+        highestNumber.set(c.novelId, chapterNum(c));
       }
     }
     return [...activeNovels]
@@ -1278,9 +1284,9 @@ export default function App() {
   const getChapterBounds = (novelId: string) => {
     const now = new Date();
     const numbers = BerryDatabase.get<any[]>('chapters', [])
-      .filter(c => c.novelId === novelId && typeof c.number === 'number' && Number.isFinite(c.number))
+      .filter(c => c.novelId === novelId && hasChapterNumber(c))
       .filter(c => !(c.publishAt && new Date(c.publishAt) > now))
-      .map(c => c.number as number);
+      .map(c => chapterNum(c));
     if (numbers.length === 0) return { first: 1, last: 1 };
     return { first: Math.min(...numbers), last: Math.max(...numbers) };
   };

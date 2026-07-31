@@ -64,7 +64,17 @@ function comment_time($c) {
     $raw = isset($c['updatedAt']) ? $c['updatedAt'] : (isset($c['createdAt']) ? $c['createdAt'] : '');
     if (!is_string($raw) || $raw === '') return 0;
     $t = strtotime($raw);
-    return $t === false ? 0 : $t * 1000;
+    if ($t === false) return 0;
+
+// A record's timestamp decides who wins a merge. A value far in the FUTURE
+// would therefore win every merge forever — no later, legitimate edit could
+// ever overwrite it, and a tombstone stamped year 9999 would keep the record
+// deleted permanently. Clock drift on real devices is small, so anything more
+// than a day ahead is clamped to now: honest records are unaffected, and a
+// poisoned one loses its permanent advantage as soon as a real edit lands.
+    $cap = time() + 86400;
+    if ($t > $cap) $t = $cap;
+    return $t * 1000;
 }
 
 function merge_comments($stored, $incoming) {
@@ -134,6 +144,24 @@ function merge_by_id($stored, $incoming) {
     return $merged;
 }
 
+/**
+ * Every write is a read-modify-write of ONE shared file. Without a lock two
+ * simultaneous POSTs both read the same snapshot, each applies its own key and
+ * the second rename() throws away the first one's work — a published chapter
+ * or a fresh comment silently vanishes. view.php already serialized its view
+ * increments on this sidecar lock file; db.php did not, so a publish landing
+ * at the same moment as a view could lose either one. Use the SAME lock file
+ * so all writers, whichever endpoint they arrive through, are serialized.
+ */
+function db_lock($file) {
+    $fh = @fopen($file . '.lock', 'c');
+    if ($fh) { @flock($fh, LOCK_EX); }
+    return $fh;
+}
+function db_unlock($fh) {
+    if ($fh) { @flock($fh, LOCK_UN); @fclose($fh); }
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'OPTIONS') {
@@ -173,6 +201,15 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $raw = file_get_contents('php://input');
 
+    // Hard ceiling on a single write. Covers a full novel with base64 covers
+    // and chapter images, but stops one request from pushing an unbounded
+    // blob into the shared file that every visitor then has to download.
+    if (strlen($raw) > 40 * 1024 * 1024) {
+        http_response_code(413);
+        echo json_encode(array('error' => 'Payload too large'));
+        exit;
+    }
+
     // A payload larger than post_max_size arrives truncated or empty.
     // Reject it explicitly so the client keeps the write pending and
     // retries, instead of silently losing the published novel.
@@ -195,6 +232,7 @@ if ($method === 'POST') {
         exit;
     }
 
+    $lock = db_lock($DB_FILE);
     $db = load_db($DB_FILE);
 
     // Rotating backups BEFORE applying the write, so the site's data can
@@ -243,7 +281,9 @@ if ($method === 'POST') {
         $value = array_merge($stored, $incoming);
     }
     $db[$key] = $value;
-    if (!save_db($DB_FILE, $db)) {
+    $saved = save_db($DB_FILE, $db);
+    db_unlock($lock);
+    if (!$saved) {
         http_response_code(500);
         echo json_encode(array('error' => 'Failed to write database file'));
         exit;
