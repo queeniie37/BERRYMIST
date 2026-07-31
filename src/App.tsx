@@ -678,6 +678,26 @@ export default function App() {
             novelId: chap.novelId,
             chapterId: chap.id
           });
+
+          // A scheduled chapter going live is a brand-new public URL, so push
+          // it to search engines now — exactly as an immediate publish does.
+          // Without this, only manually published chapters were announced.
+          const slug = (correspondingNovel
+            ? slugify(correspondingNovel.titleAr) || slugify(correspondingNovel.titleEn)
+            : '') || chap.novelId;
+          const num = chapterNum(chap);
+          if (hasChapterNumber(chap)) {
+            fetch('/api/indexnow', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                urls: [
+                  `https://berrymist.online/novel/${encodeURIComponent(slug)}/chapter-${num}`,
+                  `https://berrymist.online/novel/${encodeURIComponent(slug)}`,
+                ],
+              }),
+            }).catch(() => { /* offline — the sitemap still carries the URL */ });
+          }
         }
       }
       return chap;

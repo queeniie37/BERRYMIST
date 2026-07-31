@@ -5,6 +5,7 @@ import { BerryDatabase } from '../data';
 import { compressImageFile } from '../utils/media';
 import { normalizeChapterText, spreadPlainTextLines } from '../utils/text';
 import { byChapterNumberAsc, chapterNum } from '../utils/chapters';
+import { slugify } from '../utils/slug';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
 
@@ -851,6 +852,25 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       });
     }
     BerryDatabase.set('notifications', [...allNotifs, ...notifsToAdd]);
+
+    // Announce the new chapter's URL to search engines right away (IndexNow),
+    // so it can be crawled within minutes instead of waiting for the next
+    // sitemap poll. The endpoint existed but nothing ever called it, so every
+    // chapter relied on the slower path alone. Best-effort: publishing never
+    // depends on this succeeding, and the sitemap still lists the chapter.
+    if (!isScheduled) {
+      const slug = slugify(novel.titleAr) || slugify(novel.titleEn) || novel.id;
+      fetch('/api/indexnow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls: [
+            `https://berrymist.online/novel/${encodeURIComponent(slug)}/chapter-${newChapterNum}`,
+            `https://berrymist.online/novel/${encodeURIComponent(slug)}`,
+          ],
+        }),
+      }).catch(() => { /* offline or endpoint unavailable — sitemap covers it */ });
+    }
 
     if (isScheduled) {
       alert(`📅 تمت جدولة الفصل ${newChapterNum} بنجاح! لن يظهر للقراء إلا في ${new Date(newChapterPublishAt).toLocaleString('ar-EG', { numberingSystem: 'latn' })}، ويمكنك متابعته من صفحة الأنشطة والجدولة.`);

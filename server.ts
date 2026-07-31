@@ -329,6 +329,118 @@ app.post("/api/auth", (req, res) => {
   return res.status(400).json({ error: "unknown_action" });
 });
 
+// ---------------------------------------------------------------------------
+// Search-engine surfaces
+// ---------------------------------------------------------------------------
+// On Hostinger these paths are served by the PHP generators (api/sitemap.php,
+// api/feed.php) via .htaccess. This Node server had no equivalent, so running
+// the site here answered /sitemap.xml with the app shell — every chapter URL
+// invisible to crawlers. Generate them from the same database instead, using
+// the SAME Arabic slug rule the app builds its URLs with, so a chapter
+// published a second ago is announced immediately and the address a crawler
+// follows is the address a reader lands on.
+const SITE_URL = "https://berrymist.online";
+
+function slugifyTitle(raw: any): string {
+  if (typeof raw !== "string" || raw === "") return "";
+  return raw.trim().toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/gu, "-")
+    .replace(/-+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+}
+function novelSlugOf(n: any): string {
+  return slugifyTitle(n?.titleAr) || slugifyTitle(n?.titleEn) || String(n?.id || "");
+}
+function chapterNumberOf(c: any): number | null {
+  const n = Number(c?.number ?? c?.chapterNumber);
+  return Number.isFinite(n) ? n : null;
+}
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function publishedChapters(): Array<{ novel: any; chapter: any; slug: string; num: number; ts: number }> {
+  const db = loadDb();
+  const novels = new Map<string, any>();
+  for (const n of Array.isArray(db.novels) ? db.novels : []) {
+    if (!n?.id || n.deleted) continue;
+    if (n.status === "CANCELLED" || n.status === "PENDING" || n.status === "PENDING_APPROVAL") continue;
+    novels.set(n.id, n);
+  }
+  const now = Date.now();
+  const out: Array<{ novel: any; chapter: any; slug: string; num: number; ts: number }> = [];
+  for (const c of Array.isArray(db.chapters) ? db.chapters : []) {
+    const novel = c?.novelId ? novels.get(c.novelId) : null;
+    if (!novel || c.deleted) continue;
+    const num = chapterNumberOf(c);
+    if (num === null) continue;
+    const ts = Date.parse(c.publishAt || c.createdAt || "") || 0;
+    if (c.publishAt && ts > now) continue; // scheduled, not out yet
+    out.push({ novel, chapter: c, slug: novelSlugOf(novel), num, ts });
+  }
+  out.sort((a, b) => b.ts - a.ts);
+  return out;
+}
+
+app.get(["/sitemap.xml", "/api/sitemap"], (_req, res) => {
+  const db = loadDb();
+  const fixed: Array<[string, string, string]> = [
+    ["", "daily", "1.0"], ["library", "daily", "0.9"], ["suggestions", "daily", "0.7"],
+    ["teams", "weekly", "0.6"], ["ads", "weekly", "0.5"], ["contact", "monthly", "0.4"],
+    ["privacy", "yearly", "0.3"], ["terms", "yearly", "0.3"],
+  ];
+  const urls: Array<[string, string, string]> = fixed.map(([p, f, pr]) => [`${SITE_URL}/${p}`, f, pr]);
+  const seenNovel = new Set<string>();
+  for (const { novel, slug, num } of publishedChapters()) {
+    if (!seenNovel.has(novel.id)) {
+      seenNovel.add(novel.id);
+      urls.push([`${SITE_URL}/novel/${encodeURIComponent(slug)}`, "daily", "0.8"]);
+    }
+    urls.push([`${SITE_URL}/novel/${encodeURIComponent(slug)}/chapter-${num}`, "weekly", "0.7"]);
+  }
+  for (const n of Array.isArray(db.novels) ? db.novels : []) {
+    if (!n?.id || seenNovel.has(n.id) || n.deleted) continue;
+    if (n.status === "CANCELLED" || n.status === "PENDING" || n.status === "PENDING_APPROVAL") continue;
+    urls.push([`${SITE_URL}/novel/${encodeURIComponent(novelSlugOf(n))}`, "daily", "0.8"]);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  res.set("Content-Type", "application/xml; charset=utf-8");
+  res.set("Cache-Control", "no-cache, must-revalidate");
+  res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    urls.map(([loc, freq, pri]) =>
+      `  <url>\n    <loc>${xmlEscape(loc)}</loc>\n    <lastmod>${today}</lastmod>\n` +
+      `    <changefreq>${freq}</changefreq>\n    <priority>${pri}</priority>\n  </url>`).join("\n") +
+    "\n</urlset>\n");
+});
+
+app.get(["/feed.xml", "/api/feed"], (_req, res) => {
+  const db = loadDb();
+  const siteName = typeof db.site_name === "string" && db.site_name.trim() ? db.site_name.trim() : "BerryMist";
+  const items = publishedChapters().slice(0, 50);
+  const asText = (raw: any) => String(raw || "").replace(/<img[^>]*>/gi, "").replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ").trim().slice(0, 400);
+  res.set("Content-Type", "application/rss+xml; charset=utf-8");
+  res.set("Cache-Control", "no-cache, must-revalidate");
+  res.send('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n<channel>\n' +
+    `  <title>${xmlEscape(siteName + " — أحدث الفصول")}</title>\n` +
+    `  <link>${SITE_URL}/</link>\n` +
+    `  <description>${xmlEscape("الفصول المنشورة حديثاً على " + siteName + ".")}</description>\n` +
+    "  <language>ar</language>\n" +
+    `  <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml" />\n` +
+    items.map(({ novel, chapter, slug, num, ts }) => {
+      const link = `${SITE_URL}/novel/${encodeURIComponent(slug)}/chapter-${num}`;
+      const display = novel.titleAr || novel.titleEn || "رواية";
+      return "  <item>\n" +
+        `    <title>${xmlEscape(display + " — " + (chapter.title || "الفصل " + num))}</title>\n` +
+        `    <link>${xmlEscape(link)}</link>\n` +
+        `    <guid isPermaLink="true">${xmlEscape(link)}</guid>\n` +
+        `    <pubDate>${new Date(ts || Date.now()).toUTCString()}</pubDate>\n` +
+        `    <description>${xmlEscape(asText(chapter.content))}</description>\n  </item>`;
+    }).join("\n") +
+    "\n</channel>\n</rss>\n");
+});
+
 // Mount Vite or static assets depending on environment
 async function setupServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -341,6 +453,15 @@ async function setupServer() {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
+      // A path that looks like a FILE must 404 honestly instead of receiving
+      // the app shell. Answering with the shell makes every missing file look
+      // like a valid page — that is what made Google report "the verification
+      // file contains incorrect content" rather than "not found", and search
+      // engines treat such soft-404s as a site-wide quality problem. (The
+      // .htaccess rules do the same on Hostinger.)
+      if (/\.(html?|txt|xml|json|js|mjs|css|map|php|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|pdf|zip)$/i.test(req.path)) {
+        return res.status(404).type("text/plain").send("Not found");
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
