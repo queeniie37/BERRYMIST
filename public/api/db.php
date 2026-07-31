@@ -162,6 +162,29 @@ function db_unlock($fh) {
     if ($fh) { @flock($fh, LOCK_UN); @fclose($fh); }
 }
 
+/**
+ * Compress the response when the visitor's browser accepts it.
+ *
+ * This endpoint returns the WHOLE shared database, so it grows with the
+ * library — and every visitor downloads it on their first entry before a
+ * single chapter can be listed. Uncompressed, a real library made that a
+ * multi-second wait on mobile data: the page frame appeared but the chapters
+ * did not. JSON of this kind compresses several times over, so switching it
+ * on is the difference between "the chapters are there when the page opens"
+ * and "the chapters arrive later".
+ *
+ * ob_gzhandler checks Accept-Encoding itself and does nothing for a client
+ * that cannot handle gzip, and Apache/LiteSpeed will not re-compress a
+ * response that already carries Content-Encoding, so this is safe whether or
+ * not mod_deflate is also active.
+ */
+function compress_output() {
+    if (!extension_loaded('zlib')) return;
+    if (ini_get('zlib.output_compression')) return; // already handled by PHP
+    if (headers_sent()) return;
+    @ob_start('ob_gzhandler');
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'OPTIONS') {
@@ -184,6 +207,7 @@ if ($method === 'GET') {
         exit;
     }
 
+    compress_output();
     $db = load_db($DB_FILE);
     foreach ($PRIVATE_KEYS as $k) {
         unset($db[$k]);

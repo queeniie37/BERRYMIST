@@ -1,4 +1,10 @@
 <?php
+// Compress this response when the browser accepts it — see api/db.php for why
+// this matters on a first visit over mobile data. Safe alongside mod_deflate:
+// nothing re-compresses a response that already carries Content-Encoding.
+if (extension_loaded('zlib') && !ini_get('zlib.output_compression')) {
+    @ob_start('ob_gzhandler');
+}
 /**
  * RSS feed of the newest published chapters.
  *

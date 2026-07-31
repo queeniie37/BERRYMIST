@@ -80,6 +80,18 @@ RewriteRule ^ index.html [L]
   Require all denied
 </FilesMatch>
 
+# Compress text responses before they go over the wire. The shared database,
+# the sitemap and the feed are all text that compresses several times over,
+# and every visitor downloads the database on their FIRST entry before a
+# single chapter can be listed — uncompressed, that was a multi-second wait on
+# mobile data with the page frame visible but no chapters in it.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE application/json application/xml application/rss+xml
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/x-javascript
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
 # Sensible caching for built assets (they are content-hashed by Vite).
 <IfModule mod_headers.c>
   <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|svg|webp)$">

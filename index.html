@@ -44,6 +44,20 @@
     <meta property="twitter:description" content="منصتك العربية الفاخرة لقراءة وتأليف وترجمة الروايات والقصص الخيالية الحصرية. استكشف فصولاً حية يومياً من الروايات واللايت نوفل المترجمة والمؤلفة." />
     <meta property="twitter:image" content="https://berrymist.online/og-image.jpg" />
 
+    <!-- Web fonts are loaded WITHOUT blocking the first paint.
+         They used to be an @import at the top of index.css, which makes the
+         stylesheet — and therefore the whole page — wait on fonts.googleapis.com
+         before anything is drawn. A visitor on a slow network, or one where
+         that host is throttled or unreachable, stared at a blank page for
+         several seconds before a single chapter appeared. Now the page renders
+         immediately in the system font and the web font swaps in when it
+         arrives (display=swap), so new chapters are visible from the very
+         first paint. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&amp;family=Noto+Naskh+Arabic:wght@400;700&amp;family=Tajawal:wght@400;500;700&amp;family=Cairo:wght@400;600;700&amp;family=Amiri:ital,wght@0,400;0,700;1,400&amp;display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&amp;family=Noto+Naskh+Arabic:wght@400;700&amp;family=Tajawal:wght@400;500;700&amp;family=Cairo:wght@400;600;700&amp;family=Amiri:ital,wght@0,400;0,700;1,400&amp;display=swap" /></noscript>
+
     <!-- Favicon and Theme Color -->
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
