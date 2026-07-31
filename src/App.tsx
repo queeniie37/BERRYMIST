@@ -10,6 +10,7 @@ import { DEFAULT_USERS, BerryDatabase } from './data';
 import { isImageSource, safeEmojiOrFallback, compressImageFile } from './utils/media';
 import { getUserBadges } from './utils/badges';
 import { upsertSelfInDirectory } from './utils/directory';
+import { slugifyTitle } from './utils/text';
 
 // Component imports
 import Header from './components/Header';
@@ -90,23 +91,73 @@ export default function App() {
   // Every in-app screen gets its own URL hash (e.g. #/novel?d=...). This is
   // what makes the browser back/forward buttons walk through visited screens
   // even after a page reload or on browsers that drop history state objects.
+  // Fixed, non-novel screens. Any first segment NOT in this set after /novel/
+  // is treated as a novel's English-title slug.
+  const RESERVED_PAGES = new Set([
+    'home', 'explore', 'suggestions', 'teams', 'notifications', 'profile',
+    'profile-edit', 'translator-panel', 'admin', 'ads', 'privacy-policy',
+    'terms-of-service', 'contact-us',
+  ]);
+
+  // Real, crawlable paths — /novel/<page> and /novel/<slug>/<number>.
+  // Search engines do NOT index anything after a "#": the fragment never
+  // reaches the server, so every hash URL looked like the bare homepage and no
+  // chapter could ever rank. These are ordinary paths instead; the host's SPA
+  // fallback (.htaccess / the Express catch-all) serves index.html for them.
   const buildScreenHash = (page: string, params: any) => {
-    let h = `#/${page}`;
-    if (params !== null && params !== undefined) {
-      try { h += `?d=${encodeURIComponent(JSON.stringify(params))}`; } catch { /* ignore */ }
+    // Novel detail -> /novel/<english-slug>
+    if (page === 'novel') {
+      const slug = params?.slug || novelSlugById(params?.id) || 'library';
+      return `/novel/${slug}`;
     }
-    return h;
+    // Chapter reader -> /novel/<english-slug>/<chapter-number>
+    if (page === 'reader') {
+      const slug = params?.slug || novelSlugById(params?.novelId) || 'library';
+      const ch = params?.chapterNumber;
+      return ch != null ? `/novel/${slug}/${ch}` : `/novel/${slug}`;
+    }
+    // The homepage lives at the site root, matching the sitemap's canonical.
+    if (page === 'home') return '/';
+    // Every other screen -> /novel/<page-name> (explore, suggestions, ...)
+    return `/novel/${page}`;
   };
   const parseScreenHash = (): { page: string; params: any } | null => {
     try {
-      const raw = window.location.hash || '';
-      const m = raw.match(/^#\/([\w-]+)(?:\?d=(.*))?$/);
-      if (!m) return null;
-      let params: any = null;
-      if (m[2]) {
-        try { params = JSON.parse(decodeURIComponent(m[2])); } catch { params = null; }
+      // Prefer the real path; fall back to the legacy "#/..." form so links
+      // shared or bookmarked before this change still open the right screen.
+      const path = window.location.pathname || '';
+      let raw = '';
+      if (path.length > 1) {
+        raw = path.replace(/^\/+/, '').replace(/\/+$/, '');
+      } else {
+        const h = window.location.hash || '';
+        if (!h.startsWith('#/')) return null;
+        raw = h.slice(2); // drop the leading "#/"
       }
-      return { page: m[1], params };
+      if (!raw) return { page: 'home', params: null };
+
+      // Everything nested under the /novel/ type segment.
+      if (raw === 'novel' || raw === 'novel/') return { page: 'home', params: null };
+      if (raw.startsWith('novel/')) {
+        const segs = raw.slice('novel/'.length).split('/').filter(Boolean)
+          .map((seg) => { try { return decodeURIComponent(seg); } catch { return seg; } });
+        const seg0 = segs[0] || 'home';
+        if (RESERVED_PAGES.has(seg0)) return { page: seg0, params: null };
+        // A novel slug, optionally followed by a chapter number -> reader.
+        if (segs[1] && /^\d+$/.test(segs[1])) {
+          return { page: 'reader', params: { slug: seg0, chapterNumber: Number(segs[1]) } };
+        }
+        return { page: 'novel', params: { slug: seg0 } };
+      }
+
+      // Backward compatibility: old #/<page>?d=<json> links still resolve.
+      const m = raw.match(/^([\w-]+)(?:\?d=(.*))?$/);
+      if (m) {
+        let params: any = null;
+        if (m[2]) { try { params = JSON.parse(decodeURIComponent(m[2])); } catch { params = null; } }
+        return { page: m[1], params };
+      }
+      return null;
     } catch {
       return null;
     }
@@ -152,6 +203,51 @@ export default function App() {
   }, []);
 
   const [novels, setNovels] = useState<Novel[]>([]);
+
+  // Slug helpers power the clean /novel/<english-title> URLs. The URL only ever
+  // carries the human-readable slug; internally screens still work off the
+  // novel id, so these translate between the two. novelSlugById falls back to
+  // the raw id (before novels have loaded, or when a title has no latin text)
+  // so a link is never empty, and novelIdBySlug also matches that id fallback.
+  const novelSlugById = (id?: string): string => {
+    if (!id) return '';
+    const n = novels.find((nv) => nv.id === id);
+    if (!n) return id;
+    return slugifyTitle(n.titleEn) || id;
+  };
+  const novelIdBySlug = (slug?: string): string | undefined => {
+    if (!slug) return undefined;
+    const bySlug = novels.find((nv) => slugifyTitle(nv.titleEn) === slug);
+    if (bySlug) return bySlug.id;
+    const byId = novels.find((nv) => nv.id === slug);
+    return byId?.id;
+  };
+
+  // When a novel/reader link is opened directly (or pasted/shared), the URL
+  // only carries the English-title slug. Once the novels list has loaded,
+  // backfill the concrete novel id into the current params so the rest of the
+  // app -- which still keys off ids -- keeps working unchanged.
+  useEffect(() => {
+    if (!novels.length || !currentParams) return;
+    if (currentPage === 'novel' && currentParams.slug && !currentParams.id) {
+      const id = novelIdBySlug(currentParams.slug);
+      if (id) setCurrentParams((prev: any) => ({ ...prev, id }));
+    } else if (currentPage === 'reader' && currentParams.slug && !currentParams.novelId) {
+      const novelId = novelIdBySlug(currentParams.slug);
+      if (novelId) setCurrentParams((prev: any) => ({ ...prev, novelId }));
+    }
+
+    // A legacy "#/novel?d={id}" link is rewritten at mount, before the novels
+    // list exists, so it lands on /novel/<id>. Once the titles are known,
+    // upgrade the address bar to the readable slug that the canonical tag and
+    // the sitemap both use, instead of leaving two URLs for the same page.
+    if (currentPage === 'novel' || currentPage === 'reader') {
+      const clean = buildScreenHash(currentPage, currentParams);
+      if (clean && window.location.pathname !== clean) {
+        try { window.history.replaceState({ berryPage: currentPage, berryParams: currentParams }, '', clean); } catch { /* ignore */ }
+      }
+    }
+  }, [novels, currentPage, currentParams]);
   const [news, setNews] = useState<News[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -400,16 +496,18 @@ export default function App() {
         title = `المكتبة والاستكشاف | تصفح الروايات - ${siteName}`;
         break;
       case 'novel':
-        if (currentParams && currentParams.id) {
-          const novel = novels.find(n => n.id === currentParams.id);
+        if (currentParams) {
+          const nid = currentParams.id || novelIdBySlug(currentParams.slug);
+          const novel = novels.find(n => n.id === nid);
           if (novel) {
             title = `رواية ${novel.titleAr} (${novel.titleEn}) | ${siteName}`;
           }
         }
         break;
       case 'reader':
-        if (currentParams && currentParams.novelId) {
-          const novel = novels.find(n => n.id === currentParams.novelId);
+        if (currentParams) {
+          const nid = currentParams.novelId || novelIdBySlug(currentParams.slug);
+          const novel = novels.find(n => n.id === nid);
           if (novel) {
             title = `الفصل ${currentParams.chapterNumber} من رواية ${novel.titleAr} | ${siteName}`;
           }
@@ -441,6 +539,73 @@ export default function App() {
     }
     
     document.title = title;
+
+    // SEO: keep the description, social-preview (Open Graph / Twitter) tags,
+    // and canonical URL in sync with the screen being viewed, so shared links
+    // and search snippets describe the actual page instead of always showing
+    // the generic homepage text.
+    const setMeta = (selector: string, content: string) => {
+      const el = document.querySelector(selector) as HTMLMetaElement | null;
+      if (el) el.setAttribute('content', content);
+    };
+    let description = 'منصة عربية فاخرة لقراءة وترجمة الروايات الخفيفة وروايات الفانتازيا والويب.';
+    if (currentPage === 'explore') {
+      description = `تصفح مكتبة ${siteName} كاملة: روايات مترجمة وأصلية بفصول جديدة تنزل يومياً.`;
+    } else if (currentPage === 'novel' || currentPage === 'reader') {
+      const nid = currentParams ? (currentParams.id || currentParams.novelId || novelIdBySlug(currentParams.slug)) : undefined;
+      const novel = novels.find(n => n.id === nid);
+      if (novel) {
+        const desc = (novel.description || '').trim().slice(0, 155);
+        description = desc || `اقرأ رواية ${novel.titleAr} على ${siteName} — فصول جديدة تُنشر باستمرار.`;
+      }
+    }
+    setMeta('meta[name="description"]', description);
+    setMeta('meta[property="og:description"]', description);
+    setMeta('meta[property="twitter:description"]', description);
+    setMeta('meta[property="og:title"]', title);
+    setMeta('meta[property="twitter:title"]', title);
+    // Canonical/social URL is the real crawlable path (never the "#" form).
+    const pageUrl = `https://berrymist.com${buildScreenHash(currentPage, currentParams)}`;
+    setMeta('meta[property="og:url"]', pageUrl);
+    setMeta('meta[property="twitter:url"]', pageUrl);
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = pageUrl;
+
+    // Structured data: describe the open novel as a schema.org Book so search
+    // engines can show rich results (title, author, rating) for novel links.
+    const LD_ID = 'berrymist-novel-jsonld';
+    const prevLd = document.getElementById(LD_ID);
+    if (prevLd) prevLd.remove();
+    if (currentPage === 'novel' || currentPage === 'reader') {
+      const nid = currentParams ? (currentParams.id || currentParams.novelId || novelIdBySlug(currentParams.slug)) : undefined;
+      const novel = novels.find(n => n.id === nid);
+      if (novel) {
+        const ld: any = {
+          '@context': 'https://schema.org',
+          '@type': 'Book',
+          name: novel.titleAr || novel.titleEn,
+          alternateName: novel.titleEn,
+          author: { '@type': 'Person', name: novel.author },
+          inLanguage: 'ar',
+          url: `https://berrymist.com/novel/${slugifyTitle(novel.titleEn) || novel.id}`,
+          publisher: { '@type': 'Organization', name: siteName },
+        };
+        if (novel.genres?.length) ld.genre = novel.genres;
+        if (novel.ratingCount > 0) {
+          ld.aggregateRating = { '@type': 'AggregateRating', ratingValue: novel.rating, ratingCount: novel.ratingCount, bestRating: 5 };
+        }
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.id = LD_ID;
+        script.textContent = JSON.stringify(ld);
+        document.head.appendChild(script);
+      }
+    }
   }, [currentPage, currentParams, novels, siteName]);
 
   // Guest browsers must stay read-only on shared data: never let an anonymous
@@ -952,7 +1117,9 @@ export default function App() {
   // when chapter numbers are non-contiguous (e.g. after deletions).
   const handleReaderNavigateChapter = (direction: 'next' | 'prev') => {
     if (currentPage !== 'reader' || !currentParams) return;
-    const { novelId, chapterNumber } = currentParams;
+    const { chapterNumber } = currentParams;
+    // A directly-opened reader link carries only the slug until backfill runs.
+    const novelId = currentParams.novelId || novelIdBySlug(currentParams.slug);
     const allChapters = BerryDatabase.get<any[]>('chapters', []);
     const chaptersOfNovel = allChapters.filter(c => c.novelId === novelId).sort((a, b) => a.number - b.number);
 
@@ -1204,7 +1371,7 @@ export default function App() {
         {/* ==================== SCREEN 3: NOVEL PROFILE DETAILS ==================== */}
         {currentPage === 'novel' && currentParams && (
           <NovelDetails 
-            novelId={currentParams.id}
+            novelId={currentParams.id || novelIdBySlug(currentParams.slug)}
             currentUser={currentUser}
             onBack={() => handleNavigate('explore')}
             onReadChapter={handleReadChapter}
@@ -1217,7 +1384,7 @@ export default function App() {
         {/* ==================== SCREEN 4: READ CHAPTERS VIEWPORT ==================== */}
         {currentPage === 'reader' && currentParams && (
           <ReaderView 
-            novelId={currentParams.novelId}
+            novelId={currentParams.novelId || novelIdBySlug(currentParams.slug)}
             chapterNumber={currentParams.chapterNumber}
             currentUser={currentUser}
             onBack={() => handleNavigate('novel', { id: currentParams.novelId })}
