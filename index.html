@@ -16,10 +16,13 @@
     <meta name="rating" content="General" />
     <meta name="distribution" content="Global" />
     <meta name="expires" content="never" />
+    <!-- Exactly ONE canonical tag. There were two, and the prerenderer only
+         ever rewrites the first: every novel and chapter page went out with a
+         second canonical still pointing at the homepage. Two canonicals that
+         disagree are a contradiction, and search engines respond by trusting
+         neither — which keeps the pages out of the index entirely. -->
     <link rel="canonical" href="https://berrymist.online/" />
-    
-    <!-- Open Graph / Facebook -->
-    <link rel="canonical" href="https://berrymist.online/" />
+
     <!-- Feed of newly published chapters: readers can subscribe, and
          aggregators poll it far more often than a site gets re-crawled. -->
     <link rel="alternate" type="application/rss+xml" title="BerryMist — أحدث الفصول" href="https://berrymist.online/feed.xml" />

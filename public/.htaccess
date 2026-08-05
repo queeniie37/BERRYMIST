@@ -48,6 +48,15 @@ RewriteRule ^api/feed/?$ api/feed.php [L]
 # Instant "this URL is new" push to search engines when a chapter is published.
 RewriteRule ^api/indexnow/?$ api/indexnow.php [L]
 
+# The HOMEPAGE and the fixed screens go through the prerenderer too. The root
+# is the URL every search engine starts from, and served as a plain file it was
+# the empty app shell — no words to index and no links into the novels. The
+# fixed screens are all listed in the sitemap, so they were being offered to
+# crawlers as blank pages sharing one identical title. The root rule must come
+# before DirectoryIndex hands "/" to index.html.
+RewriteRule ^$ api/page.php [L]
+RewriteRule ^(library|suggestions|teams|ads|contact|privacy|terms)/?$ api/page.php [L]
+
 # Novel and chapter pages are prerendered by PHP: the same index.html is served
 # (so the app boots as usual) but with the real title/description/canonical and
 # the chapter text already in the HTML. Without this, search engines would only

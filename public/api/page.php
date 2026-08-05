@@ -75,6 +75,76 @@ function clip($t, $limit) {
     return strlen($t) > $limit ? substr($t, 0, $limit) . '…' : $t;
 }
 
+function esc($t) {
+    return htmlspecialchars((string)$t, ENT_QUOTES, 'UTF-8');
+}
+
+// Novels a search engine is allowed to see. Cancelled ones are gone and the
+// ones awaiting approval are not public yet — neither should be advertised.
+function public_novels($db) {
+    $out = array();
+    if (!is_array($db) || !isset($db['novels']) || !is_array($db['novels'])) return $out;
+    foreach ($db['novels'] as $n) {
+        if (!is_array($n)) continue;
+        $st = isset($n['status']) ? $n['status'] : '';
+        if ($st === 'CANCELLED' || $st === 'PENDING' || $st === 'PENDING_APPROVAL') continue;
+        $out[] = $n;
+    }
+    return $out;
+}
+
+// Every published chapter, grouped by novel and ordered by chapter number.
+// Built in ONE pass: the listing pages need the chapter list of every novel at
+// once, and re-scanning the whole chapters array per novel turned that into a
+// quadratic walk over the entire database on the site's busiest page.
+function published_chapters_by_novel($db) {
+    $out = array();
+    if (!is_array($db) || !isset($db['chapters']) || !is_array($db['chapters'])) return $out;
+    $now = time();
+    foreach ($db['chapters'] as $c) {
+        if (!is_array($c) || empty($c['novelId'])) continue;
+        if (!empty($c['deleted'])) continue;
+        // Scheduled chapters are not public yet.
+        if (!empty($c['publishAt'])) {
+            $pt = strtotime($c['publishAt']);
+            if ($pt !== false && $pt > $now) continue;
+        }
+        if (chapter_number_of($c) === null) continue;
+        $out[$c['novelId']][] = $c;
+    }
+    foreach ($out as $k => $list) {
+        usort($list, function ($a, $b) { return chapter_number_of($a) - chapter_number_of($b); });
+        $out[$k] = $list;
+    }
+    return $out;
+}
+
+// When a chapter went live, as a sortable timestamp.
+function chapter_time($c) {
+    foreach (array('publishAt', 'createdAt', 'updatedAt') as $k) {
+        if (!empty($c[$k])) {
+            $t = strtotime($c[$k]);
+            if ($t !== false) return $t;
+        }
+    }
+    return 0;
+}
+
+// A URL that resolves to nothing has to SAY so. Serving the app shell with a
+// 200 turned every dead link — an old slug, a typo, a deleted novel — into a
+// "soft 404", and search engines hold those against the whole site.
+function not_found($siteName) {
+    http_response_code(404);
+    header('X-Robots-Tag: noindex');
+    return array(
+        'الصفحة غير موجودة | ' . $siteName,
+        'هذه الصفحة غير موجودة على ' . $siteName . '.',
+        '<main><h1>الصفحة غير موجودة</h1>'
+        . '<p>الصفحة المطلوبة غير موجودة على ' . esc($siteName) . '.</p>'
+        . '<p><a href="/">الصفحة الرئيسية</a> · <a href="/library">المكتبة</a></p></main>'
+    );
+}
+
 // A JSON-LD block is written INSIDE a <script> element, so the encoder must
 // never be allowed to emit a literal "</script>" — a novel title or author
 // name containing one would close the tag early and everything after it would
@@ -110,12 +180,158 @@ $jsonLd = '';
 
 $RESERVED = array('home','library','explore','suggestions','teams','notifications','profile','translator','admin','ads','privacy','terms','contact');
 
-if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists($DB_FILE)) {
-    $db = json_decode(file_get_contents($DB_FILE), true);
-    if (is_array($db) && isset($db['novels']) && is_array($db['novels'])) {
-        if (isset($db['site_name']) && is_string($db['site_name']) && trim($db['site_name']) !== '') {
-            $siteName = trim($db['site_name']);
+// Screens that belong to one visitor (or to staff) hold nothing a search
+// engine should keep — no stable content, and some of it private.
+$PRIVATE_SCREENS = array('notifications', 'profile', 'translator', 'admin');
+
+// The app puts novels under /novel/<slug> and every OTHER screen at the site
+// root (/library, /privacy, …), so the FIRST segment is what decides which
+// kind of page was asked for.
+$firstSeg = isset($segs[0]) ? rawurldecode($segs[0]) : '';
+$isNovelPath = ($firstSeg === 'novel' && $slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true));
+
+// ---- The shared database, loaded once ------------------------------------
+$db = null;
+if (file_exists($DB_FILE)) {
+    $decoded = json_decode(file_get_contents($DB_FILE), true);
+    if (is_array($decoded) && isset($decoded['novels']) && is_array($decoded['novels'])) {
+        $db = $decoded;
+    }
+}
+if ($db !== null && isset($db['site_name']) && is_string($db['site_name']) && trim($db['site_name']) !== '') {
+    $siteName = trim($db['site_name']);
+    // The default title was built from the placeholder name above, before the
+    // database was read. Rebuild it, or the homepage goes out titled with a
+    // name the owner already renamed.
+    $title = $siteName . ' | المنصة العربية الفاخرة للروايات المترجمة والأصلية';
+}
+
+// ---- Home page and fixed screens -----------------------------------------
+// The site ROOT is the one URL every search engine starts from, and it used to
+// be served as the bare single-page-app shell: right meta tags, but an empty
+// <div id="root">. A crawler that does not run JavaScript saw a page with no
+// words in it and no links out of it — nothing to index, and no route into the
+// novels. The fixed screens had the same problem AND shared one identical
+// title, which reads as a pile of duplicate pages.
+if (!$isNovelPath) {
+    $isHome = ($firstSeg === '' || $firstSeg === 'home');
+    $canonical = $isHome ? ($SITE . '/') : ($SITE . '/' . rawurlencode($firstSeg));
+
+    $SCREENS = array(
+        'library' => array(
+            'المكتبة | ' . $siteName,
+            'تصفّح كل الروايات المترجمة والمؤلفة على ' . $siteName . ' — فانتازيا وأكشن وغموض، بفصول جديدة تنزل يومياً.'),
+        'explore' => array(
+            'المكتبة | ' . $siteName,
+            'تصفّح كل الروايات المترجمة والمؤلفة على ' . $siteName . ' — فانتازيا وأكشن وغموض، بفصول جديدة تنزل يومياً.'),
+        'suggestions' => array(
+            'اقترح رواية | ' . $siteName,
+            'اقترح رواية ليترجمها فريق ' . $siteName . '، وشاهد ما اقترحه القرّاء الآخرون.'),
+        'teams' => array(
+            'فرق الترجمة | ' . $siteName,
+            'فرق الترجمة التي تقف خلف روايات ' . $siteName . '، والأعمال التي يعمل عليها كل فريق.'),
+        'ads' => array(
+            'الإعلان على ' . $siteName,
+            'خيارات الإعلان للوصول إلى قرّاء ' . $siteName . '.'),
+        'contact' => array(
+            'اتصل بنا | ' . $siteName,
+            'تواصل مع فريق ' . $siteName . ' بخصوص رواية أو ترجمة أو شراكة.'),
+        'privacy' => array(
+            'سياسة الخصوصية | ' . $siteName,
+            'كيف يتعامل ' . $siteName . ' مع بيانات القرّاء والكتّاب والمترجمين.'),
+        'terms' => array(
+            'شروط الاستخدام | ' . $siteName,
+            'الشروط التي تسري على القراءة والكتابة والترجمة على ' . $siteName . '.'),
+    );
+    if (!$isHome && isset($SCREENS[$firstSeg])) {
+        $title = $SCREENS[$firstSeg][0];
+        $description = $SCREENS[$firstSeg][1];
+    }
+    if (!$isHome && in_array($firstSeg, $PRIVATE_SCREENS, true)) {
+        header('X-Robots-Tag: noindex, follow');
+    }
+
+    // The catalogue itself. These links are how a crawler reaches every novel
+    // and, through the novel pages, every chapter — so both the homepage and
+    // the library carry the full list rather than a JavaScript placeholder.
+    if ($isHome || $firstSeg === 'library' || $firstSeg === 'explore') {
+        $byNovel = published_chapters_by_novel($db);
+        $cards = '';
+        $listLd = array();
+        $recent = array();
+        $pos = 0;
+
+        foreach (public_novels($db) as $n) {
+            $titleEn = isset($n['titleEn']) ? $n['titleEn'] : '';
+            $titleAr = isset($n['titleAr']) ? $n['titleAr'] : '';
+            $display = $titleAr !== '' ? $titleAr : $titleEn;
+            if ($display === '') continue;
+            $slug = novel_slug($n);
+            if ($slug === '') continue;
+
+            $href = '/novel/' . rawurlencode($slug);
+            $blurb = clip(plain_text(isset($n['description']) ? $n['description'] : '', 400), 200);
+            $chapters = isset($n['id']) && isset($byNovel[$n['id']]) ? $byNovel[$n['id']] : array();
+            $author = isset($n['author']) ? $n['author'] : '';
+
+            $cards .= '<li><h3><a href="' . $href . '">' . esc($display) . '</a></h3>'
+                . ($author !== '' ? '<p>' . esc($author) . '</p>' : '')
+                . ($blurb !== '' ? '<p>' . esc($blurb) . '</p>' : '')
+                . '<p>' . count($chapters) . ' فصلاً</p></li>';
+
+            $pos++;
+            $listLd[] = array('@type' => 'ListItem', 'position' => $pos,
+                'url' => $SITE . $href, 'name' => $display);
+
+            foreach ($chapters as $c) {
+                $recent[] = array(chapter_time($c), chapter_number_of($c), $display, $slug,
+                    isset($c['title']) ? $c['title'] : '');
+            }
         }
+
+        // Newest chapters first: a crawler that comes back to the homepage sees
+        // straight away that the site changed, and gets a direct link to the
+        // chapters that changed it.
+        usort($recent, function ($a, $b) { return $b[0] - $a[0]; });
+        $recent = array_slice($recent, 0, 30);
+        $latest = '';
+        foreach ($recent as $r) {
+            $label = $r[4] !== '' ? $r[4] : ('الفصل ' . $r[1]);
+            $latest .= '<li><a href="/novel/' . rawurlencode($r[3]) . '/chapter-' . $r[1] . '">'
+                . esc($r[2] . ' — ' . $label) . '</a></li>';
+        }
+
+        $heading = $isHome ? $siteName : 'المكتبة';
+        $bodyHtml = '<main>'
+            . '<h1>' . esc($heading) . '</h1>'
+            . '<p>' . esc($description) . '</p>'
+            . '<section><h2>الروايات (' . $pos . ')</h2><ul>' . $cards . '</ul></section>'
+            . ($latest !== '' ? '<section><h2>أحدث الفصول</h2><ul>' . $latest . '</ul></section>' : '')
+            . '</main>';
+
+        $jsonLd = json_ld_encode(array(
+            '@context' => 'https://schema.org',
+            '@type' => 'CollectionPage',
+            'name' => $title,
+            'description' => $description,
+            'url' => $canonical,
+            'inLanguage' => 'ar',
+            'isPartOf' => array('@type' => 'WebSite', 'name' => $siteName, 'url' => $SITE . '/'),
+            'mainEntity' => array('@type' => 'ItemList', 'numberOfItems' => $pos,
+                'itemListElement' => $listLd),
+        ));
+    } else {
+        // A fixed screen with no catalogue on it still needs words: a heading
+        // and its own description beat an empty <div> for both readers on a
+        // slow connection and crawlers that never run the script.
+        $bodyHtml = '<main><h1>' . esc($title) . '</h1><p>' . esc($description) . '</p>'
+            . '<p><a href="/">' . esc($siteName) . '</a> · '
+            . '<a href="/library">المكتبة</a></p></main>';
+    }
+}
+
+if ($isNovelPath) {
+    if (is_array($db) && isset($db['novels']) && is_array($db['novels'])) {
         // Find the novel by its English-title slug (id as a fallback).
         $novel = null;
         foreach ($db['novels'] as $n) {
@@ -204,6 +420,8 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                         '<div>' . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</div>' .
                         '<nav>' . $nav . '</nav>' .
                         '</article>';
+                } else {
+                    list($title, $description, $bodyHtml) = not_found($siteName);
                 }
             } else {
                 // ---------- Novel page ----------
@@ -247,6 +465,8 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                     '<h2>الفصول (' . count($chapters) . ')</h2><ul>' . $links . '</ul>' .
                     '</article>';
             }
+        } else {
+            list($title, $description, $bodyHtml) = not_found($siteName);
         }
     }
 }
