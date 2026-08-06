@@ -30,7 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $HOST = 'berrymist.online';
 $SITE = 'https://' . $HOST;
-$KEY_STORE = __DIR__ . '/indexnow_key.txt';
+require_once __DIR__ . '/storage.php';
+berry_migrate_legacy();
+$KEY_STORE = berry_storage_dir() . '/indexnow_key.txt';
 $WEB_ROOT = dirname(__DIR__);
 
 // Stable per-site key, created once.

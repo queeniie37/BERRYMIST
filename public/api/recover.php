@@ -36,38 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// TEMPORARY diagnostics (?diag=1) — removed once backup rotation is verified.
-if (isset($_GET['diag'])) {
-    $dir = __DIR__;
-    $bd = $dir . '/backups';
-    $info = array(
-        'php' => PHP_VERSION,
-        'dir' => $dir,
-        'api_writable' => is_writable($dir),
-        'db_exists' => file_exists($dir . '/berry_db.json'),
-        'backups_is_dir' => is_dir($bd),
-        'backups_is_file' => is_file($bd),
-        'backups_writable' => is_dir($bd) ? is_writable($bd) : null,
-        'api_files' => array_values(array_diff(scandir($dir) ?: array(), array('.', '..'))),
-        'backups_files' => is_dir($bd) ? array_values(array_diff(scandir($bd) ?: array(), array('.', '..'))) : null,
-    );
-    if (!is_dir($bd)) {
-        $info['mkdir_result'] = @mkdir($bd, 0755, true) ? 'ok' : 'failed';
-        clearstatcache();
-        $info['backups_is_dir_after_mkdir'] = is_dir($bd);
-    }
-    if (is_dir($bd)) {
-        $probe = $bd . '/.write-test-' . getmypid();
-        $info['write_test'] = @file_put_contents($probe, 'x') !== false ? 'ok' : 'failed';
-        @unlink($probe);
-        $info['glob_test'] = glob($bd . '/berry_db-*.json');
-    }
-    echo json_encode($info, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-$DB_FILE = __DIR__ . '/berry_db.json';
-$BACKUP_DIR = __DIR__ . '/backups';
+require_once __DIR__ . '/storage.php';
+berry_migrate_legacy();
+$DB_FILE = berry_db_file();
+// Snapshots live outside the web root so deploys cannot wipe them; the old
+// in-API folder is scanned too, for backups created before the move.
+$BACKUP_DIRS = array_unique(array(berry_backup_dir(), __DIR__ . '/backups'));
 
 function recover_load_json($file) {
     if (!is_file($file) || !is_readable($file)) return null;
@@ -102,8 +76,12 @@ if (is_array($current)) {
 
 // Every snapshot the rotation can produce (hourly + daily). Newest first, so
 // when several snapshots hold the same lost record, the freshest copy wins.
-$files = glob($BACKUP_DIR . '/berry_db-*.json');
-if (!is_array($files)) $files = array();
+$files = array();
+foreach ($BACKUP_DIRS as $bd) {
+    $g = glob($bd . '/berry_db-*.json');
+    if (is_array($g)) $files = array_merge($files, $g);
+}
+$files = array_unique($files);
 usort($files, function ($a, $b) {
     return filemtime($b) - filemtime($a);
 });

@@ -20,9 +20,11 @@ header('Access-Control-Allow-Headers: Content-Type');
 // Per-user / private keys must never be stored in or served from the shared DB.
 $PRIVATE_KEYS = ['users_db', 'current_user_data', 'current_role', 'bookmarks', 'reading_history'];
 
-// Keep the data file OUTSIDE the web root would be ideal, but next to this
-// script is the most reliable writable location on shared hosting.
-$DB_FILE = __DIR__ . '/berry_db.json';
+// The data file lives OUTSIDE the deployed web root (see storage.php) so a
+// redeploy — which replaces the entire web root — can never wipe it.
+require_once __DIR__ . '/storage.php';
+berry_migrate_legacy();
+$DB_FILE = berry_db_file();
 
 function load_db($file) {
     if (file_exists($file)) {
@@ -262,10 +264,11 @@ if ($method === 'POST') {
     // Rotating backups BEFORE applying the write, so the site's data can
     // always be restored if a bug or a malicious visitor wipes content
     // (the API is writable by design — every publish comes from a browser).
-    // Two tiers in api/backups/, both readable by the owner's recovery tool:
+    // Two tiers in berry_backup_dir() (outside the web root, so deploys
+    // never delete them), both readable by the owner's recovery tool:
     //   - hourly  berry_db-YYYYMMDD-HH.json    (newest 48 kept  ≈ 2 days)
     //   - daily   berry_db-daily-YYYYMMDD.json (newest 30 kept  = 1 month)
-    $backupDir = __DIR__ . '/backups';
+    $backupDir = berry_backup_dir();
     if (!is_dir($backupDir)) { @mkdir($backupDir, 0755, true); }
     if (is_dir($backupDir) && file_exists($DB_FILE)) {
         $rotate = function ($files, $keep) {

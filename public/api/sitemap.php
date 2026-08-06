@@ -17,7 +17,9 @@ if (extension_loaded('zlib') && !ini_get('zlib.output_compression')) {
 header('Content-Type: application/xml; charset=utf-8');
 
 $SITE = 'https://berrymist.online';
-$DB_FILE = __DIR__ . '/berry_db.json';
+require_once __DIR__ . '/storage.php';
+berry_migrate_legacy();
+$DB_FILE = berry_db_file();
 
 // Mirror of the client's slugifyTitle(): lowercase latin, words joined by
 // single hyphens; empty when the title has no latin characters.

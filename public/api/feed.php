@@ -19,7 +19,9 @@ header('Content-Type: application/rss+xml; charset=utf-8');
 header('Cache-Control: no-cache, must-revalidate');
 
 $SITE = 'https://berrymist.online';
-$DB_FILE = __DIR__ . '/berry_db.json';
+require_once __DIR__ . '/storage.php';
+berry_migrate_legacy();
+$DB_FILE = berry_db_file();
 $LIMIT = 50;
 
 // Mirror of the client's slugify(): keep Arabic and Latin letters and digits,

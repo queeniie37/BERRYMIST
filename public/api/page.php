@@ -22,7 +22,9 @@ if (extension_loaded('zlib') && !ini_get('zlib.output_compression')) {
  */
 
 $SITE = 'https://berrymist.online';
-$DB_FILE = __DIR__ . '/berry_db.json';
+require_once __DIR__ . '/storage.php';
+berry_migrate_legacy();
+$DB_FILE = berry_db_file();
 $INDEX = dirname(__DIR__) . '/index.html';
 
 if (!file_exists($INDEX)) {
