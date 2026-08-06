@@ -64,9 +64,27 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
     const acc = { novels: new Map<string, any>(), chapters: new Map<string, any>() };
     let checked = 0;
     let found = 0;
-    // Snapshot filenames use UTC (gmdate in api/db.php). Scan the hourly
-    // snapshots of the last 4 days plus the daily snapshots of the last 45
-    // days; missing files 404 instantly and cost nothing.
+    // Preferred path: one server-side scan. api/recover.php reads the snapshot
+    // folder straight from disk, so it works even though .htaccess blocks
+    // HTTP access to api/backups/ (that block made the per-file scan below
+    // always report "no backups").
+    setRecoveryProgress('جاري فحص النسخ الاحتياطية على الخادم…');
+    try {
+      const res = await fetch('/api/recover.php', { cache: 'no-store' });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        collectMissingRecords({ novels: data?.novels, chapters: data?.chapters }, acc);
+        setRecoveryProgress(`اكتمل الفحص: ${typeof data?.backupsChecked === 'number' ? data.backupsChecked : 0} نسخة احتياطية موجودة على الخادم.`);
+        setRecoveryFound({ novels: [...acc.novels.values()], chapters: [...acc.chapters.values()] });
+        setRecoveryScanning(false);
+        return;
+      }
+    } catch { /* endpoint unreachable — fall back to the per-file scan */ }
+    // Fallback for hosts without recover.php: snapshot filenames use UTC
+    // (gmdate in api/db.php). Scan the hourly snapshots of the last 4 days
+    // plus the daily snapshots of the last 45 days; missing files 404
+    // instantly and cost nothing.
     const candidates: string[] = [];
     for (let h = 0; h < 24 * 4; h++) {
       const d = new Date(Date.now() - h * 3600 * 1000);
