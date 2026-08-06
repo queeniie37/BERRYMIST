@@ -382,23 +382,41 @@ export class BerryDatabase {
   // "disappear": the 4-second poll fetched the server's OLD list before the
   // publish POST finished (or after it failed) and overwrote localStorage.
   private static pendingSync = new Map<string, string>();
+  // Last time each pending key was pushed, so a permanently failing write is
+  // retried every few seconds instead of on every 1-second poll cycle.
+  private static lastPushAttempt = new Map<string, number>();
+  // Keys we already warned about, so a permanent rejection alerts once.
+  private static pushWarned = new Set<string>();
 
   private static pushToServer(key: string, serialized: string): void {
     this.pendingSync.set(key, serialized);
+    this.lastPushAttempt.set(key, Date.now());
     fetch('/api/db', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: `{"key":${JSON.stringify(key)},"value":${serialized}}`
     })
       .then((res) => {
-        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        if (!res.ok) {
+          // 400/413 are PERMANENT rejections (payload over the server limit —
+          // typically a chapter carrying too many/large images): retrying the
+          // identical payload will never succeed, so tell the publisher once
+          // instead of letting a "published" chapter sit locally forever
+          // while every other device never sees it.
+          if ((res.status === 400 || res.status === 413) && !this.pushWarned.has(key)) {
+            this.pushWarned.add(key);
+            alert('تعذّر حفظ آخر تعديل على الخادم لأن حجمه تجاوز الحد المسموح. إن كنت تنشر فصلاً، قلّل عدد الصور أو حجمها داخل الفصل ثم أعد النشر — التعديل محفوظ على هذا الجهاز ولم يصل للخادم بعد.');
+          }
+          throw new Error(`Server responded ${res.status}`);
+        }
         // Only clear if no newer local write replaced this one meanwhile
         if (this.pendingSync.get(key) === serialized) {
           this.pendingSync.delete(key);
+          this.pushWarned.delete(key);
         }
       })
       .catch((err) => {
-        // Keep the key pending; syncWithServer retries it every cycle
+        // Keep the key pending; syncWithServer retries it on a backoff
         // instead of overwriting local data with the stale server copy.
         console.error(`Error syncing key "${key}" to backend (will retry):`, err);
       });
@@ -590,7 +608,11 @@ export class BerryDatabase {
         // instead and skip this key for this cycle.
         const pendingValue = this.pendingSync.get(key);
         if (pendingValue !== undefined) {
-          this.pushToServer(key, pendingValue);
+          // Retry on a short backoff (not every 1s poll tick): a payload the
+          // server permanently rejects would otherwise hammer it endlessly.
+          if (Date.now() - (this.lastPushAttempt.get(key) || 0) > 10_000) {
+            this.pushToServer(key, pendingValue);
+          }
           continue;
         }
         if (key in serverDb) {

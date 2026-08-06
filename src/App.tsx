@@ -365,6 +365,13 @@ export default function App() {
       setNovels(BerryDatabase.get<Novel[]>('novels', []));
     };
     window.addEventListener('novels-updated', handleNovelsUpdate);
+    // A chapter published on ANOTHER device fires 'chapters-updated', not
+    // 'novels-updated'. The home page's latest-chapters list and every
+    // novel's chaptersCount are both derived from the chapters store inside
+    // BerryDatabase.get('novels'), so refresh the novels state on chapter
+    // changes too — otherwise a chapter published elsewhere stayed invisible
+    // here until an unrelated novels update happened.
+    window.addEventListener('chapters-updated', handleNovelsUpdate);
     
     // Load from local database
     const savedUser = BerryDatabase.get<User | null>('current_user_data', null);
@@ -489,6 +496,7 @@ export default function App() {
       window.removeEventListener('site-settings-updated', handleSiteUpdate);
       window.removeEventListener('footer-settings-updated', handleFooterUpdate);
       window.removeEventListener('novels-updated', handleNovelsUpdate);
+      window.removeEventListener('chapters-updated', handleNovelsUpdate);
     };
   }, []);
 
