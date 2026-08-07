@@ -619,24 +619,35 @@ export class BerryDatabase {
           const localValStr = storeRead(`berry_mist_${key}`);
           const serverValStr = JSON.stringify(serverDb[key]);
 
-          // Self-healing sync for the library: never blindly overwrite the
-          // local novels/chapters with the server copy. If this device still
-          // holds records the server lost (wiped by the old overwrite bug on
-          // a not-yet-updated site), merge the two sides and push the result
-          // back up — the owner just opening the site restores the content
-          // for every visitor. Guests only merge locally; pushing recovered
-          // data is reserved for signed-in members' devices.
+          // Library sync, split by role:
+          // - Visitors (guests): the server is the single source of truth.
+          //   Their local copy is overwritten, never merged — otherwise stale
+          //   records from the wipe era (which left no deletion tombstones on
+          //   the server) would linger in each browser's IndexedDB forever,
+          //   and every visitor would see a different chapter count.
+          // - Signed-in members: self-healing merge. If this device still
+          //   holds records the server lost, merge the two sides and push the
+          //   result back up — the owner just opening the site restores the
+          //   content for every visitor.
           if (key === 'novels' || key === 'chapters') {
+            const u = this.get<{ role?: string } | null>('current_user_data', null);
+            const isMember = !!(u && u.role && u.role !== 'GUEST');
+
+            if (!isMember) {
+              if (localValStr !== serverValStr) {
+                storeWrite(`berry_mist_${key}`, serverValStr);
+                this.dispatchKeyEvent(key);
+              }
+              continue;
+            }
+
             let localList: any[] = [];
             try { localList = localValStr ? JSON.parse(localValStr) : []; } catch { localList = []; }
             const merged = mergeRecordsById(serverDb[key], localList);
             const mergedStr = JSON.stringify(merged);
 
             if (mergedStr !== serverValStr) {
-              const u = this.get<{ role?: string } | null>('current_user_data', null);
-              if (u && u.role && u.role !== 'GUEST') {
-                this.pushToServer(key, mergedStr);
-              }
+              this.pushToServer(key, mergedStr);
             }
             if (mergedStr !== localValStr) {
               storeWrite(`berry_mist_${key}`, mergedStr);
