@@ -57,18 +57,18 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^novel/.+$ api/page.php [L]
 
-# Single-page app fallback: serve index.html for any path that is not a real
-# file or directory, so deep links and refreshes don't 404.
-# File-like paths (anything ending in a real extension) are EXCLUDED from the
-# SPA fallback: a missing .html/.txt/.xml must return an honest 404 instead of
-# the app shell. Returning the shell made every missing file look like a valid
-# page — that is what makes Google report "the verification file contains
-# incorrect content" instead of simply "not found", and search engines treat
-# such soft-404s as a site-wide quality problem.
+# Single-page app routing: every non-file path goes through api/page.php, which
+# serves the app shell for the screens that EXIST and answers an honest 404
+# (status + noindex) for everything else. Serving the shell with a 200 for
+# unknown URLs was a site-wide "soft 404" quality problem for search engines.
+# File-like paths (anything ending in a real extension) are EXCLUDED: a missing
+# .html/.txt/.xml must return the server's plain 404 instead of the app shell —
+# that is what makes Google report "the verification file contains incorrect
+# content" instead of simply "not found".
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} !\.(html?|txt|xml|json|js|mjs|css|map|php|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|pdf|zip)$ [NC]
-RewriteRule ^ index.html [L]
+RewriteRule ^ api/page.php [L]
 
 # Never expose the shared data file, the member accounts file, or the
 # runtime lock/temp files directly.
@@ -92,10 +92,19 @@ RewriteRule ^ index.html [L]
   AddOutputFilterByType DEFLATE image/svg+xml
 </IfModule>
 
-# Sensible caching for built assets (they are content-hashed by Vite).
+# Caching.
+# Only Vite's content-hashed build files (name-HASH.ext, e.g.
+# index-Dn3DL7zQ.js) may be cached immutably for a year: their content never
+# changes without the URL changing too. The named brand images at the site
+# root (favicon, logo, og-image) keep the SAME filename when they are fixed
+# or replaced, so a year-long cache would keep showing visitors — and the
+# search crawler — the old file for months; they get one hour instead.
 <IfModule mod_headers.c>
-  <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|svg|webp)$">
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css|woff2?|png|jpg|jpeg|svg|webp)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^(favicon\.(ico|png)|apple-touch-icon\.png|og-image\.jpg|site_logo[^/]*\.(png|jpe?g)|site_banner\.png)$">
+    Header set Cache-Control "public, max-age=3600"
   </FilesMatch>
   <FilesMatch "\.(html)$">
     Header set Cache-Control "no-cache"

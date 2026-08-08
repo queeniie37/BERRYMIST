@@ -6,7 +6,7 @@ import { isImageSource, safeEmojiOrFallback, compressImageFile } from '../utils/
 import { getAllTranslatorsPoints, crownTranslator, getCrownedTranslatorId, getCurrentMonthKey } from '../utils/points';
 import { BADGE_CATALOG, getUserBadges, grantBadge, revokeBadge } from '../utils/badges';
 import { UserDirectory } from '../utils/directory';
-import { chapterNum } from '../utils/chapters';
+import { chapterNum, chapterDisplayTitle } from '../utils/chapters';
 import ConfirmModal from './ConfirmModal';
 import { DEFAULT_CONTACT_SETTINGS, ContactSettings } from './ContactUs';
 
@@ -2521,7 +2521,7 @@ export default function AdminPanel({ currentUser, onNavigate }: AdminPanelProps)
                             <span className="text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2.5 py-0.5 rounded-full font-bold max-w-[150px] truncate" title={chap.novelTitle}>
                               {chap.novelTitle}
                             </span>
-                            <span className="text-xs font-bold text-white truncate">{chap.title}</span>
+                            <span className="text-xs font-bold text-white truncate">{chapterDisplayTitle(chap)}</span>
                           </div>
                           <span className="text-[9px] text-purple-400 block">رقم الفصل: {chapterNum(chap)}</span>
                         </div>

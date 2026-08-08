@@ -40,6 +40,16 @@ function novel_slug($n) {
     if ($s === '' && isset($n['id'])) $s = $n['id'];
     return $s;
 }
+// Leftover test records from the first deploy — never listed for crawlers;
+// the app also strips them from the shared DB on the next sign-in.
+function berry_is_junk_novel($n) {
+    if (!is_array($n)) return true;
+    $id = isset($n['id']) ? (string)$n['id'] : '';
+    if ($id !== '' && strpos($id, 'deploy-survival-marker') === 0) return true;
+    $ar = isset($n['titleAr']) ? trim((string)$n['titleAr']) : '';
+    if ($ar === 'اختبار النظام' || slugify_title($ar) === 'اختبار-النظام') return true;
+    return false;
+}
 
 $urls = array();
 $today = gmdate('Y-m-d');
@@ -84,6 +94,7 @@ if (file_exists($DB_FILE)) {
 
         foreach ($db['novels'] as $n) {
             if (!is_array($n)) continue;
+            if (berry_is_junk_novel($n)) continue;
             $status = isset($n['status']) ? $n['status'] : '';
             if ($status === 'CANCELLED' || $status === 'PENDING' || $status === 'PENDING_APPROVAL') continue;
             $slug = novel_slug($n);

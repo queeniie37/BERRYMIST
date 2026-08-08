@@ -480,6 +480,14 @@ async function setupServer() {
       if (/\.(html?|txt|xml|json|js|mjs|css|map|php|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|pdf|zip)$/i.test(req.path)) {
         return res.status(404).type("text/plain").send("Not found");
       }
+      // Unknown app paths: serve the shell with a real 404 status (the app
+      // shows its Arabic 404 screen for them), instead of a soft-404 200.
+      const KNOWN_APP_PAGES = new Set(["", "home", "library", "explore", "suggestions", "teams", "notifications", "profile", "translator", "admin", "ads", "privacy", "terms", "contact", "contact-us", "privacy-policy", "terms-of-service"]);
+      const first = decodeURIComponent(req.path.replace(/^\/+|\/+$/g, "").split("/")[0] || "");
+      const isNovelRoute = first === "novel";
+      if (!isNovelRoute && !KNOWN_APP_PAGES.has(first)) {
+        return res.status(404).sendFile(path.join(distPath, "index.html"));
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

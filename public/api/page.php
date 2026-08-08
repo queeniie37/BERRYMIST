@@ -87,6 +87,34 @@ function json_ld_encode($data) {
     return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
 }
 
+// Leftover test records from the first deploy: the "deploy-survival-marker"
+// probe row and the "اختبار النظام" test novel. They must never be rendered,
+// listed, or handed to crawlers — the app also strips them from the shared DB
+// the next time a signed-in member loads the site.
+function berry_is_junk_novel($n) {
+    if (!is_array($n)) return true;
+    $id = isset($n['id']) ? (string)$n['id'] : '';
+    if ($id !== '' && strpos($id, 'deploy-survival-marker') === 0) return true;
+    $ar = isset($n['titleAr']) ? trim((string)$n['titleAr']) : '';
+    if ($ar === 'اختبار النظام' || slugify_title($ar) === 'اختبار-النظام') return true;
+    return false;
+}
+
+// Chapter titles are stored as "الفصل N: <subtitle>", but some were saved with
+// the placeholder itself as the subtitle, producing "الفصل N: الفصل N".
+// Extract only the real subtitle; '' when there is none.
+function chapter_subtitle($raw, $num) {
+    if (!is_string($raw)) return '';
+    $t = trim($raw);
+    if ($t === '') return '';
+    $bare = '/^الفصل\s*[#№]?\s*\d+\s*[:：.\-–—]?\s*$/u';
+    if (preg_match($bare, $t)) return '';
+    $pos = mb_strpos($t, ':', 0, 'UTF-8');
+    $sub = $pos === false ? $t : trim(mb_substr($t, $pos + 1, null, 'UTF-8'));
+    if ($sub === '' || preg_match($bare, $sub)) return '';
+    return $sub;
+}
+
 // preg_replace() treats $1 / \1 in the REPLACEMENT string as backreferences,
 // so a title containing "$1" (or a stray backslash) came out mangled. Escape
 // those two characters so the replacement is always taken literally.
@@ -97,11 +125,12 @@ function rep_literal($s) {
 // ---- Which screen was requested? -----------------------------------------
 $reqPath = parse_url(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/', PHP_URL_PATH);
 $segs = array_values(array_filter(explode('/', trim((string)$reqPath, '/')), 'strlen'));
-// Expected shape: novel/<slug-or-page>[/<chapter-number>]
-$slugOrPage = isset($segs[1]) ? rawurldecode($segs[1]) : '';
+// Expected shapes: novel/<slug>[/chapter-<n>] or a plain app page (<page>).
+$isNovelRoute = (isset($segs[0]) && $segs[0] === 'novel' && isset($segs[1]));
+$slugOrPage = $isNovelRoute ? rawurldecode($segs[1]) : '';
 // Chapters are addressed as /chapter-<n>, matching the app's URLs.
 $chapterSeg = null;
-if (isset($segs[2]) && preg_match('/^chapter-(\d+)$/', $segs[2], $cm)) $chapterSeg = (int)$cm[1];
+if ($isNovelRoute && isset($segs[2]) && preg_match('/^chapter-(\d+)$/', $segs[2], $cm)) $chapterSeg = (int)$cm[1];
 
 $siteName = 'BerryMist';
 $title = $siteName . ' | المنصة العربية الفاخرة للروايات المترجمة والأصلية';
@@ -109,10 +138,21 @@ $description = 'منصة عربية فاخرة لقراءة وكتابة وتر�
 $canonical = $SITE . (string)$reqPath;
 $bodyHtml = '';
 $jsonLd = '';
+$notFound = false;
 
-$RESERVED = array('home','library','explore','suggestions','teams','notifications','profile','translator','admin','ads','privacy','terms','contact');
+// Screens that exist in the app (client-side routes). Everything else is a
+// real 404, not the homepage with a 200 — serving 200 for unknown URLs is the
+// "soft 404" pattern search engines penalise site-wide.
+$KNOWN_APP_PAGES = array('', 'home','library','explore','suggestions','teams','notifications','profile','translator','admin','ads','privacy','terms','contact','contact-us','privacy-policy','terms-of-service');
 
-if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists($DB_FILE)) {
+if (!$isNovelRoute) {
+    $first = isset($segs[0]) ? rawurldecode($segs[0]) : '';
+    if (!in_array($first, $KNOWN_APP_PAGES, true)) {
+        $notFound = true;
+    }
+}
+
+if ($isNovelRoute && $slugOrPage !== '' && file_exists($DB_FILE)) {
     $db = json_decode(file_get_contents($DB_FILE), true);
     if (is_array($db) && isset($db['novels']) && is_array($db['novels'])) {
         if (isset($db['site_name']) && is_string($db['site_name']) && trim($db['site_name']) !== '') {
@@ -121,13 +161,17 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
         // Find the novel by its English-title slug (id as a fallback).
         $novel = null;
         foreach ($db['novels'] as $n) {
-            if (!is_array($n)) continue;
+            if (!is_array($n) || berry_is_junk_novel($n)) continue;
             // Match the app's slug (Arabic title first), and still accept the
             // English-title slug or the raw id so older links keep resolving.
             $arSlug = slugify_title(isset($n['titleAr']) ? $n['titleAr'] : '');
             $enSlug = slugify_title(isset($n['titleEn']) ? $n['titleEn'] : '');
             if ($slugOrPage !== '' && ($arSlug === $slugOrPage || $enSlug === $slugOrPage
                 || (isset($n['id']) && $n['id'] === $slugOrPage))) { $novel = $n; break; }
+        }
+        if ($novel === null) {
+            // Unknown novel slug — an honest 404, not the homepage with a 200.
+            $notFound = true;
         }
         if ($novel !== null) {
             $status = isset($novel['status']) ? $novel['status'] : '';
@@ -165,8 +209,7 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                 foreach ($chapters as $c) { if (chapter_number_of($c) === $chapterSeg) { $chapter = $c; break; } }
                 if ($chapter !== null) {
                     $chTitleRaw = isset($chapter['title']) ? $chapter['title'] : '';
-                    $parts = explode(':', $chTitleRaw, 2);
-                    $chSub = isset($parts[1]) ? trim($parts[1]) : '';
+                    $chSub = chapter_subtitle($chTitleRaw, $chapterSeg);
                     $title = 'الفصل ' . $chapterSeg . ($chSub !== '' ? ': ' . $chSub : '') . ' من رواية ' . $display . ' | ' . $siteName;
                     $text = plain_text(isset($chapter['content']) ? $chapter['content'] : '');
                     $description = clip($text !== '' ? $text : ('اقرأ الفصل ' . $chapterSeg . ' من رواية ' . $display . ' على ' . $siteName . '.'), 300);
@@ -206,6 +249,9 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                         '<div>' . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</div>' .
                         '<nav>' . $nav . '</nav>' .
                         '</article>';
+                } else {
+                    // The novel exists but this chapter number does not.
+                    $notFound = true;
                 }
             } else {
                 // ---------- Novel page ----------
@@ -238,7 +284,8 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                 $ordered = array_reverse($chapters);
                 foreach ($ordered as $c) {
                     $n2 = chapter_number_of($c);
-                    $ct = isset($c['title']) ? $c['title'] : ('الفصل ' . $n2);
+                    $csub = chapter_subtitle(isset($c['title']) ? $c['title'] : '', $n2);
+                    $ct = 'الفصل ' . $n2 . ($csub !== '' ? ': ' . $csub : '');
                     $links .= '<li><a href="/novel/' . rawurlencode($slug) . '/chapter-' . $n2 . '">' . htmlspecialchars($ct, ENT_QUOTES, 'UTF-8') . '</a></li>';
                 }
                 $bodyHtml =
@@ -250,7 +297,31 @@ if ($slugOrPage !== '' && !in_array($slugOrPage, $RESERVED, true) && file_exists
                     '</article>';
             }
         }
+    } else {
+        // Novel/chapter route but the database file is unreadable or corrupt.
+        $notFound = true;
     }
+} elseif ($isNovelRoute) {
+    // Novel/chapter route but the shared database is unavailable.
+    $notFound = true;
+}
+
+// ---- Honest 404 for unknown paths ----------------------------------------
+// The app shell is still served (status 404) so the visitor sees the friendly
+// Arabic "not found" screen with working navigation, while crawlers get the
+// real 404 status plus noindex — never a homepage-in-disguise 200.
+if ($notFound) {
+    http_response_code(404);
+    header('X-Robots-Tag: noindex, nofollow');
+    $title = 'الصفحة غير موجودة (404) | ' . $siteName;
+    $description = 'عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها. تصفح مكتبة الروايات من الصفحة الرئيسية.';
+    $jsonLd = '';
+    $bodyHtml =
+        '<article>' .
+        '<h1>الصفحة غير موجودة (404)</h1>' .
+        '<p>عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها.</p>' .
+        '<nav><a href="/">العودة إلى الصفحة الرئيسية</a> <a href="/library">تصفح المكتبة</a></nav>' .
+        '</article>';
 }
 
 // ---- Inject into the shipped index.html ----------------------------------
@@ -267,6 +338,12 @@ $html = preg_replace('#<meta\s+property="twitter:title"\s+content="[^"]*"\s*/?>#
 $html = preg_replace('#<meta\s+property="twitter:description"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:description" content="' . rep_literal($descEsc) . '" />', $html, 1);
 $html = preg_replace('#<meta\s+property="twitter:url"\s+content="[^"]*"\s*/?>#i', '<meta property="twitter:url" content="' . rep_literal($canonEsc) . '" />', $html, 1);
 $html = preg_replace('#<link\s+rel="canonical"[^>]*>#i', '<link rel="canonical" href="' . rep_literal($canonEsc) . '" />', $html, 1);
+
+if ($notFound) {
+    // A 404 page must not carry the template's "index, follow" robots meta.
+    $html = preg_replace('#<meta\s+name="robots"\s+content="[^"]*"\s*/?>#i', '<meta name="robots" content="noindex, nofollow" />', $html, 1);
+    $html = preg_replace('#<meta\s+name="googlebot"\s+content="[^"]*"\s*/?>#i', '<meta name="googlebot" content="noindex, nofollow" />', $html, 1);
+}
 
 if ($jsonLd) {
     $html = str_replace('</head>', '  <script type="application/ld+json">' . $jsonLd . "</script>\n  </head>", $html);

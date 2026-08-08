@@ -5,7 +5,7 @@ import { BerryDatabase, COVER_IMAGES } from '../data';
 import { compressImageFile } from '../utils/media';
 import { normalizeChapterText, chapterTextToEditorHtml } from '../utils/text';
 import { getTranslatorPoints, getAllTranslatorsPoints, isUserTranslatorOfTheMonth, getCurrentMonthKey } from '../utils/points';
-import { chapterNum } from '../utils/chapters';
+import { chapterNum, chapterSubtitle, chapterDisplayTitle, normalizeChapterTitleInput } from '../utils/chapters';
 import ConfirmModal from './ConfirmModal';
 
 interface TranslatorPanelProps {
@@ -436,7 +436,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
     }
 
     setEditingChapter(chapter);
-    setEditChapterTitle(chapter.title.split(':').slice(1).join(':').trim() || chapter.title);
+    setEditChapterTitle(chapterSubtitle(chapter));
     // Legacy chapters may still hold pasted HTML soup — clean it so the
     // editor shows readable text, and the next save persists the clean form.
     // Reset the last-html guard so the (freshly mounted) rich editor is
@@ -515,7 +515,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
       if (c.id === editingChapter.id) {
         return {
           ...c,
-          title: `الفصل ${chapterNum(editingChapter)}: ${editChapterTitle}`,
+          title: normalizeChapterTitleInput(chapterNum(editingChapter), editChapterTitle),
           content: normalizeChapterText(editChapterContent),
           updatedAt: new Date().toISOString(),
           isDraft: isScheduled,
@@ -1295,7 +1295,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-bold text-xs text-white truncate">{chap.title}</h4>
+                          <h4 className="font-bold text-xs text-white truncate">{chapterDisplayTitle(chap)}</h4>
                           <span className="text-[9px] bg-violet-950 text-violet-300 px-2 py-0.5 rounded border border-white/5 font-bold">
                             {chap.novelTitle}
                           </span>
@@ -1404,7 +1404,7 @@ export default function TranslatorPanel({ currentUser, onNavigate }: TranslatorP
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-bold text-xs text-white truncate">{chap.title}</h4>
+                        <h4 className="font-bold text-xs text-white truncate">{chapterDisplayTitle(chap)}</h4>
                         <span className="text-[9px] bg-red-950/40 text-red-300 px-2 py-0.5 rounded border border-red-500/10 font-bold">
                           {chap.novelTitle}
                         </span>

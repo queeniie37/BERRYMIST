@@ -4,7 +4,7 @@ import { Novel, Chapter, Comment, Review, User, UserRole, Report, Suggestion } f
 import { BerryDatabase } from '../data';
 import { compressImageFile } from '../utils/media';
 import { normalizeChapterText, spreadPlainTextLines } from '../utils/text';
-import { byChapterNumberAsc, chapterNum } from '../utils/chapters';
+import { byChapterNumberAsc, chapterNum, chapterDisplayTitle, normalizeChapterTitleInput } from '../utils/chapters';
 import { slugify } from '../utils/slug';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import ConfirmModal from './ConfirmModal';
@@ -762,7 +762,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
       novelId: novel.id,
       number: newChapterNum,
       chapterNumber: newChapterNum,
-      title: `الفصل ${newChapterNum}: ${newChapterTitle}`,
+      title: normalizeChapterTitleInput(newChapterNum, newChapterTitle),
       content: normalizeChapterText(newChapterContent),
       views: 0,
       createdAt: new Date().toISOString(),
@@ -1612,7 +1612,7 @@ export default function NovelDetails({ novelId, currentUser, onBack, onReadChapt
                       >
                         <div className="min-w-0">
                           <h4 className={`font-bold text-xs transition-colors truncate ${isRead ? 'text-violet-300 group-hover:text-violet-200' : 'text-purple-100 group-hover:text-violet-400'}`}>
-                            الفصل {chapterNum(chapter)}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+                            {chapterDisplayTitle(chapter)}
                             {isRead && (
                               <span className="mr-2 text-[9px] bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-normal">
                                 تمت القراءة ✔️

@@ -45,6 +45,30 @@ function chapter_number_of($c) {
     $n = isset($c['number']) ? $c['number'] : (isset($c['chapterNumber']) ? $c['chapterNumber'] : null);
     return is_numeric($n) ? (int)$n : null;
 }
+// Leftover test records from the first deploy — never listed for readers or
+// crawlers; the app also strips them from the shared DB on the next sign-in.
+function berry_is_junk_novel($n) {
+    if (!is_array($n)) return true;
+    $id = isset($n['id']) ? (string)$n['id'] : '';
+    if ($id !== '' && strpos($id, 'deploy-survival-marker') === 0) return true;
+    $ar = isset($n['titleAr']) ? trim((string)$n['titleAr']) : '';
+    if ($ar === 'اختبار النظام' || slugify_title($ar) === 'اختبار-النظام') return true;
+    return false;
+}
+// Chapter titles are stored as "الفصل N: <subtitle>"; some were saved with the
+// placeholder itself as the subtitle ("الفصل N: الفصل N"). Return the display
+// label with any duplicated default stripped.
+function chapter_display_title($raw, $num) {
+    $t = is_string($raw) ? trim($raw) : '';
+    $bare = '/^الفصل\s*[#№]?\s*\d+\s*[:：.\-–—]?\s*$/u';
+    $sub = '';
+    if ($t !== '' && !preg_match($bare, $t)) {
+        $pos = mb_strpos($t, ':', 0, 'UTF-8');
+        $sub = $pos === false ? $t : trim(mb_substr($t, $pos + 1, null, 'UTF-8'));
+        if (preg_match($bare, $sub)) $sub = '';
+    }
+    return 'الفصل ' . $num . ($sub !== '' ? ': ' . $sub : '');
+}
 function plain_text($raw, $limit = 400) {
     if (!is_string($raw)) return '';
     $t = preg_replace('/<img[^>]*>/i', '', $raw);
@@ -72,6 +96,7 @@ if (file_exists($DB_FILE)) {
         if (!empty($db['novels']) && is_array($db['novels'])) {
             foreach ($db['novels'] as $n) {
                 if (!is_array($n) || empty($n['id'])) continue;
+                if (berry_is_junk_novel($n)) continue;
                 $status = isset($n['status']) ? $n['status'] : '';
                 if ($status === 'CANCELLED' || $status === 'PENDING' || $status === 'PENDING_APPROVAL') continue;
                 $novels[$n['id']] = $n;
@@ -95,7 +120,7 @@ if (file_exists($DB_FILE)) {
                 $display = !empty($n['titleAr']) ? $n['titleAr'] : (isset($n['titleEn']) ? $n['titleEn'] : 'رواية');
                 $slug = novel_slug($n);
 
-                $chTitle = isset($c['title']) ? $c['title'] : ('الفصل ' . $num);
+                $chTitle = chapter_display_title(isset($c['title']) ? $c['title'] : '', $num);
                 $items[] = array(
                     'title' => $display . ' — ' . $chTitle,
                     'link' => $SITE . '/novel/' . rawurlencode($slug) . '/chapter-' . $num,

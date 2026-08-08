@@ -87,6 +87,49 @@ function AccessDeniedPanel({ message, isGuest, onNavigateHome }: { message: stri
   );
 }
 
+// Shown for unknown URLs (the server answers these with a real 404 status and
+// noindex) and for novel/chapter links whose target does not exist — instead
+// of the old silent bounce to the homepage or an endless "loading" spinner.
+function NotFoundPage({ onNavigateHome, onNavigateLibrary }: { onNavigateHome: () => void; onNavigateLibrary: () => void }) {
+  return (
+    <div className="w-full text-center mt-12 pb-12 animate-in fade-in duration-300">
+      <div className="max-w-md mx-auto p-8 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col items-center gap-4">
+        <AlertCircle size={40} className="text-berry-400" />
+        <h2 className="text-lg font-extrabold text-white">الصفحة غير موجودة (404)</h2>
+        <p className="text-xs text-purple-300 leading-relaxed">
+          عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها. يمكنك العودة للرئيسية أو تصفح مكتبة الروايات.
+        </p>
+        <div className="flex gap-3 mt-2">
+          <button
+            onClick={onNavigateHome}
+            className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer"
+          >
+            الرئيسية
+          </button>
+          <button
+            onClick={onNavigateLibrary}
+            className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-purple-300 rounded-xl text-xs font-bold cursor-pointer"
+          >
+            تصفح المكتبة
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Leftover test records from the first deploy ("deploy-survival-marker" probe
+// rows and the "اختبار النظام" test novel). They are hidden from every screen,
+// and purged from the shared database the next time a signed-in member syncs
+// (guests stay read-only on shared collections).
+const isJunkNovel = (n: any): boolean => {
+  if (!n) return false;
+  const id = String(n.id || '');
+  if (id.startsWith('deploy-survival-marker')) return true;
+  const ar = String(n.titleAr || '').trim();
+  return ar === 'اختبار النظام' || slugify(ar) === 'اختبار-النظام';
+};
+
 export default function App() {
   // Core states
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS.GUEST);
@@ -166,6 +209,9 @@ export default function App() {
       if (segs[0] === 'profile' && segs[1] === 'edit') return { page: 'profile-edit', params: null };
 
       const page = SEGMENT_TO_PAGE[segs[0]] || segs[0] || 'home';
+      // Unknown paths get a real "not found" screen (the server answers them
+      // with an actual 404 status), not a silent bounce to the homepage.
+      if (!KNOWN_PAGES.has(page)) return { page: 'not-found', params: null };
       return { page, params: null };
     } catch {
       return null;
@@ -180,12 +226,12 @@ export default function App() {
   };
 
   // Screens that actually exist in the app. Any entry URL pointing anywhere
-  // else (mistyped/stale copied link) must open the homepage instead of a
-  // blank screen.
+  // else (mistyped/stale copied link) opens the 404 screen — and the server
+  // answers it with a real 404 status — instead of a silent bounce home.
   const KNOWN_PAGES = new Set([
     'home', 'explore', 'suggestions', 'teams', 'notifications', 'profile',
     'profile-edit', 'novel', 'reader', 'translator-panel', 'admin', 'ads',
-    'contact-us', 'privacy-policy', 'terms-of-service'
+    'contact-us', 'privacy-policy', 'terms-of-service', 'not-found'
   ]);
 
   // Decide the first screen for this entry to the site:
@@ -219,6 +265,10 @@ export default function App() {
   }, []);
 
   const [novels, setNovels] = useState<Novel[]>([]);
+  // Flips true once the FIRST server sync completes, so deep links can tell
+  // "this novel really does not exist" (404 screen) apart from "the library
+  // has not arrived yet" (loading spinner).
+  const [librarySynced, setLibrarySynced] = useState(false);
 
   // When a novel/reader link is opened directly (or pasted/shared), the URL
   // only carries the readable novel-name slug. Once the novels list has loaded,
@@ -362,7 +412,7 @@ export default function App() {
     window.addEventListener('footer-settings-updated', handleFooterUpdate);
 
     const handleNovelsUpdate = () => {
-      setNovels(BerryDatabase.get<Novel[]>('novels', []));
+      setNovels(BerryDatabase.get<Novel[]>('novels', []).filter(n => !isJunkNovel(n)));
     };
     window.addEventListener('novels-updated', handleNovelsUpdate);
     // A chapter published on ANOTHER device fires 'chapters-updated', not
@@ -393,7 +443,7 @@ export default function App() {
         setCurrentUser(DEFAULT_USERS[initialRole]);
       }
     }
-    const loadedNovels = BerryDatabase.get<Novel[]>('novels', []);
+    const loadedNovels = BerryDatabase.get<Novel[]>('novels', []).filter(n => !isJunkNovel(n));
     const loadedSuggestions = BerryDatabase.get<Suggestion[]>('suggestions', []);
     
     // Automatically repair any of the Owner's novels that might have been saved as PENDING
@@ -438,8 +488,25 @@ export default function App() {
     const syncDb = async () => {
       await BerryDatabase.syncWithServer();
       applyRoleAssignment();
-      // Refresh React states with the newly synced server data
-      const syncedNovels = BerryDatabase.get<Novel[]>('novels', []);
+      // Refresh React states with the newly synced server data — minus any
+      // leftover first-deploy test records, which never reach the screen.
+      const rawSyncedNovels = BerryDatabase.get<Novel[]>('novels', []);
+      const junkNovels = rawSyncedNovels.filter(isJunkNovel);
+      const syncedNovels = rawSyncedNovels.filter(n => !isJunkNovel(n));
+
+      // Purge the test records from the SHARED database so they vanish for
+      // every visitor (and from the sitemap/feed). Only a signed-in member
+      // may write shared collections — guest browsers stay read-only.
+      if (junkNovels.length > 0 && isAuthenticatedClient()) {
+        BerryDatabase.set('novels', syncedNovels);
+        const junkIds = new Set(junkNovels.map(n => n.id));
+        const allChaptersForPurge = BerryDatabase.get<any[]>('chapters', []);
+        const keptChapters = allChaptersForPurge.filter(c => !junkIds.has(c.novelId));
+        if (keptChapters.length !== allChaptersForPurge.length) {
+          BerryDatabase.set('chapters', keptChapters);
+        }
+      }
+
       let syncedNeedsSave = false;
       const repairedSynced = syncedNovels.map(n => {
         if (n.status === 'PENDING' && (n.translatorName === 'BERRYMIST' || n.translatorId === 'berrymist-owner')) {
@@ -456,6 +523,7 @@ export default function App() {
       setNews(BerryDatabase.get<News[]>('news', []));
       setSuggestions(BerryDatabase.get<Suggestion[]>('suggestions', []));
       setTeams(BerryDatabase.get<Team[]>('teams', []));
+      setLibrarySynced(true);
     };
     syncDb();
 
@@ -580,11 +648,25 @@ export default function App() {
       case 'ads':
         title = `مركز الإعلانات والترويج العام | ${siteName}`;
         break;
+      case 'not-found':
+        title = `الصفحة غير موجودة (404) | ${siteName}`;
+        description = 'عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها. تصفح مكتبة الروايات من الصفحة الرئيسية.';
+        break;
       default:
         break;
     }
 
     document.title = title;
+
+    // The 404 screen tells crawlers not to index it; every other screen
+    // restores the default indexable directive. (The server additionally
+    // answers unknown URLs with a real 404 status + noindex.)
+    const robotsMeta = document.querySelector('meta[name="robots"]');
+    if (robotsMeta) {
+      robotsMeta.setAttribute('content', currentPage === 'not-found'
+        ? 'noindex, nofollow'
+        : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
+    }
 
     // Refresh the description + social-preview meta tags for this screen
     const setMeta = (selector: string, value: string) => {
@@ -1064,10 +1146,14 @@ export default function App() {
   // entry instead of unloading the whole site.
   useEffect(() => {
     // Stamp the entry the visitor is currently on so going back to it
-    // (or refreshing) restores the right screen.
+    // (or refreshing) restores the right screen. A 404 entry keeps its
+    // original (broken) URL in the address bar — rewriting it would hide
+    // which link was actually wrong.
     try {
       const cur = restoreLastScreen();
-      window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '', buildScreenHash(cur.page, cur.params));
+      if (cur.page !== 'not-found') {
+        window.history.replaceState({ berryPage: cur.page, berryParams: cur.params }, '', buildScreenHash(cur.page, cur.params));
+      }
     } catch { /* history API unavailable */ }
 
     const handlePopState = (e: PopStateEvent) => {
@@ -1549,6 +1635,16 @@ export default function App() {
         {currentPage === 'novel' && currentParams && (() => {
           const nid = currentParams.id || findNovelIdBySlug(currentParams.slug);
           if (!nid) {
+            // After the first sync the full library is known: a slug that
+            // still matches nothing is a genuine 404, not "still loading".
+            if (librarySynced) {
+              return (
+                <NotFoundPage
+                  onNavigateHome={() => handleNavigate('home')}
+                  onNavigateLibrary={() => handleNavigate('explore')}
+                />
+              );
+            }
             return (
               <div className="w-full text-center py-20 text-purple-400">
                 <p className="text-sm font-semibold">جاري تحميل الرواية...</p>
@@ -1573,6 +1669,14 @@ export default function App() {
         {currentPage === 'reader' && currentParams && (() => {
           const nid = currentParams.novelId || findNovelIdBySlug(currentParams.slug);
           if (!nid) {
+            if (librarySynced) {
+              return (
+                <NotFoundPage
+                  onNavigateHome={() => handleNavigate('home')}
+                  onNavigateLibrary={() => handleNavigate('explore')}
+                />
+              );
+            }
             return (
               <div className="w-full text-center py-20 text-purple-400">
                 <p className="text-sm font-semibold">جاري تحميل الفصل...</p>
@@ -1589,6 +1693,13 @@ export default function App() {
             />
           );
         })()}
+
+        {currentPage === 'not-found' && (
+          <NotFoundPage
+            onNavigateHome={() => handleNavigate('home')}
+            onNavigateLibrary={() => handleNavigate('explore')}
+          />
+        )}
 
         {/* ==================== SCREEN 5: TRANSLATORS CLAIMS / SUGGESTIONS LIST ==================== */}
         {currentPage === 'suggestions' && (

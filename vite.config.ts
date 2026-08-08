@@ -14,6 +14,21 @@ export default defineConfig(() => {
       // fix. es2020 is supported by every browser that already runs this ESM
       // bundle, and drops that quirk so the production build stays green.
       target: 'es2020',
+      rollupOptions: {
+        output: {
+          // Split the single ~700KB bundle: the app code changes on every
+          // publish, but React/icons/animation vendors stay stable, so
+          // returning visitors re-download only the small app chunk while
+          // the vendor chunks (long-cached, see .htaccess) load in parallel.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react-vendor';
+            if (id.includes('/lucide-react/')) return 'icons';
+            if (/[\\/]node_modules[\\/](motion|motion-dom|motion-utils|framer-motion)[\\/]/.test(id)) return 'motion';
+            return 'vendor';
+          },
+        },
+      },
     },
     optimizeDeps: {
       // The dev/dep-optimizer runs esbuild too, and defaults to the same

@@ -35,3 +35,41 @@ export function hasChapterNumber(c: any): boolean {
   const raw = c?.number ?? c?.chapterNumber;
   return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw));
 }
+
+// Matches a title that is nothing more than the default label "الفصل N"
+// (with any spacing/punctuation variants) — i.e. it carries no real subtitle.
+const DEFAULT_TITLE_RE = /^الفصل\s*[#№]?\s*\d+\s*[:：.\-–—]?\s*$/u;
+
+// Chapter titles are stored as "الفصل N: <subtitle>". Two data accidents made
+// that display as "الفصل N: الفصل N": chapters saved while the title field
+// still held its default placeholder, and older imports where the whole
+// "الفصل N" label was typed into the subtitle. This helper extracts ONLY the
+// real subtitle, returning '' when there is none — so every screen can render
+// "الفصل N" alone instead of a duplicated label.
+export function chapterSubtitle(c: any): string {
+  const raw = typeof c?.title === 'string' ? c.title.trim() : '';
+  if (!raw) return '';
+  // Whole title is just the default label.
+  if (DEFAULT_TITLE_RE.test(raw)) return '';
+  const idx = raw.indexOf(':');
+  const sub = idx === -1 ? raw : raw.slice(idx + 1).trim();
+  if (!sub) return '';
+  // Subtitle is itself the bare default label ("الفصل N: الفصل N").
+  if (DEFAULT_TITLE_RE.test(sub)) return '';
+  return sub;
+}
+
+// The canonical one-line label for UI: "الفصل N" or "الفصل N: <subtitle>".
+export function chapterDisplayTitle(c: any): string {
+  const sub = chapterSubtitle(c);
+  return `الفصل ${chapterNum(c)}${sub ? `: ${sub}` : ''}`;
+}
+
+// Normalize a title about to be SAVED: translators sometimes leave the
+// placeholder "الفصل N" in the subtitle field, which used to be stored
+// verbatim as "الفصل N: الفصل N". Store the bare "الفصل N" instead.
+export function normalizeChapterTitleInput(num: number | string, subtitle: string): string {
+  const sub = (subtitle || '').trim();
+  if (!sub || DEFAULT_TITLE_RE.test(sub)) return `الفصل ${num}`;
+  return `الفصل ${num}: ${sub}`;
+}

@@ -4,7 +4,7 @@ import { Chapter, Novel, User, Comment, CommentReply, Report } from '../types';
 import { BerryDatabase } from '../data';
 import { isUserTranslatorOfTheMonth } from '../utils/points';
 import { normalizeChapterText } from '../utils/text';
-import { byChapterNumberAsc, chapterNum, isChapterNumber } from '../utils/chapters';
+import { byChapterNumberAsc, chapterNum, isChapterNumber, chapterDisplayTitle } from '../utils/chapters';
 
 // Chapter text is author-provided. Escape all HTML, then re-allow only the
 // simple formatting tags the chapter editor can produce (<b>, <i>, <u>, <img>) so a
@@ -52,6 +52,10 @@ interface ReaderViewProps {
 export default function ReaderView({ novelId, chapterNumber, currentUser, onBack, onNavigateChapter }: ReaderViewProps) {
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapter, setChapter] = useState<Chapter | null>(null);
+  // Set when the library has fully synced and the requested chapter number
+  // provably does not exist — the reader then shows a "not found" screen
+  // instead of spinning on "Loading..." forever.
+  const [chapterMissing, setChapterMissing] = useState(false);
   const [themeMode, setThemeMode] = useState<'normal' | 'black' | 'sepia' | 'blue' | 'green' | 'pink' | 'purple'>(() => 
     BerryDatabase.get<'normal' | 'black' | 'sepia' | 'blue' | 'green' | 'pink' | 'purple'>('reader_theme', 'normal')
   );
@@ -275,10 +279,19 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
     window.addEventListener('chapters-updated', fillFromSync);
     window.addEventListener('novels-updated', fillFromSync);
     const retryTimer = setInterval(fillFromSync, 3000);
+    // If the chapter still has not appeared after the library had several
+    // sync rounds to arrive, it does not exist — show the 404 screen.
+    const missingTimer = setTimeout(() => {
+      const allChapters = BerryDatabase.get<Chapter[]>('chapters', []);
+      const exists = allChapters.some(c => c.novelId === novelId && isChapterNumber(c, chapterNumber)
+        && (!c.publishAt || new Date(c.publishAt) <= new Date()));
+      if (!exists) setChapterMissing(true);
+    }, 9000);
     return () => {
       window.removeEventListener('chapters-updated', fillFromSync);
       window.removeEventListener('novels-updated', fillFromSync);
       clearInterval(retryTimer);
+      clearTimeout(missingTimer);
     };
   }, [novelId, chapterNumber, novel, chapter]);
 
@@ -616,6 +629,25 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
   };
 
   if (!novel || !chapter) {
+    if (chapterMissing) {
+      return (
+        <div className="w-full text-center py-20 animate-in fade-in duration-300">
+          <div className="max-w-md mx-auto p-8 bg-[#1A1625] border border-white/5 rounded-3xl flex flex-col items-center gap-4">
+            <BookOpen size={40} className="text-berry-400" />
+            <h2 className="text-lg font-extrabold text-white">هذا الفصل غير موجود (404)</h2>
+            <p className="text-xs text-purple-300 leading-relaxed">
+              عذراً، الفصل رقم {chapterNumber} غير متوفر في هذه الرواية — ربما حُذف أو لم يُنشر بعد.
+            </p>
+            <button
+              onClick={onBack}
+              className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-berry-500 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer"
+            >
+              العودة لصفحة الرواية
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="w-full text-center py-20 text-purple-400">
         <p className="text-sm font-semibold">جاري تحميل قارئ الفصول والترجمة الفاخرة...</p>
@@ -647,7 +679,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
 
         <div className="text-center min-w-0">
           <h4 className={`font-extrabold text-xs truncate max-w-[140px] sm:max-w-md mx-auto ${isLightTheme ? 'text-neutral-950' : 'text-white'}`}>{novel.titleAr}</h4>
-          <span className={`text-[10px] mt-0.5 block font-bold truncate max-w-[140px] sm:max-w-md mx-auto ${isLightTheme ? 'text-neutral-500' : 'text-purple-400'}`}>الفصل {chapterNum(chapter)}: {chapter.title.split(':').slice(1).join(':').trim()}</span>
+          <span className={`text-[10px] mt-0.5 block font-bold truncate max-w-[140px] sm:max-w-md mx-auto ${isLightTheme ? 'text-neutral-500' : 'text-purple-400'}`}>{chapterDisplayTitle(chapter)}</span>
         </div>
 
         {/* Customizer triggers */}
@@ -887,7 +919,7 @@ export default function ReaderView({ novelId, chapterNumber, currentUser, onBack
       >
         <div className={`mb-8 text-center ${currentUser.role !== 'OWNER' ? 'select-none' : ''}`}>
           <h2 className="text-xl md:text-3xl font-extrabold tracking-tight border-b border-white/5 pb-4">
-            الفصل {chapterNum(chapter)}: {chapter.title.split(':').slice(1).join(':').trim() || 'فصل مترجم'}
+            {chapterDisplayTitle(chapter)}
           </h2>
           <span className="text-xs text-purple-400 mt-2 block">حقوق الترجمة والنشر محفوظة لمنصة Berry Mist وللمترجم: {novel.translatorName}</span>
         </div>

@@ -16,10 +16,13 @@
     <meta name="rating" content="General" />
     <meta name="distribution" content="Global" />
     <meta name="expires" content="never" />
+    <!-- Exactly ONE canonical tag lives in this template. The prerender
+         (api/page.php) rewrites it per novel/chapter, and the app updates it
+         per screen — a second static copy here stayed pointing at the
+         homepage on every page and made the two signals contradict. -->
     <link rel="canonical" href="https://berrymist.online/" />
-    
+
     <!-- Open Graph / Facebook -->
-    <link rel="canonical" href="https://berrymist.online/" />
     <!-- Feed of newly published chapters: readers can subscribe, and
          aggregators poll it far more often than a site gets re-crawled. -->
     <link rel="alternate" type="application/rss+xml" title="BerryMist — أحدث الفصول" href="https://berrymist.online/feed.xml" />
@@ -32,7 +35,7 @@
     <meta property="og:image:secure_url" content="https://berrymist.online/og-image.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="670" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="بيري ميست — المنصة العربية الفاخرة للروايات المترجمة والمؤلفة" />
     <meta property="og:locale" content="ar_AR" />
     <meta property="og:site_name" content="بيري ميست" />
@@ -61,9 +64,8 @@
     <!-- Favicon and Theme Color -->
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#0F0B14" />
 
     <!-- Structured Data (JSON-LD) for Search Engines -->
